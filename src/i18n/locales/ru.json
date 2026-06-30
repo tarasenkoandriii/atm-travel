@@ -1,0 +1,13 @@
+{
+  "brand": "ATM-travel.org",
+  "tagline": "живые камеры планеты",
+  "controls": { "play": "играть", "pause": "пауза", "sound": "звук", "favorites": "Избранное" },
+  "categories": {
+    "all": "Все", "auto-moto": "Автомото", "nature": "Природа", "tourism": "Туризм",
+    "real-estate": "Недвижимость", "people": "Девушки", "architecture": "Памятники архитектуры",
+    "museums": "Музеи", "custom": "Свой фильтр"
+  },
+  "weather": { "title": "Погода", "now": "Сейчас", "feels": "Ощущается", "wind": "Ветер", "humidity": "Влажность" },
+  "travel": { "title": "Впечатления здесь", "tours": "Туры и активности", "hotels": "Отели", "flights": "Перелёты", "cta": "Смотреть предложения" },
+  "veil": { "title": "Окно в мир", "play": "Запустить эфир" }
+}

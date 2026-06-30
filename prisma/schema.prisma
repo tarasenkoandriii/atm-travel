@@ -1,0 +1,86 @@
+// ATM-travel.org — Prisma schema (ТЗ §4)
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Camera {
+  id            String       @id @default(cuid())
+  source        CameraSource
+  externalId    String
+  type          CameraType
+  provider      String?
+  title         String
+  city          String?
+  country       String?
+  cc            String?
+  lat           Float
+  lng           Float
+  tz            String       @default("UTC")
+  res           String       @default("HD")
+  videoId       String?
+  embed         String?
+  img           String?
+  category      String?
+  wcCategory    String?
+  iata          String?
+  isLive        Boolean      @default(false)
+  viewerCount   Int?
+  lastCheckedAt DateTime?
+  lastLiveAt    DateTime?
+  failCount     Int          @default(0)
+  sortOrder     Int          @default(0)
+  status        CameraStatus @default(ACTIVE)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@unique([source, externalId])
+  @@index([status, isLive, category])
+}
+
+model RefreshRun {
+  id           String         @id @default(cuid())
+  trigger      RefreshTrigger
+  startedAt    DateTime       @default(now())
+  finishedAt   DateTime?
+  durationMs   Int?
+  totalChecked Int            @default(0)
+  liveCount    Int            @default(0)
+  deadCount    Int            @default(0)
+  addedCount   Int            @default(0)
+  windyStatus  Int?
+  error        String?
+}
+
+model WeatherCache {
+  gridKey   String   @id
+  payload   Json
+  days      Int
+  fetchedAt DateTime @default(now())
+
+  @@index([fetchedAt])
+}
+
+model TravelOfferCache {
+  key       String   @id
+  payload   Json
+  fetchedAt DateTime @default(now())
+
+  @@index([fetchedAt])
+}
+
+model Snapshot {
+  id      String   @id @default("catalog")
+  payload Json
+  builtAt DateTime @default(now())
+}
+
+enum CameraSource   { YOUTUBE WINDY }
+enum CameraType     { YOUTUBE IFRAME IMAGE }
+enum CameraStatus   { ACTIVE HIDDEN DEAD }
+enum RefreshTrigger { CRON MANUAL WEBHOOK }

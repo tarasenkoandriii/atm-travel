@@ -1,0 +1,13 @@
+{
+  "brand": "ATM-travel.org",
+  "tagline": "Live-Kameras des Planeten",
+  "controls": { "play": "Abspielen", "pause": "Pause", "sound": "Ton", "favorites": "Favoriten" },
+  "categories": {
+    "all": "Alle", "auto-moto": "Auto & Motorrad", "nature": "Natur", "tourism": "Tourismus",
+    "real-estate": "Immobilien", "people": "Menschen", "architecture": "Architektur",
+    "museums": "Museen", "custom": "Eigener Filter"
+  },
+  "weather": { "title": "Wetter", "now": "Jetzt", "feels": "Gefühlt", "wind": "Wind", "humidity": "Luftfeuchtigkeit" },
+  "travel": { "title": "Erlebnisse hier", "tours": "Touren & Aktivitäten", "hotels": "Hotels", "flights": "Flüge", "cta": "Angebote ansehen" },
+  "veil": { "title": "Ein Fenster zur Welt", "play": "Stream starten" }
+}

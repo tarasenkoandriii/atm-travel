@@ -1,0 +1,13 @@
+{
+  "brand": "ATM-travel.org",
+  "tagline": "kamery na żywo z całej planety",
+  "controls": { "play": "odtwórz", "pause": "pauza", "sound": "dźwięk", "favorites": "Ulubione" },
+  "categories": {
+    "all": "Wszystkie", "auto-moto": "Auto-moto", "nature": "Przyroda", "tourism": "Turystyka",
+    "real-estate": "Nieruchomości", "people": "Ludzie", "architecture": "Architektura",
+    "museums": "Muzea", "custom": "Własny filtr"
+  },
+  "weather": { "title": "Pogoda", "now": "Teraz", "feels": "Odczuwalna", "wind": "Wiatr", "humidity": "Wilgotność" },
+  "travel": { "title": "Atrakcje w tym miejscu", "tours": "Wycieczki i atrakcje", "hotels": "Hotele", "flights": "Loty", "cta": "Zobacz oferty" },
+  "veil": { "title": "Okno na świat", "play": "Uruchom transmisję" }
+}

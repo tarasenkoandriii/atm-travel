@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>ATM-travel.org · живые камеры планеты</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Inter:wght@400;500;600&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --space:#060912; --space-2:#0a0f1c; --panel:#0d1422; --panel-2:#111a2b;
+    --line:#1d2a40; --cyan:#5fd3e0; --cyan-dim:#2c6470; --amber:#f4b860;
+    --text:#e9eef6; --muted:#7d8aa0; --muted-2:#566077; --danger:#e0726b; --r:14px;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;margin:0;}
+  body{
+    background:
+      radial-gradient(1200px 700px at 78% 30%, #0d1830 0%, transparent 60%),
+      radial-gradient(900px 600px at 12% 80%, #0a1424 0%, transparent 55%),
+      var(--space);
+    color:var(--text); font-family:'Inter',system-ui,sans-serif; overflow:hidden;
+  }
+  .app{height:100dvh;display:grid;grid-template-rows:auto 1fr;gap:14px;padding:14px;}
+  header.bar{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:4px 6px;}
+  .brand{display:flex;align-items:baseline;gap:12px;}
+  .brand .mark{font-family:'Space Grotesk',sans-serif;font-weight:700;letter-spacing:.22em;font-size:18px;}
+  .brand .mark b{color:var(--cyan);}
+  .brand .sub{font-family:'Space Mono',monospace;font-size:11px;color:var(--muted-2);letter-spacing:.05em;}
+  .controls{display:flex;align-items:center;gap:8px;}
+  .btn{appearance:none;border:1px solid var(--line);background:var(--panel);color:var(--text);
+    height:38px;min-width:38px;padding:0 12px;border-radius:10px;display:inline-flex;align-items:center;gap:7px;
+    cursor:pointer;font-family:'Space Mono',monospace;font-size:12px;letter-spacing:.04em;
+    transition:border-color .2s,background .2s,transform .1s;}
+  .btn:hover{border-color:var(--cyan-dim);background:var(--panel-2);}
+  .btn:active{transform:translateY(1px);}
+  .btn:focus-visible{outline:2px solid var(--cyan);outline-offset:2px;}
+  .btn svg{width:16px;height:16px;display:block;}
+  .btn.heart.on{border-color:var(--amber);color:var(--amber);}
+  .btn.heart.on svg{fill:var(--amber);}
+  .count{font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);}
+
+  .stage{display:grid;grid-template-columns:1.15fr 1fr;gap:14px;min-height:0;}
+  .col{display:grid;min-height:0;gap:14px;}
+  .col.left{grid-template-rows:1fr auto;}
+  .col.right{grid-template-rows:1fr auto;}
+  .card{background:linear-gradient(180deg,var(--panel) 0%,var(--space-2) 100%);
+    border:1px solid var(--line);border-radius:var(--r);position:relative;overflow:hidden;min-height:0;}
+
+  /* видео */
+  #video{padding:0;}
+  .layers{position:absolute;inset:0;}
+  .layer{position:absolute;inset:0;opacity:0;transition:opacity 1.2s ease-in-out;}
+  .layer.show{opacity:1;}
+  .slot{position:absolute;inset:0;}
+  .slot.hide{display:none;}
+  .slot iframe{width:100%;height:100%;border:0;display:block;}
+  .slot img{width:100%;height:100%;object-fit:cover;display:block;}
+  .clickguard{position:absolute;inset:0;z-index:2;}
+
+  .hud{position:absolute;left:10px;bottom:10px;right:10px;z-index:5;display:flex;
+    align-items:flex-end;justify-content:space-between;gap:8px;pointer-events:none;}
+  .hud .place{background:linear-gradient(180deg,#0a0f1cdd,#070b14f2);border:1px solid var(--line);
+    border-radius:9px;padding:5px 9px;backdrop-filter:blur(6px);max-width:84%;min-width:0;}
+  .hud .city{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:13px;line-height:1.15;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .hud .sub{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted);margin-top:1px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.01em;}
+  .hud .sub .c{color:var(--cyan);}
+  .hud .sub .s{color:var(--muted-2);text-transform:uppercase;letter-spacing:.05em;}
+  .res{font-family:'Space Mono',monospace;font-size:9px;font-weight:700;color:var(--space);
+    background:var(--cyan);border-radius:5px;padding:2px 5px;letter-spacing:.04em;flex:0 0 auto;}
+  .res.hd{background:var(--muted);}
+
+  .veil{position:absolute;inset:0;z-index:6;display:flex;align-items:center;justify-content:center;
+    background:radial-gradient(circle at center,#0a101e 0%,#06080f 100%);flex-direction:column;gap:14px;text-align:center;padding:24px;}
+  .veil.hidden{display:none;}
+  .veil .pulse{width:34px;height:34px;border-radius:50%;border:2px solid var(--cyan-dim);border-top-color:var(--cyan);animation:spin 1s linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .veil .t{font-family:'Space Mono',monospace;font-size:13px;color:var(--muted);}
+  .veil .big{font-family:'Space Grotesk',sans-serif;font-size:17px;}
+  .veil .play{border:1px solid var(--cyan);color:var(--cyan);background:#0c1726;font-family:'Space Mono',monospace;
+    font-size:13px;padding:11px 20px;border-radius:11px;cursor:pointer;letter-spacing:.05em;}
+  .veil .play:hover{background:#103049;}
+  .veil .hint{font-size:12px;color:var(--muted-2);max-width:360px;line-height:1.5;}
+  .veil .hint b{color:var(--cyan);}
+
+  /* избранное */
+  #favs{padding:12px 12px 12px 14px;display:flex;flex-direction:column;gap:9px;}
+  .favs-head{display:flex;align-items:center;justify-content:space-between;}
+  .favs-head .ttl{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;}
+  .favs-strip{display:flex;gap:9px;overflow-x:auto;padding-bottom:3px;min-height:62px;align-items:center;}
+  .favs-strip::-webkit-scrollbar{height:6px;}
+  .favs-strip::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px;}
+  .fav{position:relative;flex:0 0 auto;width:104px;cursor:pointer;border-radius:9px;overflow:hidden;border:1px solid var(--line);background:#0a0f1c;}
+  .fav img{width:104px;height:58px;object-fit:cover;display:block;opacity:.92;}
+  .fav .cap{font-size:10px;padding:4px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:'Space Mono',monospace;}
+  .fav:hover{border-color:var(--cyan-dim);}
+  .fav .x{position:absolute;top:3px;right:3px;width:18px;height:18px;border-radius:50%;background:#060912cc;color:var(--muted);border:1px solid var(--line);font-size:11px;line-height:15px;text-align:center;}
+  .fav .x:hover{color:var(--danger);border-color:var(--danger);}
+  .favs-empty{font-size:12px;color:var(--muted-2);display:flex;align-items:center;gap:7px;}
+  .favs-empty svg{width:15px;height:15px;stroke:var(--muted-2);fill:none;}
+
+  /* глобус */
+  #globe{padding:0;display:flex;align-items:center;justify-content:center;}
+  #globe canvas{display:block;}
+  .globe-tag{position:absolute;top:12px;left:14px;font-family:'Space Mono',monospace;font-size:10px;color:var(--muted-2);letter-spacing:.12em;text-transform:uppercase;z-index:3;}
+  .cluster{display:flex;align-items:center;justify-content:center;border-radius:50%;
+    background:rgba(95,211,224,0.10);color:#dbf8fd;
+    font-family:'Space Mono',monospace;font-weight:700;line-height:1;
+    border:1px solid rgba(159,240,251,0.5);box-shadow:0 0 6px rgba(95,211,224,0.28);
+    text-shadow:0 1px 2px rgba(0,0,0,.85);backdrop-filter:blur(1px);
+    cursor:pointer;pointer-events:auto;transform:translate(-50%,-50%);transition:all .15s;user-select:none;}
+  .cluster:hover{background:rgba(95,211,224,0.22);border-color:#aef3fc;}
+  .globe-credit{position:absolute;bottom:10px;right:12px;font-family:'Space Mono',monospace;font-size:9px;color:var(--muted-2);z-index:3;}
+  .globe-load{position:absolute;top:12px;right:14px;font-family:'Space Mono',monospace;font-size:10px;color:var(--cyan);z-index:3;}
+
+  /* категории */
+  #cats{padding:12px;display:flex;flex-direction:column;gap:10px;}
+  .cats-head{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.1em;color:var(--muted);text-transform:uppercase;display:flex;justify-content:space-between;}
+  .chips{display:flex;flex-wrap:wrap;gap:7px;max-height:128px;overflow-y:auto;}
+  .chips::-webkit-scrollbar{width:6px;}
+  .chips::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px;}
+  .chip{border:1px solid var(--line);background:var(--panel);color:var(--muted);padding:7px 11px;border-radius:9px;
+    cursor:pointer;font-size:12.5px;display:inline-flex;align-items:center;gap:7px;transition:all .15s;}
+  .chip:hover{border-color:var(--cyan-dim);color:var(--text);}
+  .chip.on{background:#0e2330;border-color:var(--cyan);color:var(--cyan);}
+  .chip.dyn{border-style:dashed;}
+  .chip .n{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted-2);}
+  .chip.on .n{color:var(--cyan-dim);}
+  .chip .wc{font-size:9px;color:var(--amber);font-family:'Space Mono',monospace;}
+  .custom-row{display:none;gap:8px;}
+  .custom-row.show{display:flex;}
+  .custom-row input{flex:1;background:#0a0f1c;border:1px solid var(--line);border-radius:9px;color:var(--text);padding:9px 11px;font-size:13px;}
+  .custom-row input:focus{outline:none;border-color:var(--cyan);}
+  .custom-row button{border:1px solid var(--cyan-dim);background:#0c1726;color:var(--cyan);border-radius:9px;padding:0 14px;cursor:pointer;font-family:'Space Mono',monospace;font-size:12px;}
+  .note{font-size:11px;color:var(--muted-2);line-height:1.5;}
+  .note b{color:var(--amber);}
+
+  @media (max-width:880px){
+    .app{height:auto;min-height:100dvh;overflow:auto;}
+    body{overflow:auto;}
+    .stage{grid-template-columns:1fr;}
+    #video{min-height:240px;aspect-ratio:16/9;}
+    #globe{min-height:320px;}
+    .hud .place{max-width:88%;}
+  }
+  @media (prefers-reduced-motion:reduce){ .layer{transition:opacity .25s ease;} .veil .pulse{animation:none;} }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="bar">
+    <div class="brand">
+      <div class="mark">ATM<b>·</b>travel</div>
+      <div class="sub">atm-travel.org · живые камеры планеты</div>
+    </div>
+    <div class="controls">
+      <span class="count" id="poolCount">—</span>
+      <button class="btn" id="btnPlay" title="Авто-перебор">
+        <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg>
+        <span id="playLbl">пауза</span>
+      </button>
+      <button class="btn" id="btnSound" title="Звук">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg>
+        <span id="soundLbl">звук</span>
+      </button>
+      <button class="btn heart" id="btnHeart" title="В избранное">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-4.6-9.5-9C1 9 2.5 5.5 6 5.5c2 0 3.2 1.2 4 2.3.8-1.1 2-2.3 4-2.3 3.5 0 5 3.5 3.5 6.5C19 16.4 12 21 12 21z"/></svg>
+        <span class="count" id="heartCount">0</span>
+      </button>
+    </div>
+  </header>
+
+  <div class="stage">
+    <div class="col left">
+      <div class="card" id="video">
+        <div class="layers" id="layers">
+          <div class="layer" id="layer0"><div class="slot yt" id="yt0"></div><div class="slot alt hide" id="alt0"></div></div>
+          <div class="layer" id="layer1"><div class="slot yt" id="yt1"></div><div class="slot alt hide" id="alt1"></div></div>
+          <div class="clickguard"></div>
+        </div>
+        <div class="hud" id="hud" style="opacity:0">
+          <div class="place">
+            <div class="city" id="hudCity">—</div>
+            <div class="sub"><span class="c" id="hudCoords"></span> · <span id="hudClock"></span> · <span class="s" id="hudSrc"></span></div>
+          </div>
+          <span class="res" id="hudRes">4K</span>
+        </div>
+        <div class="veil" id="veil">
+          <div class="big">Окно в мир</div>
+          <button class="play" id="veilPlay">▶ Запустить эфир</button>
+          <div class="hint">4K-хайлайты — живые YouTube-трансляции. Чтобы загрузить <b>сотни камер</b> на глобус, впишите бесплатный ключ <b>Windy</b> в <b>WINDY_API_KEY</b> вверху файла.</div>
+        </div>
+      </div>
+
+      <div class="card" id="favs">
+        <div class="favs-head"><span class="ttl">Избранное</span><span class="count" id="favsCount">0</span></div>
+        <div class="favs-strip" id="favsStrip"></div>
+      </div>
+    </div>
+
+    <div class="col right">
+      <div class="card" id="globe">
+        <div class="globe-tag">вид из космоса · ночная сторона</div>
+        <div class="globe-load" id="globeLoad"></div>
+        <div class="globe-credit" id="globeCredit"></div>
+      </div>
+      <div class="card" id="cats">
+        <div class="cats-head"><span>Категории</span><span class="count" id="catTotal"></span></div>
+        <div class="chips" id="chips"></div>
+        <div class="custom-row" id="customRow">
+          <input id="customInput" placeholder="Свой фильтр: «набережные», «горы», «traffic»…" />
+          <button id="customGo">Найти</button>
+        </div>
+        <div class="note" id="note"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/globe.gl"></script>
+<script>
+/* ============================================================
+   ИСТОЧНИКИ КАМЕР
+   1) YouTube 4K/HD хайлайты — работают сразу, без ключа.
+   2) Windy Webcams API — сотни камер с координатами (клиентски).
+      Получите бесплатный ключ: https://api.windy.com/keys  (2 минуты)
+      и вставьте ниже. Free-tier отдаёт live-эмбеды и/или превью-кадры
+      (HD, не 4K) — это нормальный компромисс для массового слоя.
+   ============================================================ */
+const WINDY_API_KEY = '';   // отключено: камеры приходят с нашего API (/api/cameras/snapshot)
+const WINDY_TARGET  = 1000;        // free-tier Windy: максимальный offset = 1000
+
+const CYCLE_MS = 25000, FADE_MS = 1200;
+
+/* YouTube-хайлайты (реальные live videoId). Битые — пропускаются автоматически. */
+const CAMERAS = [
+  {id:'nyc-times',   type:'youtube', title:'Таймс-сквер',             city:'Нью-Йорк',     country:'США',    cc:'US', lat:40.7580, lng:-73.9855, tz:'America/New_York', videoId:'z-jYdOIKcTQ', res:'4K', category:'tourism',      provider:'earthcam'},
+  {id:'nyc-times2',  type:'youtube', title:'Таймс-сквер · 24/7',      city:'Нью-Йорк',     country:'США',    cc:'US', lat:40.7588, lng:-73.9862, tz:'America/New_York', videoId:'VjSIXFwB_WQ', res:'4K', category:'tourism',      provider:'earthcam'},
+  {id:'nyc-times3',  type:'youtube', title:'Таймс-сквер · аэро',      city:'Нью-Йорк',     country:'США',    cc:'US', lat:40.7575, lng:-73.9850, tz:'America/New_York', videoId:'rnXIjl_Rzy4', res:'4K', category:'tourism',      provider:'earthcam'},
+  {id:'nola-street', type:'youtube', title:'Французский квартал',     city:'Новый Орлеан', country:'США',    cc:'US', lat:29.9584, lng:-90.0644, tz:'America/Chicago',  videoId:'Ksrleaxxxhw', res:'HD', category:'tourism',      provider:'earthcam'},
+  {id:'nola-bourbon',type:'youtube', title:'Бурбон-стрит',            city:'Новый Орлеан', country:'США',    cc:'US', lat:29.9588, lng:-90.0650, tz:'America/Chicago',  videoId:'ryyC8t-mxyQ', res:'HD', category:'people',       provider:'earthcam'},
+  {id:'nola-balcony',type:'youtube', title:'Балкон над Бурбон-стрит', city:'Новый Орлеан', country:'США',    cc:'US', lat:29.9591, lng:-90.0648, tz:'America/Chicago',  videoId:'rnNPl27Arpk', res:'HD', category:'people',       provider:'earthcam'},
+  {id:'venice-stmark',type:'youtube',title:'Бассейн Сан-Марко',       city:'Венеция',      country:'Италия', cc:'IT', lat:45.4326, lng:12.3397,  tz:'Europe/Rome',      videoId:'dFBRpHHwQeg', res:'4K', category:'architecture', provider:'worldcam', wcCategory:'Венеция · каналы'},
+];
+
+const FIXED_CATS = [
+  {slug:'auto-moto',label:'Автомото'},{slug:'nature',label:'Природа'},{slug:'tourism',label:'Туризм'},
+  {slug:'real-estate',label:'Недвижимость'},{slug:'people',label:'Девушки'},
+  {slug:'architecture',label:'Памятники архитектуры'},{slug:'museums',label:'Музеи'},{slug:'custom',label:'Свой фильтр'},
+];
+
+/* ---------- хранилище с фоллбэком ---------- */
+const _mem={};
+const store={get(k){try{return localStorage.getItem(k);}catch(e){return (k in _mem)?_mem[k]:null;}},
+            set(k,v){try{localStorage.setItem(k,v);}catch(e){_mem[k]=v;}}};
+const FAV_KEY='webcamglobe:favorites:v1', FILTER_KEY='webcamglobe:filter:v1';
+function loadFavs(){try{const o=JSON.parse(store.get(FAV_KEY));return Array.isArray(o&&o.ids)?o.ids:[];}catch(e){return [];}}
+function saveFavs(ids){store.set(FAV_KEY,JSON.stringify({ids:[...new Set(ids)],updatedAt:Date.now()}));}
+let favIds=loadFavs();
+
+/* ---------- состояние ---------- */
+const state={pool:[],idx:0,active:null,autoplay:true,sound:false,cat:'all',query:'',failed:new Set()};
+const $=s=>document.querySelector(s);
+const layersEl=[$('#layer0'),$('#layer1')], ytSlots=[$('#yt0'),$('#yt1')], altSlots=[$('#alt0'),$('#alt1')];
+let players=[null,null], ready=[false,false], activeLayer=0, pendingLayer=-1, pendingCam=null, started=false;
+let curReq=0, pendingReq=-1, committedReq=-1, cycleTimer=null, clockTimer=null, globe=null;
+let userStarted=false, watchdog=null;
+let lastBucket=null, reclusterT=null;
+let povLng=null, rotDir=1; const LEAD_DEG=12;   // упреждение выбора камеры по направлению вращения
+let allSingles=[], allClusters=[], lastCullLng=null;
+const LOCAL = !/^https?:$/.test(location.protocol);   // file:// content:// blob:// — ограничено браузером
+let ytApiFailed=false;
+
+/* ---------- утилиты ---------- */
+function fmtCoord(lat,lng){return Math.abs(lat).toFixed(2)+'°'+(lat>=0?'N':'S')+', '+Math.abs(lng).toFixed(2)+'°'+(lng>=0?'E':'W');}
+function ytThumb(c){return 'https://i.ytimg.com/vi/'+c.videoId+'/hqdefault.jpg';}
+function favThumb(c){return c.type==='youtube'?ytThumb(c):(c.img||'');}
+function reduced(){return window.matchMedia('(prefers-reduced-motion: reduce)').matches;}
+function layerOf(p){return players.indexOf(p);}
+
+/* ---------- категории ---------- */
+function dynCats(){
+  const seen=new Map();
+  CAMERAS.filter(c=>c.wcCategory).forEach(c=>{if(!seen.has(c.wcCategory))seen.set(c.wcCategory,{id:'wc:'+c.wcCategory,label:c.wcCategory,dyn:true});});
+  return [...seen.values()];
+}
+function countFor(id){
+  if(id==='all')return CAMERAS.length;
+  if(id==='custom')return null;
+  if(id.indexOf('wc:')===0)return CAMERAS.filter(c=>c.wcCategory===id.slice(3)).length;
+  return CAMERAS.filter(c=>c.category===id).length;
+}
+function poolFor(id,q){
+  let list;
+  if(id==='custom'){const s=(q||'').toLowerCase().trim();
+    list=!s?CAMERAS.slice():CAMERAS.filter(c=>((c.title||'')+' '+(c.city||'')+' '+(c.country||'')).toLowerCase().includes(s));}
+  else if(id==='all')list=CAMERAS.slice();
+  else if(id.indexOf('wc:')===0)list=CAMERAS.filter(c=>c.wcCategory===id.slice(3));
+  else list=CAMERAS.filter(c=>c.category===id);
+  return list.filter(c=>!state.failed.has(c.id));
+}
+function renderChips(){
+  const box=$('#chips');box.innerHTML='';
+  const list=[{id:'all',label:'Все'},...dynCats(),...FIXED_CATS.map(c=>({id:c.slug,label:c.label}))];
+  list.forEach(c=>{
+    const el=document.createElement('button');
+    el.className='chip'+(c.id===state.cat?' on':'')+(c.dyn?' dyn':'');
+    const n=countFor(c.id);
+    el.innerHTML=(c.dyn?'<span class="wc">WC</span>':'')+'<span>'+c.label+'</span>'+(n!==null?'<span class="n">'+n+'</span>':'');
+    el.onclick=()=>selectCategory(c.id);box.appendChild(el);
+  });
+  $('#customRow').classList.toggle('show',state.cat==='custom');
+  $('#catTotal').textContent=CAMERAS.length+' всего';
+}
+function selectCategory(id){
+  state.cat=id; if(id!=='custom')state.query='';
+  store.set(FILTER_KEY,JSON.stringify({cat:id,query:state.query}));
+  renderChips(); applyPool(true);
+}
+function applyPool(switchCam){
+  state.pool=poolFor(state.cat,state.query); state.idx=0;
+  $('#poolCount').textContent=state.pool.length+' камер';
+  updateGlobePoints();
+  if(state.pool.length){$('#veil').classList.add('hidden'); if(switchCam)showCamera(state.pool[0]);}
+  else showEmpty();
+}
+function showEmpty(){
+  const v=$('#veil');v.classList.remove('hidden');
+  v.innerHTML='<div class="big">В этой категории пока нет камер</div><div class="hint">Добавьте камеру в массив <b>CAMERAS</b> или подключите ключ <b>Windy</b>, чтобы заполнить категории.</div>';
+  $('#hud').style.opacity=0;
+}
+
+/* ---------- YouTube плееры (по одному на слой, для onError-скипа) ---------- */
+function makeYT(slot){
+  const id='ytp_'+slot.id;const d=document.createElement('div');d.id=id;slot.appendChild(d);
+  return new YT.Player(id,{width:'100%',height:'100%',videoId:'',
+    playerVars:{autoplay:1,mute:1,controls:0,rel:0,modestbranding:1,disablekb:1,playsinline:1,fs:0,iv_load_policy:3,origin:location.origin},
+    events:{onReady:e=>onYTReady(slot),onStateChange:onYTState,onError:onYTErr}});
+}
+window.onYouTubeIframeAPIReady=function(){players[0]=makeYT(ytSlots[0]);players[1]=makeYT(ytSlots[1]);};
+function onYTReady(slot){const i=ytSlots.indexOf(slot);ready[i]=true;if(ready[0]&&ready[1])bootVideo();}
+function bootVideo(){if(userStarted&&state.pool.length)showCamera(state.pool[state.idx]||state.pool[0]);}
+function onYTState(e){const li=layerOf(e.target);if(li===pendingLayer&&e.data===YT.PlayerState.PLAYING)commit(pendingLayer,pendingReq);}
+function onYTErr(e){const li=layerOf(e.target);if(li===pendingLayer&&pendingCam&&pendingCam.type==='youtube'){state.failed.add(pendingCam.id);updateGlobePoints();advance();}}
+
+/* ---------- показ камеры (мультиформат) ---------- */
+function showCamera(cam,recenter){
+  if(!cam)return;
+  if(recenter===undefined)recenter=true;
+  if(ytApiFailed && cam.type==='youtube'){            // YT API недоступна (локальный файл/блокировка) — играем Windy
+    const alt=state.pool.find(c=>c.type!=='youtube');
+    if(alt){ cam=alt; state.idx=Math.max(0,state.pool.indexOf(alt)); }
+  }
+  setActive(cam,recenter);                     // глобус + HUD всегда (не зависит от плеера)
+  if(!userStarted){ showVeil('Нажмите «Запустить эфир»'); return; }   // мобильные требуют жест
+  curReq++; const reqId=curReq;
+  const nxt=1-activeLayer; pendingLayer=nxt; pendingCam=cam; pendingReq=reqId;
+  if(cam.type==='youtube'&&!(ready[0]&&ready[1])&&!ytApiFailed){ showVeil('Загрузка плеера…'); return; }
+  if(!started)showVeil('Подключение к камере…');
+  armLayer(nxt,cam,reqId);
+}
+function armLayer(nxt,cam,reqId){
+  const yt=ytSlots[nxt],alt=altSlots[nxt];
+  clearTimeout(watchdog);
+  if(cam.type==='youtube'){
+    if(ready[0]&&ready[1]){
+      alt.classList.add('hide');alt.innerHTML='';yt.classList.remove('hide');
+      try{players[nxt].mute();players[nxt].loadVideoById({videoId:cam.videoId,suggestedQuality:'hd2160'});players[nxt].playVideo();}catch(e){}
+      watchdog=setTimeout(()=>{ if(committedReq!==reqId){ state.failed.add(cam.id); updateGlobePoints(); advance(); } },9000);
+    }else{
+      // YT IFrame API недоступна (часто при локальном открытии файла) — простой embed-iframe
+      yt.classList.add('hide');alt.classList.remove('hide');
+      const f=document.createElement('iframe');
+      f.src='https://www.youtube.com/embed/'+cam.videoId+'?autoplay=1&mute=1&controls=0&playsinline=1&rel=0&modestbranding=1&origin='+encodeURIComponent(location.origin);
+      f.allow='autoplay; encrypted-media; picture-in-picture; fullscreen';
+      f.addEventListener('load',()=>commit(nxt,reqId));
+      alt.innerHTML='';alt.appendChild(f);
+      setTimeout(()=>commit(nxt,reqId),3200);
+    }
+  }else{
+    try{players[nxt].stopVideo();}catch(e){}
+    yt.classList.add('hide');alt.classList.remove('hide');
+    let el;
+    if(cam.type==='iframe'&&cam.embed){el=document.createElement('iframe');el.src=cam.embed;el.allow='autoplay; fullscreen; encrypted-media; picture-in-picture';}
+    else{el=document.createElement('img');el.src=cam.img||favThumb(cam)||'';el.alt='';}
+    el.addEventListener('load',()=>commit(nxt,reqId));
+    el.addEventListener('error',()=>commit(nxt,reqId));
+    alt.innerHTML='';alt.appendChild(el);
+    setTimeout(()=>commit(nxt,reqId),2600);     // фоллбэк, если load не пришёл
+  }
+}
+function commit(nxt,reqId){
+  if(reqId!==curReq||committedReq===reqId)return; committedReq=reqId; clearTimeout(watchdog);
+  layersEl[nxt].classList.add('show');layersEl[1-nxt].classList.remove('show');
+  const old=activeLayer; activeLayer=nxt; pendingLayer=-1; started=true;
+  $('#veil').classList.add('hidden'); $('#hud').style.opacity=1;
+  if(state.sound&&pendingCamIsYT(old)){try{players[activeLayer].unMute();}catch(e){}}
+  setTimeout(()=>{try{players[old].stopVideo();}catch(e){} altSlots[old].innerHTML='';},FADE_MS+150);
+}
+function pendingCamIsYT(){return state.active&&state.active.type==='youtube';}
+function showVeil(status){
+  const v=$('#veil');v.classList.remove('hidden');
+  v.innerHTML='<div class="big">Окно в мир</div>'+
+    '<button class="play" id="veilPlay">▶ Запустить эфир</button>'+
+    '<div class="t" id="veilStatus">'+(status||'')+'</div>'+
+    '<div class="hint">'+(LOCAL
+      ? '⚠ Файл открыт локально (<b>'+location.protocol+'</b>). Видео и загрузка камер Windy так заблокированы браузером — откройте страницу по <b>http(s)</b> (захостьте файл или локальный сервер).'
+      : '4K — YouTube, сотни камер — Windy. На мобильных автозапуск заблокирован, поэтому нужен один тап.')+'</div>';
+  $('#veilPlay').onclick=startPlayback;
+}
+function startPlayback(){
+  userStarted=true;
+  if(state.pool.length) showCamera(state.pool[state.idx]||state.pool[0]);
+  try{ if(pendingLayer>=0&&players[pendingLayer]) players[pendingLayer].playVideo(); }catch(e){}
+}
+
+/* ---------- активная камера ---------- */
+function setActive(cam,recenter){
+  state.active=cam;
+  $('#hudCity').textContent=cam.title;
+  $('#hudCoords').textContent=fmtCoord(cam.lat,cam.lng);
+  $('#hudSrc').textContent=cam.provider==='windy'?'windy':(cam.provider==='worldcam'?'worldcam':'earthcam');
+  const r=$('#hudRes');r.textContent=cam.res||'HD';r.className='res'+((cam.res||'HD')!=='4K'?' hd':'');
+  startClock(cam.tz);updateHeart();
+  if(globe){ if(recenter)globe.pointOfView({lat:cam.lat,lng:cam.lng,altitude:curAlt()},900); updateGlobePoints(); globe.ringsData(reduced()?[]:[cam]); }
+}
+function startClock(tz){
+  clearInterval(clockTimer);
+  const upd=()=>{try{$('#hudClock').textContent=new Intl.DateTimeFormat('ru-RU',{timeZone:tz||'UTC',hour:'2-digit',minute:'2-digit'}).format(new Date());}catch(e){$('#hudClock').textContent='—';}};
+  upd();clockTimer=setInterval(upd,1000);
+}
+
+/* ---------- глобус ---------- */
+function initGlobe(){
+  const el=$('#globe');
+  globe=Globe()(el)
+    .backgroundColor('rgba(0,0,0,0)')
+    .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-night.jpg')
+    .bumpImageUrl('https://unpkg.com/three-globe/example/img/earth-topology.png')
+    .showAtmosphere(true).atmosphereColor('#5fd3e0').atmosphereAltitude(0.18)
+    .pointsData([]).pointLat('lat').pointLng('lng').pointAltitude(0.015)
+    .pointColor(c=>c.id===(state.active&&state.active.id)?'#f4b860':'#7fe3ee')
+    .pointRadius(c=>c.id===(state.active&&state.active.id)?0.6:0.28)
+    .pointLabel(c=>'<div style="font:12px Inter;color:#fff">'+c.title+'<br><span style="color:#7fe3ee">'+(c.city||'')+'</span></div>')
+    .pointsMerge(false).pointResolution(6).pointsTransitionDuration(0).onPointClick(c=>selectCam(c))
+    .htmlElementsData([]).htmlLat('lat').htmlLng('lng').htmlElement(makeClusterEl)
+    .ringColor(()=>t=>'rgba(244,184,96,'+(1-t)+')').ringMaxRadius(3.2).ringPropagationSpeed(1.4).ringRepeatPeriod(reduced()?0:1100);
+  if(typeof globe.htmlElementVisibilityModifier==='function')
+    globe.htmlElementVisibilityModifier((el,vis)=>{el.style.opacity=vis?1:0;el.style.pointerEvents=vis?'auto':'none';});
+  const c=globe.controls();c.autoRotate=true;c.autoRotateSpeed=reduced()?0.1:0.24;c.enableZoom=true;c.minDistance=180;c.maxDistance=520;
+  // рекластеризация только при изменении зума (не при вращении)
+  c.addEventListener('change',()=>{
+    const pov=curPov();
+    if(pov){
+      if(povLng!=null){ let dl=pov.lng-povLng; if(dl>180)dl-=360; if(dl<-180)dl+=360; if(Math.abs(dl)>0.0015)rotDir=dl>0?1:-1; }
+      povLng=pov.lng;
+      if(lastCullLng==null){ lastCullLng=pov.lng; }
+      else { let m=pov.lng-lastCullLng; if(m>180)m-=360; if(m<-180)m+=360; if(Math.abs(m)>6) renderGlobe(); }   // перерисовать видимую полусферу
+    }
+    const b=cellDegFor(curAlt()); if(b!==lastBucket){ lastBucket=b; clearTimeout(reclusterT); reclusterT=setTimeout(recluster,180);} });
+  sizeGlobe();window.addEventListener('resize',sizeGlobe);
+}
+function curAlt(){ try{return globe.pointOfView().altitude;}catch(e){return 2;} }
+function cellDegFor(alt){ const a=Math.max(0.3,Math.min(4,alt)); return Math.round(Math.max(2,Math.min(26,a*7))); }
+function makeClusterEl(d){
+  const el=document.createElement('div'); el.className='cluster';
+  const size=Math.round(Math.min(34,14+Math.log2(d.count)*4));
+  el.style.width=el.style.height=size+'px'; el.style.fontSize=(d.count>99?9:10)+'px';
+  el.textContent=d.count; el.title=d.count+' камер — нажмите, чтобы приблизить';
+  el.onclick=ev=>{ ev.stopPropagation(); zoomToCluster(d); };
+  return el;
+}
+function recluster(){
+  if(!globe)return;
+  const cell=cellDegFor(curAlt());
+  const bins=new Map();
+  state.pool.forEach(c=>{ const k=Math.floor((c.lat+90)/cell)+'_'+Math.floor((c.lng+180)/cell); (bins.get(k)||bins.set(k,[]).get(k)).push(c); });
+  allSingles=[]; allClusters=[];
+  bins.forEach(arr=>{
+    if(arr.length===1) allSingles.push(arr[0]);
+    else{ let la=0,lo=0; arr.forEach(c=>{la+=c.lat;lo+=c.lng;}); allClusters.push({lat:la/arr.length,lng:lo/arr.length,count:arr.length,cams:arr}); }
+  });
+  renderGlobe();
+}
+// рендер только видимой (передней) полусферы — снижает нагрузку на кадр
+function renderGlobe(){
+  if(!globe)return;
+  const pov=curPov();
+  let singles=allSingles, clusters=allClusters;
+  if(pov){
+    singles=allSingles.filter(c=>angDist(pov.lat,pov.lng,c.lat,c.lng)<95);
+    clusters=allClusters.filter(c=>angDist(pov.lat,pov.lng,c.lat,c.lng)<98);
+    lastCullLng=pov.lng;
+  }
+  if(state.active && state.pool.some(c=>c.id===state.active.id) && !singles.some(c=>c.id===state.active.id)) singles=singles.concat([state.active]);
+  globe.pointsData(singles);
+  globe.htmlElementsData(clusters);
+}
+function zoomToCluster(d){
+  const alt=curAlt();
+  globe.pointOfView({lat:d.lat,lng:d.lng,altitude:Math.max(0.35,alt*0.45)},800);
+  clearTimeout(reclusterT); reclusterT=setTimeout(recluster,850);
+}
+function sizeGlobe(){if(!globe)return;const el=$('#globe');globe.width(el.clientWidth).height(el.clientHeight);}
+function updateGlobePoints(){ recluster(); }
+
+/* ---------- выбор / цикл ---------- */
+function selectCam(cam){
+  let i=state.pool.findIndex(c=>c.id===cam.id);
+  if(i<0){state.cat='all';state.query='';renderChips();state.pool=poolFor('all','');updateGlobePoints();i=state.pool.findIndex(c=>c.id===cam.id);}
+  state.idx=Math.max(0,i);showCamera(cam);startCycle();
+}
+function advance(){
+  if(!state.pool.length){showEmpty();return;}
+  state.pool=state.pool.filter(c=>!state.failed.has(c.id));
+  if(!state.pool.length){showEmpty();return;}
+  const p=pickFrontCamera(); const cam=p?p.cam:state.pool[state.idx%state.pool.length];
+  state.idx=Math.max(0,state.pool.indexOf(cam));
+  showCamera(cam, p?p.d>70:true);
+}
+function angDist(aLat,aLng,bLat,bLng){
+  const R=Math.PI/180, la1=aLat*R, la2=bLat*R, d=(bLng-aLng)*R;
+  const c=Math.sin(la1)*Math.sin(la2)+Math.cos(la1)*Math.cos(la2)*Math.cos(d);
+  return Math.acos(Math.max(-1,Math.min(1,c)))*180/Math.PI;
+}
+function pickFrontCamera(){
+  if(!globe||!state.pool.length)return null;
+  const pov=curPov(); if(!pov)return null;
+  const targetLng=pov.lng+LEAD_DEG*rotDir;     // не центр, а точка, которая скоро придёт под обзор
+  const skipYT=ytApiFailed&&state.pool.some(c=>c.type!=='youtube');
+  let best=null,bestD=Infinity;
+  for(const c of state.pool){
+    if(state.active&&c.id===state.active.id)continue;
+    if(skipYT&&c.type==='youtube')continue;
+    const d=angDist(pov.lat,targetLng,c.lat,c.lng);
+    if(d<bestD){bestD=d;best=c;}
+  }
+  return best?{cam:best,d:bestD}:null;
+}
+function curPov(){ try{return globe.pointOfView();}catch(e){return null;} }
+function nextCamera(){
+  if(!state.pool.length)return;
+  const p=pickFrontCamera();
+  if(p){ state.idx=Math.max(0,state.pool.indexOf(p.cam)); return showCamera(p.cam, p.d>70); }
+  // фоллбэк: по порядку (с пропуском youtube при недоступном API)
+  const skipYT=ytApiFailed&&state.pool.some(c=>c.type!=='youtube');
+  for(let k=0;k<state.pool.length;k++){
+    state.idx=(state.idx+1)%state.pool.length;
+    if(skipYT&&state.pool[state.idx].type==='youtube')continue;
+    return showCamera(state.pool[state.idx], true);
+  }
+  showCamera(state.pool[state.idx], true);
+}
+function startCycle(){clearInterval(cycleTimer);if(state.autoplay)cycleTimer=setInterval(nextCamera,CYCLE_MS);}
+
+/* ---------- избранное ---------- */
+function isFav(id){return favIds.includes(id);}
+function toggleFav(){if(!state.active)return;const id=state.active.id;favIds=isFav(id)?favIds.filter(x=>x!==id):[...favIds,id];saveFavs(favIds);updateHeart();renderFavs();}
+function updateHeart(){const on=state.active&&isFav(state.active.id);$('#btnHeart').classList.toggle('on',!!on);$('#heartCount').textContent=favIds.length;}
+function renderFavs(){
+  const strip=$('#favsStrip');strip.innerHTML='';$('#favsCount').textContent=favIds.length;
+  if(!favIds.length){strip.innerHTML='<div class="favs-empty"><svg viewBox="0 0 24 24"><path d="M12 21s-7-4.6-9.5-9C1 9 2.5 5.5 6 5.5c2 0 3.2 1.2 4 2.3.8-1.1 2-2.3 4-2.3 3.5 0 5 3.5 3.5 6.5C19 16.4 12 21 12 21z"/></svg>Нажмите ♥ над видео, чтобы сохранить камеру</div>';return;}
+  favIds.forEach(id=>{
+    const c=CAMERAS.find(x=>x.id===id);if(!c)return;
+    const el=document.createElement('div');el.className='fav';
+    const t=favThumb(c);
+    el.innerHTML=(t?'<img src="'+t+'" alt="" loading="lazy"/>':'<div style="height:58px"></div>')+'<div class="cap">'+(c.city||c.title)+'</div><div class="x" title="Убрать">×</div>';
+    const go=()=>selectCam(c);
+    el.querySelector('.cap').onclick=go;const im=el.querySelector('img');if(im)im.onclick=go;
+    el.querySelector('.x').onclick=ev=>{ev.stopPropagation();favIds=favIds.filter(x=>x!==id);saveFavs(favIds);updateHeart();renderFavs();};
+    strip.appendChild(el);
+  });
+}
+
+/* ---------- Windy Webcams API (клиентски) ---------- */
+function mapWindyCat(cats){
+  const ids=(cats||[]).map(c=>String((c&&(c.id||c.name))||'').toLowerCase());
+  const has=k=>ids.some(x=>x.indexOf(k)>=0);
+  if(has('traffic'))return 'auto-moto';
+  if(has('beach')||has('mountain')||has('park')||has('lake')||has('river')||has('nature')||has('meteo')||has('snow'))return 'nature';
+  if(has('building')||has('harbor')||has('harbour'))return 'real-estate';
+  return 'tourism';
+}
+async function loadWindy(){
+  const setL=t=>{const e=$('#globeLoad'); if(e)e.textContent=t;};
+  const setN=h=>{const e=$('#note'); if(e)e.innerHTML=h;};
+  if(!WINDY_API_KEY){ setN('Загружено '+CAMERAS.length+' YouTube-хайлайтов. Вставьте ключ Windy, чтобы добавить сотни камер.'); return; }
+  setL('Windy: запрос…');
+  const per=50; let off=0, added=0, recv=0, geo=0, total=Infinity, lastStatus=0, useInc=true;
+  async function page(){
+    let url='https://api.windy.com/webcams/api/v3/webcams?limit='+per+'&offset='+off;
+    if(useInc) url+='&include=location,player,categories,images';
+    const r=await fetch(url,{headers:{'x-windy-api-key':WINDY_API_KEY}});
+    lastStatus=r.status;
+    return r.ok ? r.json() : null;
+  }
+  try{
+    while(added<WINDY_TARGET && off<total && off<1000){
+      let j=await page();
+      if(j===null && useInc && off===0){ useInc=false; j=await page(); }   // ретрай без include
+      if(j===null){ setL('Windy: HTTP '+lastStatus); break; }
+      const root=(j&&(j.data||j.result))||j||{};
+      const cams=Array.isArray(root)?root:(root.webcams||j.webcams||[]);
+      total=(root.total!=null?root.total:(j.total||0))||0;
+      if(!cams.length){ if(off===0) setN('Windy 200, но список пуст. Ключи ответа: '+Object.keys(j||{}).join(', ')); break; }
+      const batch=[];
+      cams.forEach(w=>{
+        recv++;
+        const loc=w.location||{};
+        const lat=(loc.latitude!=null?loc.latitude:loc.lat);
+        const lng=(loc.longitude!=null?loc.longitude:(loc.lon!=null?loc.lon:loc.lng));
+        if(lat==null||lng==null) return;
+        geo++;
+        const live=w.player&&w.player.live, day=w.player&&w.player.day, life=w.player&&w.player.lifetime;
+        const embed=(live&&live.available&&live.embed)?live.embed:((day&&day.embed)||(life&&life.embed)||'');
+        const cur=w.images&&w.images.current;
+        const im=cur?(cur.preview||cur.thumbnail||cur.icon||''):'';
+        batch.push({id:'wc'+(w.webcamId||w.id),type:embed?'iframe':'image',title:w.title||loc.city||'Webcam',
+          city:loc.city||'',country:loc.country||'',cc:loc.country_code||'',lat:lat,lng:lng,
+          tz:loc.timezone||'UTC',embed:embed,img:im,res:'HD',category:mapWindyCat(w.categories),provider:'windy'});
+      });
+      CAMERAS.push(...batch); added+=batch.length; off+=per;
+      setL('Windy: +'+added+' (гео '+geo+'/'+recv+')');
+      afterWindy();
+    }
+    if(added>0){ setL('Windy: '+added+' камер'); const c=$('#globeCredit'); if(c)c.textContent='камеры: Windy.com';
+      setN('Подключено: <b>'+CAMERAS.length+'</b> камер (YouTube + Windy).'); }
+    else if(lastStatus && lastStatus!==200){
+      setL('Windy: HTTP '+lastStatus);
+      setN('Windy вернул <b>HTTP '+lastStatus+'</b>. Чаще всего: ключ создан не под <b>Webcams API</b> (а под Point/Map Forecast), либо ограничен по домену, либо ещё не активировался (до ~10 мин). Проверьте на api.windy.com/keys.'); }
+    else { setL('Windy: 0 гео из '+recv); setN('Windy отдал '+recv+' камер, но без координат — несоответствие формата ответа. Пришлите этот текст.'); }
+  }catch(e){
+    setL('Windy: сеть/CORS');
+    setN('Windy недоступен (CORS/сеть): '+((e&&e.message)||'')+'. Проверьте доступность api.windy.com и ограничение ключа по домену.');
+  }
+}
+function afterWindy(){
+  renderChips();
+  const pc=$('#poolCount'); if(pc) pc.textContent=poolFor(state.cat,state.query).length+' камер';
+  if(state.cat==='all'){ state.pool=poolFor('all',state.query); updateGlobePoints(); }
+}
+
+/* ---------- управление ---------- */
+$('#btnHeart').onclick=toggleFav;
+$('#btnPlay').onclick=()=>{
+  state.autoplay=!state.autoplay;$('#playLbl').textContent=state.autoplay?'пауза':'играть';
+  $('#btnPlay').querySelector('svg').innerHTML=state.autoplay?'<rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/>':'<path d="M7 4v16l13-8z"/>';
+  startCycle();
+};
+$('#btnSound').onclick=()=>{
+  state.sound=!state.sound;$('#soundLbl').textContent=state.sound?'звук вкл':'звук';
+  try{state.sound?players[activeLayer].unMute():players[activeLayer].mute();}catch(e){}
+};
+$('#veilPlay').onclick=startPlayback;
+$('#customGo').onclick=()=>{state.query=$('#customInput').value;selectCategory('custom');};
+$('#customInput').addEventListener('keydown',e=>{if(e.key==='Enter'){state.query=e.target.value;selectCategory('custom');}});
+
+/* ---------- старт ---------- */
+(function init(){
+  try{const f=JSON.parse(store.get(FILTER_KEY));if(f&&f.cat){state.cat=f.cat;state.query=f.query||'';}}catch(e){}
+  if(state.cat==='custom')$('#customInput').value=state.query;
+  renderChips();initGlobe();
+  state.pool=poolFor(state.cat,state.query);state.idx=0;
+  $('#poolCount').textContent=state.pool.length+' камер';
+  updateGlobePoints();
+  if(state.pool[0])setActive(state.pool[0]);
+  renderFavs();updateHeart();startCycle();
+  const s=document.createElement('script');s.src='https://www.youtube.com/iframe_api';document.head.appendChild(s);
+  setTimeout(()=>{ if(!(ready[0]&&ready[1])){ ytApiFailed=true; if(userStarted&&state.pool.length){ const c=state.pool.find(x=>x.type!=='youtube')||state.pool[state.idx]||state.pool[0]; state.idx=Math.max(0,state.pool.indexOf(c)); showCamera(c);} } },7000);
+  loadWindy();
+})();
+</script>
+
+<style>
+  /* ATM-travel.org integration widgets */
+  #atmWeather, #atmTravel{margin-top:10px;border-top:1px solid var(--line);padding-top:10px;}
+  #atmWeather .wx-head,#atmTravel .tv-head{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.1em;
+    color:var(--muted);text-transform:uppercase;margin-bottom:7px;display:flex;justify-content:space-between;align-items:center;}
+  .wx-now{display:flex;align-items:center;gap:10px;}
+  .wx-now img{width:38px;height:38px;}
+  .wx-temp{font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:700;}
+  .wx-meta{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);line-height:1.5;}
+  .wx-days{display:flex;gap:7px;margin-top:8px;}
+  .wx-day{flex:1;background:#0a0f1c;border:1px solid var(--line);border-radius:8px;padding:6px 4px;text-align:center;}
+  .wx-day .d{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted-2);text-transform:uppercase;}
+  .wx-day img{width:26px;height:26px;}
+  .wx-day .t{font-family:'Space Mono',monospace;font-size:10px;}
+  .wx-day .t b{color:var(--text);}
+  .wx-attr{font-size:9px;color:var(--muted-2);margin-top:6px;font-family:'Space Mono',monospace;}
+  .tv-ctas{display:flex;flex-wrap:wrap;gap:7px;}
+  .tv-cta{border:1px solid var(--cyan-dim);background:#0c1726;color:var(--cyan);border-radius:9px;padding:8px 12px;
+    font-family:'Space Mono',monospace;font-size:12px;text-decoration:none;display:inline-flex;align-items:center;gap:6px;transition:all .15s;}
+  .tv-cta:hover{background:#103049;border-color:var(--cyan);}
+  .tv-cta.sec{border-color:var(--line);color:var(--muted);}
+  .tv-cta.sec:hover{color:var(--text);border-color:var(--cyan-dim);}
+  .atm-lang{appearance:none;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:9px;
+    height:38px;padding:0 8px;font-family:'Space Mono',monospace;font-size:12px;cursor:pointer;}
+  @media (max-width:880px){ .tv-cta,.tv-ctas{font-size:13px;} .atm-lang{height:42px;} }
+</style>
+<script>
+/* ============================================================
+   ATM-travel.org — интеграция фронта с NestJS API
+   - /bootstrap : конфиг + локаль + словарь + атрибуции
+   - /api/cameras/snapshot : каталог камер (заменяет клиентский Windy)
+   - /api/weather : прогноз по координатам активной камеры
+   - /api/travel/offers : впечатления (Viator/GetYourGuide) + отели/перелёты
+   ============================================================ */
+(function(){
+  var API = location.origin;            // тот же origin (NestJS отдаёт /api и фронт)
+  var BOOT = null, DICT = {}, LOCALE = 'en';
+  var lastCamId = null, wxTimer = null, tvTimer = null;
+  var $ = function(s){return document.querySelector(s);};
+
+  function setCookie(k,v){ document.cookie = k+'='+v+';path=/;max-age=31536000;samesite=lax'; }
+
+  function t(path, fallback){
+    var parts = path.split('.'); var o = DICT;
+    for (var i=0;i<parts.length;i++){ if(!o) return fallback; o = o[parts[i]]; }
+    return (o==null)?fallback:o;
+  }
+
+  function buildLangSwitcher(){
+    var controls = document.querySelector('header .controls');
+    if(!controls || $('#atmLang')) return;
+    var sel = document.createElement('select');
+    sel.id = 'atmLang'; sel.className = 'atm-lang'; sel.title = 'Language';
+    (BOOT.availableLocales||['en']).forEach(function(l){
+      var o = document.createElement('option'); o.value=l; o.textContent=l.toUpperCase();
+      if(l===LOCALE) o.selected=true; sel.appendChild(o);
+    });
+    sel.onchange = function(){ setCookie('locale', sel.value); location.reload(); };
+    controls.insertBefore(sel, controls.firstChild);
+  }
+
+  function injectPanels(){
+    var cats = $('#cats'); if(!cats || $('#atmWeather')) return;
+    var wx = document.createElement('div'); wx.id='atmWeather';
+    wx.innerHTML = '<div class="wx-head"><span>'+t('weather.title','Weather')+'</span></div><div id="wxBody" class="wx-meta">—</div>';
+    var tv = document.createElement('div'); tv.id='atmTravel';
+    tv.innerHTML = '<div class="tv-head"><span>'+t('travel.title','Experiences here')+'</span></div><div id="tvBody" class="tv-ctas"></div>';
+    cats.appendChild(wx); cats.appendChild(tv);
+  }
+
+  function renderWeather(w){
+    var body = $('#wxBody'); if(!body) return;
+    if(!w || !w.current){ body.innerHTML = '<span style="color:var(--muted-2)">—</span>'; return; }
+    var c = w.current;
+    var days = (w.forecast||[]).map(function(d){
+      var dn = new Date(d.date).toLocaleDateString(LOCALE,{weekday:'short'});
+      return '<div class="wx-day"><div class="d">'+dn+'</div>'+
+             (d.code?'<img src="https://cdn.weatherapi.com/weather/64x64/day/'+iconFile(d.code)+'.png" alt="">':'')+
+             '<div class="t"><b>'+Math.round(d.maxC)+'°</b> '+Math.round(d.minC)+'°</div></div>';
+    }).join('');
+    body.innerHTML =
+      '<div class="wx-now">'+(c.icon?'<img src="'+c.icon+'" alt="">':'')+
+        '<div><div class="wx-temp">'+Math.round(c.tempC)+'°</div>'+
+        '<div class="wx-meta">'+c.condition+' · '+t('weather.wind','Wind')+' '+Math.round(c.windKph)+' · '+
+        t('weather.humidity','Humidity')+' '+c.humidity+'%</div></div></div>'+
+      '<div class="wx-days">'+days+'</div>'+
+      (BOOT.weather&&BOOT.weather.attribution?'<div class="wx-attr">'+BOOT.weather.attribution+'</div>':'');
+  }
+  function iconFile(code){ return code; } // WeatherAPI condition code maps to icon filename
+
+  function renderTravel(o){
+    var body = $('#tvBody'); if(!body) return;
+    var html = '';
+    (o.experiences||[]).forEach(function(e){
+      html += '<a class="tv-cta" target="_blank" rel="nofollow sponsored noopener" href="'+e.url+'">'+e.label+'</a>';
+    });
+    if(o.hotels)  html += '<a class="tv-cta sec" target="_blank" rel="nofollow sponsored noopener" href="'+o.hotels.url+'">'+o.hotels.label+'</a>';
+    if(o.flights) html += '<a class="tv-cta sec" target="_blank" rel="nofollow sponsored noopener" href="'+o.flights.url+'">'+o.flights.label+'</a>';
+    body.innerHTML = html || '<span style="color:var(--muted-2)">—</span>';
+  }
+
+  function onCameraChange(cam){
+    if(!cam) return;
+    // weather (debounced)
+    clearTimeout(wxTimer);
+    wxTimer = setTimeout(function(){
+      fetch(API+'/api/weather?lat='+cam.lat+'&lng='+cam.lng, {credentials:'include'})
+        .then(function(r){return r.ok?r.json():null;}).then(renderWeather).catch(function(){});
+    }, 500);
+    // travel (debounced)
+    clearTimeout(tvTimer);
+    tvTimer = setTimeout(function(){
+      var q = cam.id ? ('cameraId='+encodeURIComponent(cam.id)) : ('lat='+cam.lat+'&lng='+cam.lng);
+      fetch(API+'/api/travel/offers?'+q+'&lat='+cam.lat+'&lng='+cam.lng, {credentials:'include'})
+        .then(function(r){return r.ok?r.json():null;}).then(function(o){ if(o) renderTravel(o); }).catch(function(){});
+    }, 500);
+  }
+
+  // Poll the existing global `state.active` to detect camera changes (no monkeypatching).
+  function startPoller(){
+    setInterval(function(){
+      try{
+        if(typeof state==='undefined' || !state.active) return;
+        if(state.active.id !== lastCamId){ lastCamId = state.active.id; onCameraChange(state.active); }
+      }catch(e){}
+    }, 600);
+  }
+
+  function loadCatalog(){
+    return fetch(API+'/api/cameras/snapshot', {credentials:'include'})
+      .then(function(r){return r.ok?r.json():null;})
+      .then(function(snap){
+        if(!snap || !snap.cameras || !snap.cameras.length) return;
+        if(typeof CAMERAS==='undefined') return;
+        // Заменяем сид-камеры серверным каталогом
+        CAMERAS.length = 0;
+        snap.cameras.forEach(function(c){ CAMERAS.push(c); });
+        // Перестраиваем UI существующими функциями пре-MVP
+        try{
+          if(typeof renderChips==='function') renderChips();
+          if(typeof poolFor==='function'){ state.pool = poolFor(state.cat, state.query); state.idx = 0; }
+          var pc = $('#poolCount'); if(pc) pc.textContent = state.pool.length + ' камер';
+          if(typeof updateGlobePoints==='function') updateGlobePoints();
+          if(state.pool[0] && (!state.active) && typeof setActive==='function') setActive(state.pool[0]);
+        }catch(e){ console.warn('catalog refresh', e); }
+      }).catch(function(){});
+  }
+
+  function init(){
+    fetch(API+'/bootstrap', {credentials:'include'})
+      .then(function(r){return r.ok?r.json():null;})
+      .then(function(b){
+        BOOT = b || {availableLocales:['en']};
+        DICT = (BOOT && BOOT.dictionary) || {};
+        LOCALE = (BOOT && BOOT.locale) || 'en';
+        document.documentElement.lang = LOCALE;
+        buildLangSwitcher();
+        injectPanels();
+        return loadCatalog();
+      })
+      .then(startPoller)
+      .catch(function(e){ console.warn('ATM bootstrap failed', e); });
+  }
+
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+})();
+</script>
+
+</body>
+</html>

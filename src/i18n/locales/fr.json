@@ -1,0 +1,13 @@
+{
+  "brand": "ATM-travel.org",
+  "tagline": "caméras en direct de la planète",
+  "controls": { "play": "lecture", "pause": "pause", "sound": "son", "favorites": "Favoris" },
+  "categories": {
+    "all": "Tout", "auto-moto": "Auto-moto", "nature": "Nature", "tourism": "Tourisme",
+    "real-estate": "Immobilier", "people": "Personnes", "architecture": "Architecture",
+    "museums": "Musées", "custom": "Filtre personnalisé"
+  },
+  "weather": { "title": "Météo", "now": "Maintenant", "feels": "Ressenti", "wind": "Vent", "humidity": "Humidité" },
+  "travel": { "title": "Expériences ici", "tours": "Visites et activités", "hotels": "Hôtels", "flights": "Vols", "cta": "Voir les offres" },
+  "veil": { "title": "Une fenêtre sur le monde", "play": "Démarrer le direct" }
+}
