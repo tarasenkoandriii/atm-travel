@@ -7,7 +7,6 @@ import { CamerasRepository } from '../cameras/cameras.repository';
 import { SnapshotService } from '../cameras/snapshot.service';
 import { LivenessService } from './liveness.service';
 
-const LOCK_KEY = 778421; // arbitrary advisory-lock key for the refresh job
 
 @Injectable()
 export class RefreshService {
@@ -23,22 +22,12 @@ export class RefreshService {
   ) {}
 
   async run(trigger: RefreshTrigger) {
-    // Best-effort overlap-guard. Session-level advisory locks don't work under PgBouncer
-    // transaction pooling (Supabase pooler :6543), so a failure here must NOT abort the run.
-    let acquired = true;
-    try {
-      acquired = await this.prisma.tryAdvisoryLock(LOCK_KEY);
-    } catch (e) {
-      this.logger.warn(`Advisory lock unavailable (pooler?), proceeding without it: ${String(e)}`);
-      acquired = true;
-    }
-    if (!acquired) {
-      this.logger.warn('Refresh skipped — another run is in progress');
-      return { skipped: true };
-    }
-
+    // NOTE: no advisory lock. Session-level pg_advisory_lock leaks under PgBouncer transaction
+    // pooling (Supabase :6543) — the unlock lands on a different backend, so the lock is never
+    // released and every subsequent run gets skipped. For a once-daily cron + rare manual runs,
+    // overlap is harmless anyway: upsertMany is idempotent on the unique key.
     const t0 = Date.now();
-    // First real DB write — if this fails, the database is unreachable (clear 503 instead of raw 500).
+    // First DB write — if this fails, the database is unreachable (clear 503 instead of raw 500).
     let run: { id: string };
     try {
       run = await this.prisma.refreshRun.create({ data: { trigger } });
@@ -85,14 +74,8 @@ export class RefreshService {
       await this.prisma.refreshRun.update({
         where: { id: run.id },
         data: { finishedAt: new Date(), durationMs: Date.now() - t0, error: String(e) },
-      });
+      }).catch(() => {});
       throw e;
-    } finally {
-      try {
-        await this.prisma.advisoryUnlock(LOCK_KEY);
-      } catch {
-        /* best-effort — unlock may be a no-op under transaction pooling */
-      }
     }
   }
 
