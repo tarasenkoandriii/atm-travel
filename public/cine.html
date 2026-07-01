@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cinematic route · ATM-travel.org</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Space+Mono&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#05070d;--panel:#0a0f1a;--line:#1a2436;--text:#e7edf5;--muted:#8b9bb4;--cyan:#4fd7e0;--cyan-dim:#1f6b72;--amber:#f2b64c;}
+  *{box-sizing:border-box;} html,body{margin:0;background:var(--bg);color:var(--text);font-family:'Space Grotesk',system-ui,sans-serif;}
+  .wrap{max-width:940px;margin:0 auto;padding:18px 16px 60px;}
+  header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;flex-wrap:wrap;}
+  .logo{font-weight:700;} .logo b{color:var(--cyan);} .sub{font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);}
+  a{color:var(--cyan);text-decoration:none;}
+
+  /* Stage — this is what the screen capture records. Keep it clean/full-bleed. */
+  .stage{position:relative;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:#000;aspect-ratio:16/9;}
+  #globeHost{position:absolute;inset:0;} #globeHost canvas{display:block;}
+  #liveFrame{position:absolute;inset:0;width:100%;height:100%;border:0;opacity:0;transform:scale(1.06);transition:opacity .7s ease,transform .9s ease;pointer-events:none;background:#000;}
+  #liveFrame.on{opacity:1;transform:scale(1);}
+  .grad{position:absolute;inset:0;pointer-events:none;background:radial-gradient(120% 90% at 50% 40%,transparent 55%,rgba(0,0,0,.5) 100%);}
+  .lower{position:absolute;left:4%;bottom:9%;pointer-events:none;opacity:0;transform:translateY(10px);transition:opacity .5s ease,transform .5s ease;}
+  .lower.on{opacity:1;transform:none;}
+  .lower .t{font-weight:700;font-size:clamp(18px,3.6vw,40px);text-shadow:0 2px 18px rgba(0,0,0,.6);}
+  .lower .c{font-family:'Space Mono',monospace;font-size:clamp(10px,1.5vw,15px);color:rgba(231,237,245,.8);}
+  .lower .brand{font-family:'Space Mono',monospace;font-size:clamp(10px,1.5vw,14px);color:var(--cyan);margin-top:6px;}
+  /* Weather widget — pops in during the "wow" */
+  #wx{position:absolute;right:4%;top:8%;min-width:190px;background:rgba(8,12,20,.72);backdrop-filter:blur(8px);border:1px solid var(--cyan-dim);border-radius:14px;padding:12px 14px;opacity:0;transform:translateX(24px) scale(.96);transition:opacity .5s ease,transform .6s cubic-bezier(.2,.9,.3,1.2);pointer-events:none;}
+  #wx.on{opacity:1;transform:none;}
+  #wx .h{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);}
+  #wx .now{display:flex;align-items:center;gap:8px;margin-top:4px;} #wx .now img{width:34px;height:34px;} #wx .tmp{font-size:26px;font-weight:700;}
+  #wx .meta{font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);}
+  .badge{position:absolute;top:10px;left:12px;font-family:'Space Mono',monospace;font-size:11px;color:var(--cyan);background:rgba(5,7,13,.5);border:1px solid var(--cyan-dim);border-radius:8px;padding:4px 9px;}
+
+  .panel{border:1px solid var(--line);border-radius:14px;background:var(--panel);padding:14px;margin-top:14px;}
+  label{font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-top:6px;}
+  input{width:100%;background:#0c1420;color:var(--text);border:1px solid var(--line);border-radius:9px;padding:9px;font:inherit;margin-top:4px;}
+  .fmts{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;} .chip{font-family:'Space Mono',monospace;font-size:12px;border:1px solid var(--line);border-radius:20px;padding:6px 12px;cursor:pointer;color:var(--muted);} .chip.on{border-color:var(--cyan);color:var(--cyan);}
+  .btn{border:1px solid var(--cyan-dim);background:linear-gradient(180deg,#0e2730,#0c1a20);color:var(--cyan);font:inherit;font-weight:700;border-radius:11px;padding:13px 18px;cursor:pointer;} .btn[disabled]{opacity:.45;cursor:not-allowed;}
+  .status{font-family:'Space Mono',monospace;font-size:12px;color:var(--muted);margin-top:12px;min-height:18px;}
+  .bar{height:6px;background:#0c1420;border-radius:4px;overflow:hidden;margin-top:8px;} .bar>i{display:block;height:100%;width:0;background:var(--cyan);transition:width .1s;}
+  .results{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:14px;}
+  .rcard{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#0c1420;} .rcard video{width:100%;display:block;background:#000;}
+  .rc-b{padding:9px 11px;display:flex;justify-content:space-between;align-items:center;gap:8px;} .rc-b .fmt{font-family:'Space Mono',monospace;font-size:12px;color:var(--cyan);}
+  .muted{color:var(--muted);font-size:12px;} ol{color:var(--muted);font-size:12px;line-height:1.6;padding-left:18px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <a class="logo" href="/">ATM<b>·</b>travel</a>
+    <div class="sub">cinematic route · OBS-style capture</div>
+  </header>
+
+  <div class="stage" id="stage">
+    <div id="globeHost"></div>
+    <iframe id="liveFrame" allow="autoplay; encrypted-media; fullscreen" referrerpolicy="no-referrer"></iframe>
+    <div class="grad"></div>
+    <div id="wx"><div class="h">Weather</div><div class="now"><img id="wxIco" alt=""><span class="tmp" id="wxTmp">—</span></div><div class="meta" id="wxMeta"></div></div>
+    <div class="lower" id="lower"><div class="t" id="lowerT"></div><div class="c" id="lowerC"></div><div class="brand">ATM·travel · atm-travel.org</div></div>
+    <div class="badge" id="badge">—</div>
+  </div>
+
+  <div class="panel">
+    <div class="grid">
+      <div><label>Lat</label><input id="lat" type="number" step="0.0001"></div>
+      <div><label>Lng</label><input id="lng" type="number" step="0.0001"></div>
+      <div><label>Wow (s)</label><input id="dur" type="number" min="2" max="20" step="1" value="4"></div>
+      <div><label>Live (s)</label><input id="live" type="number" min="0" max="20" step="1" value="3"></div>
+      <div><label>FPS</label><input id="fps" type="number" min="24" max="60" step="1" value="60"></div>
+      <div style="grid-column:1/-1"><label>Title</label><input id="title" placeholder="Kyiv, Ukraine"></div>
+      <div style="grid-column:1/-1"><label>Live camera embed URL (optional)</label><input id="embed" placeholder="https://webcams.windy.com/…/embed"></div>
+    </div>
+    <div style="margin-top:12px"><label>Formats</label>
+      <div class="fmts" id="fmts">
+        <span class="chip on" data-f="9:16">9:16 · Reels/TikTok/Shorts</span>
+        <span class="chip on" data-f="4:5">4:5 · Feed</span>
+        <span class="chip on" data-f="16:9">16:9 · YouTube</span>
+      </div>
+    </div>
+    <div style="margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <button class="btn" id="go">● Записать (захват вкладки)</button>
+      <span class="muted" id="mimeNote"></span>
+    </div>
+    <div class="status" id="status"></div>
+    <div class="bar"><i id="prog"></i></div>
+    <div class="results" id="results"></div>
+    <ol style="margin-top:14px">
+      <li>Нажми «Записать» → в диалоге выбери <b>эту вкладку</b> (Current Tab), 4K/60 запрашивается автоматически.</li>
+      <li>Хореография: глобус крутится → зум в точку → оживает live-камера → всплывает погода. Затем live играет ещё Live-секунд.</li>
+      <li>Из одного захвата пишутся 3 кропа с даунскейлом (чётче). Готовое — в хранилище или на скачивание.</li>
+    </ol>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/globe.gl"></script>
+<script type="module">
+// ─────────────────────────────── config ───────────────────────────────
+const $ = s => document.querySelector(s);
+const qs = new URLSearchParams(location.search);
+const num = (v, d) => { const n = parseFloat(v); return isNaN(n) ? d : n; };
+const CFG = {
+  lat: num(qs.get('lat'), NaN), lng: num(qs.get('lng'), NaN),
+  dur: Math.min(20, Math.max(2, parseInt(qs.get('dur') || '4', 10))),   // "wow" intro, default 4
+  live: Math.min(20, Math.max(0, parseInt(qs.get('live') || '3', 10))), // live hold, default 3
+  fps: Math.min(60, Math.max(24, parseInt(qs.get('fps') || '60', 10))),
+  title: qs.get('title') || qs.get('label') || '',
+  embed: qs.get('embed') || '',
+  cam: qs.get('cam') || '',
+  formats: (qs.get('formats') || '9:16,4:5,16:9').split(',').map(s => s.trim()).filter(Boolean),
+  auto: qs.get('auto') === '1',
+};
+const SIZES = { '9:16': [1080, 1920], '4:5': [1080, 1350], '16:9': [1920, 1080] };
+const MIME = (() => { const c = ['video/mp4;codecs=h264','video/mp4','video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm']; for (const m of c) if (window.MediaRecorder && MediaRecorder.isTypeSupported(m)) return m; return ''; })();
+const EXT = () => MIME.indexOf('mp4') > -1 ? 'mp4' : 'webm';
+const easeInOut = t => t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2,3)/2;
+const clamp01 = t => Math.max(0, Math.min(1, t));
+
+// prefill UI from params
+if (!isNaN(CFG.lat)) $('#lat').value = CFG.lat;
+if (!isNaN(CFG.lng)) $('#lng').value = CFG.lng;
+$('#dur').value = CFG.dur; $('#live').value = CFG.live; $('#fps').value = CFG.fps;
+if (CFG.title) $('#title').value = CFG.title; if (CFG.embed) $('#embed').value = CFG.embed;
+document.querySelectorAll('#fmts .chip').forEach(c => { c.classList.toggle('on', CFG.formats.includes(c.dataset.f)); c.onclick = () => c.classList.toggle('on'); });
+$('#mimeNote').textContent = MIME ? ('кодек: ' + MIME) : 'MediaRecorder не поддерживается';
+if (!MIME) $('#go').disabled = true;
+
+// ─────────────────────────────── globe ───────────────────────────────
+const host = $('#globeHost');
+const G = Globe({ rendererConfig: { preserveDrawingBuffer: true, antialias: true } })(host)
+  .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-night.jpg')
+  .backgroundImageUrl('https://unpkg.com/three-globe/example/img/night-sky.png')
+  .showAtmosphere(true).atmosphereColor('#4fd7e0').atmosphereAltitude(0.18)
+  .ringColor(() => '#4fd7e0').ringMaxRadius(6).ringPropagationSpeed(3).ringRepeatPeriod(700)
+  .pointColor(() => '#f2b64c').pointAltitude(0.01).pointRadius(0.5);
+G.controls().enabled = false;
+const globeCanvas = () => host.querySelector('canvas');
+function sizeStage(w, h) { G.width(w); G.height(h); }
+
+// ─────────────────────────────── director (choreography) ───────────────────────────────
+// Timeline over (dur + live) seconds. Manipulates globe POV + DOM (live iframe, weather),
+// which the screen capture records as-is.
+const Director = {
+  weather: null,
+  async prepare(lat, lng, title, embed) {
+    $('#badge').textContent = lat.toFixed(3) + ', ' + lng.toFixed(3);
+    $('#lowerT').textContent = title || '';
+    $('#lowerC').textContent = lat.toFixed(4) + ', ' + lng.toFixed(4);
+    G.ringsData([{ lat, lng }]).pointsData([{ lat, lng }]);
+    G.pointOfView({ lat: lat - 10, lng: lng - 40, altitude: 2.9 }, 0);
+    // preload live embed (hidden) so it is already playing when revealed
+    const live = $('#liveFrame'); live.classList.remove('on');
+    if (embed) { live.src = embed; } else { live.removeAttribute('src'); }
+    // fetch weather in the background
+    try {
+      const w = await fetch(`/api/weather?lat=${lat}&lng=${lng}`, { credentials: 'include' }).then(r => r.ok ? r.json() : null);
+      this.weather = w;
+      if (w && w.current) { $('#wxTmp').textContent = Math.round(w.current.tempC) + '°'; $('#wxMeta').textContent = w.current.condition; if (w.current.icon) $('#wxIco').src = w.current.icon; }
+    } catch (e) { this.weather = null; }
+    // reset widgets
+    $('#wx').classList.remove('on'); $('#lower').classList.remove('on');
+  },
+  // Advance the scene for a given elapsed time (ms). Returns nothing.
+  tick(elapsedMs, lat, lng) {
+    const dur = CFG._dur, live = CFG._live;
+    const tW = clamp01(elapsedMs / (dur * 1000));               // 0..1 across the wow intro
+    // Phase 1 (0..0.35): slow globe rotation, wide.  Phase 2 (0.35..1): zoom to point.
+    const spinEnd = 0.35;
+    if (tW < spinEnd) {
+      const s = tW / spinEnd;
+      G.pointOfView({ lat: lat - 10 + 4 * s, lng: (lng - 40) + 26 * s, altitude: 2.9 - 0.2 * s }, 0);
+    } else {
+      const z = easeInOut((tW - spinEnd) / (1 - spinEnd));
+      G.pointOfView({ lat: (lat - 6) + 6 * z, lng: (lng - 14) + 14 * z, altitude: 2.7 - (2.7 - 0.5) * z }, 0);
+    }
+    // Live reveal near the end of the wow window
+    if (tW > 0.82 && $('#liveFrame').getAttribute('src')) $('#liveFrame').classList.add('on');
+    // Lower-third title in during zoom
+    if (tW > 0.5) $('#lower').classList.add('on');
+    // Weather pops just after the wow peak
+    if (elapsedMs > dur * 1000 + 300) $('#wx').classList.add('on');
+  },
+  total() { return (CFG._dur + CFG._live) * 1000; },
+};
+
+// ─────────────────────────────── capture ───────────────────────────────
+// Cover-draw a source (video or canvas) into a target ctx, center-cropped to the target aspect,
+// downscaling from the (up to 4K) source for extra sharpness.
+function coverDraw(ctx, src, sw, sh, dw, dh) {
+  if (!sw || !sh) return;
+  const sr = sw / sh, dr = dw / dh;
+  let cw, ch, cx, cy;
+  if (sr > dr) { ch = sh; cw = sh * dr; cx = (sw - cw) / 2; cy = 0; }
+  else { cw = sw; ch = sw / dr; cx = 0; cy = (sh - ch) / 2; }
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(src, cx, cy, cw, ch, 0, 0, dw, dh);
+}
+
+async function captureScreen(formats, lat, lng) {
+  // OBS-style: capture this tab (globe + live iframe + weather widget), then downscale to 3 crops.
+  const stream = await navigator.mediaDevices.getDisplayMedia({
+    video: { frameRate: { ideal: CFG.fps }, width: { ideal: 3840 }, height: { ideal: 2160 } },
+    audio: false, preferCurrentTab: true, selfBrowserSurface: 'include', surfaceSwitching: 'exclude',
+  });
+  const vid = document.createElement('video'); vid.srcObject = stream; vid.muted = true; await vid.play();
+  await new Promise(r => setTimeout(r, 200));
+  return runRecorders(formats, () => vid, () => [vid.videoWidth, vid.videoHeight], lat, lng, () => stream.getTracks().forEach(t => t.stop()));
+}
+
+async function captureCanvas(formats, lat, lng) {
+  // Fallback (no screen capture): record the globe canvas only. Live iframe/weather DOM can't be
+  // drawn to canvas (cross-origin), so this mode is globe-only.
+  return runRecorders(formats, () => globeCanvas(), () => { const c = globeCanvas(); return c ? [c.width, c.height] : [0, 0]; }, lat, lng, () => {});
+}
+
+async function runRecorders(formats, getSrc, getDims, lat, lng, cleanup) {
+  // build a crop-recorder per format
+  const recs = formats.map(f => {
+    const [W, H] = SIZES[f];
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const ctx = c.getContext('2d');
+    const rec = new MediaRecorder(c.captureStream(CFG.fps), MIME ? { mimeType: MIME, videoBitsPerSecond: 12_000_000 } : undefined);
+    const chunks = []; rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+    return { f, c, ctx, rec, chunks };
+  });
+  recs.forEach(r => r.rec.start());
+
+  const t0 = performance.now(), total = Director.total();
+  let stop = false;
+  await new Promise(resolve => {
+    (function frame() {
+      const el = performance.now() - t0;
+      Director.tick(el, lat, lng);
+      const src = getSrc(); const [sw, sh] = getDims();
+      if (src) recs.forEach(r => coverDraw(r.ctx, src, sw, sh, r.c.width, r.c.height));
+      $('#prog').style.width = Math.round(clamp01(el / total) * 100) + '%';
+      if (el < total) requestAnimationFrame(frame); else resolve();
+    })();
+  });
+
+  const blobs = await Promise.all(recs.map(r => new Promise(res => { r.rec.onstop = () => res(new Blob(r.chunks, { type: (MIME.split(';')[0] || 'video/webm') })); setTimeout(() => r.rec.stop(), 100); })));
+  cleanup();
+  return recs.map((r, i) => ({ fmt: r.f, blob: blobs[i] }));
+}
+
+// ─────────────────────────────── delivery (blob / download) ───────────────────────────────
+function showCards(items) {
+  $('#results').innerHTML = items.map(o => {
+    const u = o.url || URL.createObjectURL(o.blob);
+    const dl = o.url ? ' target="_blank"' : (' download="atm-' + o.fmt.replace(':', 'x') + '.' + EXT() + '"');
+    return '<div class="rcard"><video src="' + u + '" controls muted loop playsinline></video>' +
+      '<div class="rc-b"><span class="fmt">' + o.fmt + '</span><a class="btn" style="padding:7px 12px" href="' + u + '"' + dl + '>' + (o.url ? 'Открыть' : 'Скачать') + '</a></div></div>';
+  }).join('');
+}
+
+async function deliver(outputs, meta) {
+  let cfg = { blobEnabled: false };
+  try { cfg = await fetch('/api/cine/config').then(r => r.json()); } catch (e) {}
+  if (!cfg.blobEnabled) { $('#status').textContent = 'Готово. Хранилище не подключено — скачайте файлы локально.'; showCards(outputs); return; }
+  $('#status').textContent = 'Загрузка в хранилище…';
+  let uploadFn = null;
+  try { ({ upload: uploadFn } = await import('https://esm.sh/@vercel/blob@0.23.4/client')); } catch (e) {}
+  const items = [];
+  for (const o of outputs) {
+    try {
+      if (!uploadFn) throw new Error('sdk');
+      const name = 'cine/' + Date.now() + '-' + o.fmt.replace(':', 'x') + '.' + EXT();
+      const res = await uploadFn(name, o.blob, { access: 'public', handleUploadUrl: '/api/cine/blob-token', contentType: o.blob.type });
+      items.push({ fmt: o.fmt, url: res.url, blob: o.blob });
+    } catch (e) { items.push({ fmt: o.fmt, blob: o.blob }); }
+  }
+  const uploaded = items.filter(i => i.url);
+  if (uploaded.length) {
+    try {
+      const rec = await fetch('/api/cine', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...meta, items: uploaded.map(i => ({ format: i.fmt, url: i.url })) }) }).then(r => r.json());
+      if (rec && rec.id) $('#status').innerHTML = 'Готово. Набор: <a href="/api/cine/' + rec.id + '" target="_blank">/api/cine/' + rec.id + '</a>';
+    } catch (e) { $('#status').textContent = 'Загружено, но не удалось сохранить набор.'; }
+  } else { $('#status').textContent = 'Не удалось загрузить — файлы доступны для скачивания.'; }
+  showCards(items);
+}
+
+// ─────────────────────────────── run ───────────────────────────────
+async function run() {
+  const lat = parseFloat($('#lat').value), lng = parseFloat($('#lng').value);
+  if (isNaN(lat) || isNaN(lng)) { $('#status').textContent = 'Укажите Lat и Lng.'; return; }
+  CFG._dur = Math.min(20, Math.max(2, parseInt($('#dur').value || '4', 10)));
+  CFG._live = Math.min(20, Math.max(0, parseInt($('#live').value || '3', 10)));
+  CFG.fps = Math.min(60, Math.max(24, parseInt($('#fps').value || '60', 10)));
+  const title = $('#title').value.trim();
+  const embed = $('#embed').value.trim();
+  const formats = [...document.querySelectorAll('#fmts .chip.on')].map(c => c.dataset.f);
+  if (!formats.length) { $('#status').textContent = 'Выберите хотя бы один формат.'; return; }
+
+  $('#go').disabled = true; $('#results').innerHTML = ''; $('#prog').style.width = '0';
+  await Director.prepare(lat, lng, title, embed);
+
+  let outputs;
+  try {
+    $('#status').textContent = 'Выберите «эту вкладку» в диалоге захвата…';
+    outputs = await captureScreen(formats, lat, lng);
+  } catch (e) {
+    // user cancelled or unsupported -> fallback to globe-only canvas capture
+    $('#status').textContent = 'Захват экрана недоступен — пишу глобус (без live). ' + (e && e.message ? '' : '');
+    try { outputs = await captureCanvas(formats, lat, lng); }
+    catch (e2) { $('#status').textContent = 'Не удалось записать: ' + (e2.message || e2); $('#go').disabled = false; return; }
+  }
+  $('#prog').style.width = '100%';
+  await deliver(outputs, { lat, lng, dur: CFG._dur + CFG._live, title });
+  $('#go').disabled = false;
+}
+
+// init preview
+function fit() { sizeStage($('#stage').clientWidth || 960, $('#stage').clientHeight || 540); }
+
+// Resolve ?cam=<id> -> lat/lng/title/embed from the live snapshot (so one param is enough).
+async function resolveCam() {
+  if (!CFG.cam) return;
+  try {
+    const snap = await fetch('/api/cameras/snapshot', { credentials: 'include' }).then(r => r.ok ? r.json() : null);
+    const c = ((snap && snap.cameras) || []).find(x => x.id === CFG.cam);
+    if (c) {
+      if (isNaN(CFG.lat)) CFG.lat = c.lat;
+      if (isNaN(CFG.lng)) CFG.lng = c.lng;
+      if (!CFG.title) CFG.title = c.title || [c.city, c.country].filter(Boolean).join(', ');
+      if (!CFG.embed) CFG.embed = c.embed || '';
+      if (!isNaN(CFG.lat)) $('#lat').value = CFG.lat;
+      if (!isNaN(CFG.lng)) $('#lng').value = CFG.lng;
+      if (CFG.title) $('#title').value = CFG.title;
+      if (CFG.embed) $('#embed').value = CFG.embed;
+    }
+  } catch (e) { /* ignore — user can fill fields manually */ }
+}
+
+(async function init() {
+  fit(); window.addEventListener('resize', fit);
+  await resolveCam();
+  if (!isNaN(CFG.lat) && !isNaN(CFG.lng)) { G.pointOfView({ lat: CFG.lat, lng: CFG.lng, altitude: 1.6 }, 0); $('#badge').textContent = CFG.lat.toFixed(3) + ', ' + CFG.lng.toFixed(3); }
+  else G.pointOfView({ lat: 20, lng: 0, altitude: 2.4 }, 0);
+  $('#go').onclick = run;
+  if (CFG.auto && !isNaN(CFG.lat) && !isNaN(CFG.lng)) setTimeout(run, 800);
+})();
+</script>
+</body>
+</html>

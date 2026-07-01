@@ -14,7 +14,7 @@ export class CamerasRepository {
       source: c.source, externalId: c.externalId, type: c.type, provider: c.provider ?? null,
       title: c.title, city: c.city ?? null, country: c.country ?? null, cc: c.cc ?? null,
       lat: c.lat, lng: c.lng, tz: c.tz ?? 'UTC', res: c.res ?? 'HD',
-      videoId: c.videoId ?? null, embed: c.embed ?? null, img: c.img ?? null,
+      videoId: c.videoId ?? null, embed: c.embed ?? null, clipUrl: c.clipUrl ?? null, img: c.img ?? null,
       category: c.category ?? null, wcCategory: c.wcCategory ?? null, iata: c.iata ?? null,
       isLive: c.isLive ?? false,
       lastCheckedAt: now, lastLiveAt: c.isLive ? now : null,

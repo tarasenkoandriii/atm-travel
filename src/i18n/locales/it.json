@@ -1,0 +1,69 @@
+{
+  "brand": "ATM-travel.org",
+  "tagline": "telecamere dal vivo del pianeta",
+  "controls": {
+    "play": "play",
+    "pause": "pausa",
+    "sound": "audio",
+    "soundOn": "audio attivo",
+    "autocycle": "Ciclo automatico",
+    "favorites": "Preferiti"
+  },
+  "categories": {
+    "all": "Tutte",
+    "auto-moto": "Auto e moto",
+    "nature": "Natura",
+    "tourism": "Turismo",
+    "real-estate": "Immobili",
+    "architecture": "Architettura",
+    "museums": "Musei",
+    "custom": "Filtro personalizzato"
+  },
+  "weather": {
+    "title": "Meteo",
+    "now": "Ora",
+    "feels": "Percepita",
+    "wind": "Vento",
+    "humidity": "Umidità"
+  },
+  "travel": {
+    "title": "Esperienze qui",
+    "tours": "Tour e attività",
+    "hotels": "Hotel",
+    "flights": "Voli",
+    "cta": "Vedi offerte"
+  },
+  "veil": {
+    "title": "Una finestra sul mondo",
+    "play": "Avvia lo streaming",
+    "hint": "Telecamere dal vivo da tutto il mondo — città, coste, montagne e strade. Tocca per avviare lo streaming."
+  },
+  "ui": {
+    "categories": "Categorie",
+    "cameras": "telecamere",
+    "total": "totale",
+    "find": "Cerca",
+    "customPlaceholder": "Filtro personalizzato: «lungomare», «montagne», «traffic»…",
+    "favoritesEmpty": "Tocca ♥ sopra il video per salvare una telecamera",
+    "connected": "Collegate: {n} telecamere dal vivo.",
+    "emptyCategory": "Nessuna telecamera in questa categoria"
+  },
+  "deals": {
+    "title": "Offerte tour last minute"
+  },
+  "esim": {
+    "for": "eSIM per",
+    "from": "da",
+    "buy": "Acquista",
+    "unlimited": "Illimitato",
+    "days": "g",
+    "gb": "GB",
+    "mb": "MB"
+  },
+  "legal": {
+    "privacy": "Informativa sulla privacy",
+    "terms": "Termini di utilizzo",
+    "refund": "Rimborsi e consegna",
+    "phone": "tel."
+  }
+}

@@ -35,6 +35,25 @@ export class BootstrapController {
         units: this.config.get<string>('WEATHER_UNITS'),
         attribution: 'Powered by WeatherAPI.com',
       },
+      deals: {
+        enabled: !!this.config.get<string>('VIATOR_DEALS_FEED_URL'),
+      },
+      esim: {
+        enabled: !!(this.config.get<string>('AIRALO_CLIENT_ID') && this.config.get<string>('AIRALO_CLIENT_SECRET')),
+        // Full purchase requires BOTH the eSIM provider AND the payment gateway.
+        canBuy: !!(
+          this.config.get<string>('AIRALO_CLIENT_ID') &&
+          this.config.get<string>('AIRALO_CLIENT_SECRET') &&
+          this.config.get<string>('WFP_MERCHANT_ACCOUNT') &&
+          this.config.get<string>('WFP_SECRET_KEY')
+        ),
+        checkoutUrl: this.config.get<string>('ESIM_CHECKOUT_URL') || '/esim',
+        checkout: {
+          enabled: !!(this.config.get<string>('WFP_MERCHANT_ACCOUNT') && this.config.get<string>('WFP_SECRET_KEY')),
+          currency: this.config.get<string>('WFP_CURRENCY') || 'USD',
+          googleClientId: this.config.get<string>('GOOGLE_CLIENT_ID') || '',
+        },
+      },
       travel: {
         enabled: true, // links always work (plain brand links if keys absent — keeps site functional for review)
         affiliate: !!(

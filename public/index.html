@@ -69,6 +69,8 @@
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.01em;}
   .hud .sub .c{color:var(--cyan);}
   .hud .sub .s{color:var(--muted-2);text-transform:uppercase;letter-spacing:.05em;}
+  .cine-btn{font-family:'Space Mono',monospace;font-size:11px;color:var(--cyan);background:linear-gradient(180deg,#0e2730,#0c1a20);border:1px solid var(--cyan-dim);border-radius:8px;padding:5px 9px;text-decoration:none;white-space:nowrap;margin-left:auto;align-self:center;}
+  .cine-btn:hover{border-color:var(--cyan);}
   .res{font-family:'Space Mono',monospace;font-size:9px;font-weight:700;color:var(--space);
     background:var(--cyan);border-radius:5px;padding:2px 5px;letter-spacing:.04em;flex:0 0 auto;}
   .res.hd{background:var(--muted);}
@@ -147,6 +149,14 @@
     .hud .place{max-width:88%;}
   }
   @media (prefers-reduced-motion:reduce){ .layer{transition:opacity .25s ease;} .veil .pulse{animation:none;} }
+  #siteFooter{border-top:1px solid var(--line);margin:18px 0 0;padding:18px 22px 30px;color:var(--muted);font-size:12px;line-height:1.5;}
+  #siteFooter .ft-inner{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;align-items:flex-start;max-width:1400px;margin:0 auto;}
+  #siteFooter .ft-name{color:var(--text);} #siteFooter .ft-mono{font-family:'Space Mono',monospace;color:var(--muted);}
+  #siteFooter .ft-addr,#siteFooter .ft-contact{margin-top:4px;}
+  #siteFooter a{color:var(--muted);text-decoration:none;} #siteFooter a:hover{color:var(--cyan);}
+  #siteFooter .ft-contact a{color:var(--cyan);}
+  #siteFooter .ft-links{display:flex;flex-direction:column;gap:6px;text-align:right;font-family:'Space Mono',monospace;}
+  @media (max-width:880px){ #siteFooter .ft-inner{flex-direction:column;} #siteFooter .ft-links{text-align:left;} }
 </style>
 </head>
 <body>
@@ -186,6 +196,8 @@
             <div class="city" id="hudCity">—</div>
             <div class="sub"><span class="c" id="hudCoords"></span> · <span id="hudClock"></span> · <span class="s" id="hudSrc"></span></div>
           </div>
+          <a class="cine-btn" id="cineBtn" href="#" target="_blank" rel="noopener" style="display:none">🎬 Cinematic</a>
+          <a class="cine-btn" id="reelBtn" href="#" target="_blank" rel="noopener" style="display:none">🎞️ Reel</a>
           <span class="res" id="hudRes">4K</span>
         </div>
         <div class="veil" id="veil">
@@ -219,6 +231,21 @@
     </div>
   </div>
 </div>
+
+<footer id="siteFooter">
+  <div class="ft-inner">
+    <div class="ft-legal">
+      <div class="ft-name">ФОП Тарасенко Андрій · <span class="ft-mono">код ЄДРПОУ 2780309490</span></div>
+      <div class="ft-addr">03150, Україна, м. Київ, вул. Велика Васильківська 56, оф. 18</div>
+      <div class="ft-contact"><span id="ftPhoneLbl">тел.</span> <a href="tel:+380993177636">+38 099 317 7636</a> · <a href="https://wa.me/380993177636" target="_blank" rel="noopener">WhatsApp</a></div>
+    </div>
+    <nav class="ft-links">
+      <a id="ftPrivacy" href="/legal/privacy">Політика конфіденційності</a>
+      <a id="ftTerms" href="/legal/terms">Угода користувача</a>
+      <a id="ftRefund" href="/legal/refund">Політика повернення / доставки</a>
+    </nav>
+  </div>
+</footer>
 
 <script src="https://cdn.jsdelivr.net/npm/globe.gl"></script>
 <script>
@@ -424,6 +451,10 @@ function setActive(cam,recenter){
   $('#hudCoords').textContent=fmtCoord(cam.lat,cam.lng);
   $('#hudSrc').textContent=cam.provider==='windy'?'windy':(cam.provider==='worldcam'?'worldcam':'earthcam');
   const r=$('#hudRes');r.textContent=cam.res||'HD';r.className='res'+((cam.res||'HD')!=='4K'?' hd':'');
+  if(/[?&]cinematic=1/i.test(location.search)){
+    var cb=$('#cineBtn');if(cb){cb.href='/cine?cam='+encodeURIComponent(cam.id)+'&auto=1';cb.style.display='';}
+    var rb=$('#reelBtn');if(rb){rb.href='/reel?cam='+encodeURIComponent(cam.id)+'&auto=1';rb.style.display='';}
+  }
   startClock(cam.tz);updateHeart();
   if(globe){ if(recenter)globe.pointOfView({lat:cam.lat,lng:cam.lng,altitude:curAlt()},900); updateGlobePoints(); globe.ringsData(reduced()?[]:[cam]); }
 }
@@ -677,19 +708,44 @@ $('#customInput').addEventListener('keydown',e=>{if(e.key==='Enter'){state.query
 <style>
   /* ATM-travel.org integration widgets */
   #atmWeather, #atmTravel{margin-top:10px;border-top:1px solid var(--line);padding-top:10px;}
+  #atmEsim{margin-top:10px;border-top:1px solid var(--line);padding-top:10px;}
+  .esim-chip{display:flex;align-items:center;gap:10px;border:1px solid var(--cyan-dim);background:#0c1726;border-radius:11px;padding:9px 12px;text-decoration:none;color:var(--text);transition:border-color .15s,transform .15s;}
+  .esim-chip:hover{border-color:var(--cyan);transform:translateY(-1px);}
+  .esim-chip.esim-ad{cursor:default;} .esim-chip.esim-ad:hover{border-color:var(--cyan-dim);transform:none;}
+  .esim-chip .esim-ico{font-size:15px;flex:0 0 auto;}
+  .esim-chip .esim-txt{font-size:12px;line-height:1.35;min-width:0;flex:1;}
+  .esim-chip .esim-txt .esim-hd b{color:var(--cyan);}
+  .esim-chip .esim-meta{font-family:'Space Mono',monospace;color:var(--muted);font-size:10px;}
+  .esim-chip .esim-buy{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--cyan);border:1px solid var(--cyan-dim);border-radius:8px;padding:5px 10px;white-space:nowrap;flex:0 0 auto;}
+  #atmDeals{margin-top:10px;border-top:1px solid var(--line);padding-top:10px;}
+  #atmDeals .dl-head{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;}
+  #atmDeals .dl-strip{display:flex;gap:10px;overflow-x:auto;padding-bottom:4px;scroll-snap-type:x mandatory;}
+  #atmDeals .dl-strip::-webkit-scrollbar{height:6px;} #atmDeals .dl-strip::-webkit-scrollbar-thumb{background:var(--line);border-radius:3px;}
+  .dl-card{flex:0 0 168px;scroll-snap-align:start;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--panel);text-decoration:none;color:var(--text);display:flex;flex-direction:column;transition:border-color .15s,transform .15s;}
+  .dl-card:hover{border-color:var(--cyan-dim);transform:translateY(-2px);}
+  .dl-card .dl-img{position:relative;height:104px;background:#0c1420 center/cover no-repeat;}
+  .dl-card .dl-badge{position:absolute;top:7px;left:7px;background:var(--amber);color:#1a1205;font-family:'Space Mono',monospace;font-size:11px;font-weight:700;padding:2px 7px;border-radius:7px;}
+  .dl-card .dl-body{padding:8px 9px;display:flex;flex-direction:column;gap:5px;}
+  .dl-card .dl-title{font-size:12px;line-height:1.3;max-height:47px;overflow:hidden;color:var(--text);}
+  .dl-card .dl-price{font-family:'Space Mono',monospace;font-size:12px;color:var(--cyan);}
+  .dl-card .dl-price s{color:var(--muted-2);margin-right:5px;}
+  @media (max-width:880px){ .dl-card{flex-basis:150px;} }
   #atmWeather .wx-head,#atmTravel .tv-head{font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.1em;
     color:var(--muted);text-transform:uppercase;margin-bottom:7px;display:flex;justify-content:space-between;align-items:center;}
-  .wx-now{display:flex;align-items:center;gap:10px;}
-  .wx-now img{width:38px;height:38px;}
-  .wx-temp{font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:700;}
-  .wx-meta{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);line-height:1.5;}
-  .wx-days{display:flex;gap:7px;margin-top:8px;}
-  .wx-day{flex:1;background:#0a0f1c;border:1px solid var(--line);border-radius:8px;padding:6px 4px;text-align:center;}
+  /* Compact horizontal weather: current conditions inline on one row, 3-day strip inline to the right */
+  .wx-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .wx-now{display:flex;align-items:center;gap:8px;min-width:0;}
+  .wx-now img{width:30px;height:30px;flex:0 0 auto;}
+  .wx-temp{font-family:'Space Grotesk',sans-serif;font-size:20px;font-weight:700;line-height:1;}
+  .wx-meta{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .wx-days{display:flex;gap:6px;margin-left:auto;}
+  .wx-day{display:flex;align-items:center;gap:4px;background:#0a0f1c;border:1px solid var(--line);border-radius:8px;padding:3px 7px;}
   .wx-day .d{font-family:'Space Mono',monospace;font-size:9px;color:var(--muted-2);text-transform:uppercase;}
-  .wx-day img{width:26px;height:26px;}
-  .wx-day .t{font-family:'Space Mono',monospace;font-size:10px;}
+  .wx-day img{width:20px;height:20px;}
+  .wx-day .t{font-family:'Space Mono',monospace;font-size:10px;white-space:nowrap;}
   .wx-day .t b{color:var(--text);}
   .wx-attr{font-size:9px;color:var(--muted-2);margin-top:6px;font-family:'Space Mono',monospace;}
+  @media (max-width:880px){ .wx-days{margin-left:0;flex-wrap:wrap;} }
   .tv-ctas{display:flex;flex-wrap:wrap;gap:7px;}
   .tv-cta{border:1px solid var(--cyan-dim);background:#0c1726;color:var(--cyan);border-radius:9px;padding:8px 12px;
     font-family:'Space Mono',monospace;font-size:12px;text-decoration:none;display:inline-flex;align-items:center;gap:6px;transition:all .15s;}
@@ -711,7 +767,7 @@ $('#customInput').addEventListener('keydown',e=>{if(e.key==='Enter'){state.query
 (function(){
   var API = location.origin;            // тот же origin (NestJS отдаёт /api и фронт)
   var BOOT = null, DICT = {}, LOCALE = 'en';
-  var lastCamId = null, wxTimer = null, tvTimer = null;
+  var lastCamId = null, wxTimer = null, tvTimer = null, esTimer = null, esimLastCc = null;
   var $ = function(s){return document.querySelector(s);};
 
   function setCookie(k,v){ document.cookie = k+'='+v+';path=/;max-age=31536000;samesite=lax'; }
@@ -776,6 +832,15 @@ $('#customInput').addEventListener('keydown',e=>{if(e.key==='Enter'){state.query
     setTxt('#veil .hint', veil.hint);
     var ci=qs('#customInput'); if(ci&&ui.customPlaceholder) ci.placeholder=ui.customPlaceholder;
     setTxt('#customGo', ui.find);
+    // footer (legal links + phone label)
+    var lg=d.legal||{};
+    setTxt('#ftPrivacy', lg.privacy); setTxt('#ftTerms', lg.terms); setTxt('#ftRefund', lg.refund);
+    if(lg.phone) setTxt('#ftPhoneLbl', lg.phone);
+    // keep legal links pointed at the current locale
+    var lc=LOCALE||'en';
+    var pv=qs('#ftPrivacy'); if(pv) pv.href='/legal/privacy?lang='+lc;
+    var tm=qs('#ftTerms'); if(tm) tm.href='/legal/terms?lang='+lc;
+    var rf=qs('#ftRefund'); if(rf) rf.href='/legal/refund?lang='+lc;
     localizeCount(qs('#poolCount'), ui.cameras);
     localizeCount(qs('#catTotal'), ui.total);
     localizeFavsEmpty();
@@ -802,6 +867,78 @@ $('#customInput').addEventListener('keydown',e=>{if(e.key==='Enter'){state.query
     var tv = document.createElement('div'); tv.id='atmTravel';
     tv.innerHTML = '<div class="tv-head"><span>'+t('travel.title','Experiences here')+'</span></div><div id="tvBody" class="tv-ctas"></div>';
     cats.appendChild(wx); cats.appendChild(tv);
+
+    // Contextual eSIM chip (cheapest plan for the active camera's country) — hidden until data.
+    var es = document.createElement('div'); es.id='atmEsim'; es.style.display='none';
+    es.innerHTML = '<div id="esimBody"></div>';
+    cats.appendChild(es);
+
+    // Hot discounted tours showcase (Viator Deals feed) — hidden until data arrives.
+    var dl = document.createElement('div'); dl.id='atmDeals'; dl.style.display='none';
+    dl.innerHTML = '<div class="dl-head"><span>'+t('deals.title','Hot tour deals')+'</span></div><div id="dlStrip" class="dl-strip"></div>';
+    cats.appendChild(dl);
+  }
+
+  function renderDeals(items){
+    var wrap = $('#atmDeals'), strip = $('#dlStrip'); if(!wrap||!strip) return;
+    if(!items || !items.length){ wrap.style.display='none'; return; }
+    strip.innerHTML = items.map(function(d){
+      var img = d.image ? 'style="background-image:url(\''+d.image.replace(/'/g,'')+'\')"' : '';
+      var badge = d.discount ? '<span class="dl-badge">\u2212'+d.discount+'%</span>' : '';
+      var price = (d.price!=null) ? '<div class="dl-price">'+(d.oldPrice?'<s>'+d.oldPrice+'</s>':'')+d.price+(d.currency?' '+d.currency:'')+'</div>' : '';
+      return '<a class="dl-card" target="_blank" rel="nofollow sponsored noopener" href="'+d.url+'">'+
+             '<div class="dl-img" '+img+'>'+badge+'</div>'+
+             '<div class="dl-body"><div class="dl-title">'+(d.title||'')+'</div>'+price+'</div></a>';
+    }).join('');
+    wrap.style.display='';
+  }
+
+  function loadDeals(){
+    if(!(BOOT && BOOT.deals && BOOT.deals.enabled)) return;
+    fetch(API+'/api/deals', {credentials:'include'})
+      .then(function(r){return r.ok?r.json():null;})
+      .then(function(j){ if(j) renderDeals(j.items); })
+      .catch(function(){});
+  }
+
+  function esimMoney(minor, cur){
+    var v=(minor||0)/100, c=(cur||'USD').toUpperCase();
+    if(c==='USD') return '$'+v.toFixed(2);
+    if(c==='EUR') return '\u20AC'+v.toFixed(2);
+    return v.toFixed(2)+' '+c;
+  }
+  function esimData(pkg){
+    if(pkg.unlimited) return t('esim.unlimited','Unlimited');
+    var mb=pkg.dataMb||0;
+    return mb>=1024 ? (mb/1024).toFixed(mb%1024?1:0)+' '+t('esim.gb','GB') : mb+' '+t('esim.mb','MB');
+  }
+  function renderEsim(pkg, country){
+    var wrap=$('#atmEsim'), body=$('#esimBody'); if(!wrap||!body) return;
+    if(!pkg){ wrap.style.display='none'; return; }
+    var cc=(pkg.countries&&pkg.countries[0])||'';
+    var canBuy=!!(BOOT.esim&&BOOT.esim.canBuy);
+    var inner=
+      '<span class="esim-ico">\uD83D\uDCF6</span>'+
+      '<span class="esim-txt"><div class="esim-hd">'+t('esim.for','eSIM for')+' <b>'+(country||cc)+'</b> \u2014 '+t('esim.from','from')+' '+esimMoney(pkg.priceMinor,pkg.currency)+'</div>'+
+      '<div class="esim-meta">'+esimData(pkg)+' \u00B7 '+pkg.days+' '+t('esim.days','d')+'</div></span>';
+    if(canBuy){
+      var co=(BOOT.esim&&BOOT.esim.checkoutUrl)||'/esim';
+      var href=co+(co.indexOf('?')<0?'?':'&')+'country='+encodeURIComponent(cc)+'&package='+encodeURIComponent(pkg.id);
+      body.innerHTML='<a class="esim-chip" href="'+href+'">'+inner+'<span class="esim-buy">'+t('esim.buy','Get')+'</span></a>';
+    } else {
+      // No purchase available (missing eSIM provider or payment keys) — advertise only, no checkout link.
+      body.innerHTML='<div class="esim-chip esim-ad">'+inner+'</div>';
+    }
+    wrap.style.display='';
+  }
+  function loadEsim(cc, country){
+    var wrap=$('#atmEsim');
+    if(!(BOOT&&BOOT.esim&&BOOT.esim.enabled) || !cc){ if(wrap) wrap.style.display='none'; return; }
+    if(cc===esimLastCc) return; esimLastCc=cc;
+    fetch(API+'/api/esim/cheapest?country='+encodeURIComponent(cc), {credentials:'include'})
+      .then(function(r){return r.ok?r.json():null;})
+      .then(function(j){ renderEsim(j&&j.package, country||cc); })
+      .catch(function(){});
   }
 
   function renderWeather(w){
@@ -810,16 +947,16 @@ $('#customInput').addEventListener('keydown',e=>{if(e.key==='Enter'){state.query
     var c = w.current;
     var days = (w.forecast||[]).map(function(d){
       var dn = new Date(d.date).toLocaleDateString(LOCALE,{weekday:'short'});
-      return '<div class="wx-day"><div class="d">'+dn+'</div>'+
-             (d.icon?'<img src="'+d.icon+'" alt="" width="40" height="40">':'')+
-             '<div class="t"><b>'+Math.round(d.maxC)+'°</b> '+Math.round(d.minC)+'°</div></div>';
+      return '<div class="wx-day"><span class="d">'+dn+'</span>'+
+             (d.icon?'<img src="'+d.icon+'" alt="" width="20" height="20">':'')+
+             '<span class="t"><b>'+Math.round(d.maxC)+'°</b> '+Math.round(d.minC)+'°</span></div>';
     }).join('');
     body.innerHTML =
-      '<div class="wx-now">'+(c.icon?'<img src="'+c.icon+'" alt="">':'')+
-        '<div><div class="wx-temp">'+Math.round(c.tempC)+'°</div>'+
+      '<div class="wx-row"><div class="wx-now">'+(c.icon?'<img src="'+c.icon+'" alt="">':'')+
+        '<div class="wx-temp">'+Math.round(c.tempC)+'°</div>'+
         '<div class="wx-meta">'+c.condition+' · '+t('weather.wind','Wind')+' '+Math.round(c.windKph)+' · '+
-        t('weather.humidity','Humidity')+' '+c.humidity+'%</div></div></div>'+
-      '<div class="wx-days">'+days+'</div>'+
+        t('weather.humidity','Humidity')+' '+c.humidity+'%</div></div>'+
+        '<div class="wx-days">'+days+'</div></div>'+
       (BOOT.weather&&BOOT.weather.attribution?'<div class="wx-attr">'+BOOT.weather.attribution+'</div>':'');
   }
   function iconFile(code){ return code; } // WeatherAPI condition code maps to icon filename
@@ -850,6 +987,9 @@ $('#customInput').addEventListener('keydown',e=>{if(e.key==='Enter'){state.query
       fetch(API+'/api/travel/offers?'+q+'&lat='+cam.lat+'&lng='+cam.lng, {credentials:'include'})
         .then(function(r){return r.ok?r.json():null;}).then(function(o){ if(o) renderTravel(o); }).catch(function(){});
     }, 500);
+    // eSIM (contextual by the camera's country)
+    clearTimeout(esTimer);
+    esTimer = setTimeout(function(){ loadEsim(cam.cc, cam.country); }, 500);
   }
 
   // Poll the existing global `state.active` to detect camera changes (no monkeypatching).
@@ -896,7 +1036,7 @@ $('#customInput').addEventListener('keydown',e=>{if(e.key==='Enter'){state.query
         applyI18n();
         return loadCatalog();
       })
-      .then(startPoller)
+      .then(function(){ startPoller(); loadDeals(); })
       .catch(function(e){ console.warn('ATM bootstrap failed', e); });
   }
 

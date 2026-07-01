@@ -1,0 +1,69 @@
+{
+  "brand": "ATM-travel.org",
+  "tagline": "câmeras ao vivo do planeta",
+  "controls": {
+    "play": "reproduzir",
+    "pause": "pausar",
+    "sound": "som",
+    "soundOn": "som ligado",
+    "autocycle": "Ciclo automático",
+    "favorites": "Favoritos"
+  },
+  "categories": {
+    "all": "Todas",
+    "auto-moto": "Automóvel e moto",
+    "nature": "Natureza",
+    "tourism": "Turismo",
+    "real-estate": "Imóveis",
+    "architecture": "Arquitetura",
+    "museums": "Museus",
+    "custom": "Filtro personalizado"
+  },
+  "weather": {
+    "title": "Tempo",
+    "now": "Agora",
+    "feels": "Sensação",
+    "wind": "Vento",
+    "humidity": "Umidade"
+  },
+  "travel": {
+    "title": "Experiências aqui",
+    "tours": "Passeios e atividades",
+    "hotels": "Hotéis",
+    "flights": "Voos",
+    "cta": "Ver ofertas"
+  },
+  "veil": {
+    "title": "Uma janela para o mundo",
+    "play": "Iniciar transmissão",
+    "hint": "Câmeras ao vivo de todo o mundo — cidades, costas, montanhas e estradas. Toque para iniciar a transmissão."
+  },
+  "ui": {
+    "categories": "Categorias",
+    "cameras": "câmeras",
+    "total": "no total",
+    "find": "Buscar",
+    "customPlaceholder": "Filtro personalizado: «orla», «montanhas», «traffic»…",
+    "favoritesEmpty": "Toque em ♥ sobre o vídeo para salvar uma câmera",
+    "connected": "Conectadas: {n} câmeras ao vivo.",
+    "emptyCategory": "Nenhuma câmera nesta categoria"
+  },
+  "deals": {
+    "title": "Ofertas de passeios"
+  },
+  "esim": {
+    "for": "eSIM para",
+    "from": "a partir de",
+    "buy": "Comprar",
+    "unlimited": "Ilimitado",
+    "days": "d",
+    "gb": "GB",
+    "mb": "MB"
+  },
+  "legal": {
+    "privacy": "Política de Privacidade",
+    "terms": "Termos de Uso",
+    "refund": "Reembolsos e Entrega",
+    "phone": "tel."
+  }
+}

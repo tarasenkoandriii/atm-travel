@@ -47,5 +47,23 @@
     "favoritesEmpty": "動画の上の♥をタップしてカメラを保存",
     "connected": "接続済み：{n} 台のライブカメラ",
     "emptyCategory": "このカテゴリーにカメラはありません"
+  },
+  "deals": {
+    "title": "お得なツアー"
+  },
+  "esim": {
+    "for": "eSIM:",
+    "from": "",
+    "buy": "購入",
+    "unlimited": "無制限",
+    "days": "日",
+    "gb": "GB",
+    "mb": "MB"
+  },
+  "legal": {
+    "privacy": "プライバシーポリシー",
+    "terms": "利用規約",
+    "refund": "返金・配送",
+    "phone": "電話"
   }
 }

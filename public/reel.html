@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Auto-reel · ATM-travel.org</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Space+Mono&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#05070d;--panel:#0a0f1a;--line:#1a2436;--text:#e7edf5;--muted:#8b9bb4;--cyan:#4fd7e0;--cyan-dim:#1f6b72;--amber:#f2b64c;}
+  *{box-sizing:border-box;} html,body{margin:0;background:var(--bg);color:var(--text);font-family:'Space Grotesk',system-ui,sans-serif;}
+  .wrap{max-width:900px;margin:0 auto;padding:18px 16px 60px;}
+  header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;flex-wrap:wrap;}
+  .logo{font-weight:700;} .logo b{color:var(--cyan);} .sub{font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);}
+  a{color:var(--cyan);text-decoration:none;}
+  #stage{position:absolute;left:-9999px;top:0;} /* globe renders offscreen for the intro capture */
+  .panel{border:1px solid var(--line);border-radius:14px;background:var(--panel);padding:14px;margin-top:14px;}
+  label{font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;}
+  input,textarea{width:100%;background:#0c1420;color:var(--text);border:1px solid var(--line);border-radius:9px;padding:9px;font:inherit;margin-top:4px;}
+  textarea{min-height:70px;font-family:'Space Mono',monospace;font-size:12px;}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-top:6px;}
+  .btn{border:1px solid var(--cyan-dim);background:linear-gradient(180deg,#0e2730,#0c1a20);color:var(--cyan);font:inherit;font-weight:700;border-radius:11px;padding:13px 18px;cursor:pointer;} .btn[disabled]{opacity:.45;cursor:not-allowed;}
+  .status{font-family:'Space Mono',monospace;font-size:12px;color:var(--muted);margin-top:12px;min-height:18px;}
+  .log{font-family:'Space Mono',monospace;font-size:11px;color:var(--muted-2,#5a6a82);background:#070b12;border:1px solid var(--line);border-radius:8px;padding:8px;height:120px;overflow:auto;margin-top:8px;white-space:pre-wrap;}
+  .bar{height:6px;background:#0c1420;border-radius:4px;overflow:hidden;margin-top:8px;} .bar>i{display:block;height:100%;width:0;background:var(--cyan);transition:width .2s;}
+  .results{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:14px;}
+  .rcard{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#0c1420;} .rcard video{width:100%;display:block;background:#000;}
+  .rc-b{padding:9px 11px;display:flex;justify-content:space-between;align-items:center;gap:8px;} .rc-b .fmt{font-family:'Space Mono',monospace;font-size:12px;color:var(--cyan);}
+  .muted{color:var(--muted);font-size:12px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <a class="logo" href="/">ATM<b>·</b>travel</a>
+    <div class="sub">auto-reel · ffmpeg.wasm montage (1080p, in-browser)</div>
+  </header>
+
+  <div id="stage"><div id="globeHost"></div></div>
+
+  <div class="panel">
+    <div class="grid">
+      <div><label>Lat</label><input id="lat" type="number" step="0.0001"></div>
+      <div><label>Lng</label><input id="lng" type="number" step="0.0001"></div>
+      <div><label>Title</label><input id="title" placeholder="Хургада, Египет"></div>
+      <div><label>BPM</label><input id="bpm" type="number" value="120"></div>
+      <div><label>FPS</label><input id="fps" type="number" value="30"></div>
+    </div>
+    <div style="margin-top:10px"><label>Manifest URL (optional — иначе собираем из полей)</label><input id="manifestUrl" placeholder="https://…/manifest.json"></div>
+    <div style="margin-top:10px"><label>Clips (по одному URL .mp4 в строке · нарезка между глобусом и live-камерой)</label><textarea id="clips" placeholder="https://.../aerial-beach.mp4&#10;https://.../coral-reef.mp4&#10;https://.../golden-hour.mp4"></textarea></div>
+    <div class="grid">
+      <div><label>Music URL</label><input id="music" placeholder="https://.../track.mp3"></div>
+      <div><label>Overlay .webm (alpha)</label><input id="overlay" placeholder="https://.../overlay.webm"></div>
+      <div><label>Live-cam clip .mp4</label><input id="livecam" placeholder="https://.../cam.mp4"></div>
+    </div>
+    <div style="margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <button class="btn" id="go">▶ Собрать 3 ролика</button>
+      <span class="muted">1080p · x264 · всё в браузере</span>
+    </div>
+    <div class="status" id="status"></div>
+    <div class="bar"><i id="prog"></i></div>
+    <div class="log" id="log"></div>
+    <div class="results" id="results"></div>
+  </div>
+
+  <p class="muted" style="margin-top:12px">Порядок: <b>intro (глобус)</b> → нарезка сток-клипов по битам → <b>live-камера</b>, поверх — overlay (погода/оффер) и музыка. ffmpeg.wasm жмёт в x264/mp4, результат — в Vercel Blob.</p>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/globe.gl"></script>
+<script type="module">
+import { FFmpeg } from 'https://esm.sh/@ffmpeg/ffmpeg@0.12.10';
+import { fetchFile, toBlobURL } from 'https://esm.sh/@ffmpeg/util@0.12.1';
+import { validateManifest, checkBeatAlignment, buildFilterComplex, buildDefaultManifest } from '/reel.manifest.mjs';
+
+const $ = s => document.querySelector(s);
+const qs = new URLSearchParams(location.search);
+const log = m => { const el = $('#log'); el.textContent += m + '\n'; el.scrollTop = el.scrollHeight; };
+const setStatus = m => $('#status').textContent = m;
+const setProg = p => $('#prog').style.width = Math.round(p * 100) + '%';
+const num = (v, d) => { const n = parseFloat(v); return isNaN(n) ? d : n; };
+
+const FORMATS = [{ name: '9:16', w: 1080, h: 1920 }, { name: '4:5', w: 1080, h: 1350 }, { name: '16:9', w: 1920, h: 1080 }];
+const MIME = (() => { const c = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm']; for (const m of c) if (window.MediaRecorder && MediaRecorder.isTypeSupported(m)) return m; return 'video/webm'; })();
+
+// prefill from params
+['lat', 'lng', 'title', 'bpm', 'fps', 'music', 'overlay', 'livecam'].forEach(k => { if (qs.get(k)) $('#' + k).value = qs.get(k); });
+if (qs.get('manifest')) $('#manifestUrl').value = qs.get('manifest');
+if (qs.get('clips')) $('#clips').value = qs.get('clips').split(',').join('\n');
+
+// ── globe (offscreen) for the intro segment ──
+const host = $('#globeHost');
+const G = Globe({ rendererConfig: { preserveDrawingBuffer: true, antialias: true } })(host)
+  .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-night.jpg')
+  .backgroundImageUrl('https://unpkg.com/three-globe/example/img/night-sky.png')
+  .showAtmosphere(true).atmosphereColor('#4fd7e0').atmosphereAltitude(0.18)
+  .ringColor(() => '#4fd7e0').ringMaxRadius(6).ringPropagationSpeed(3).ringRepeatPeriod(700);
+G.controls().enabled = false;
+const gc = () => host.querySelector('canvas');
+const easeInOut = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
+// Record a globe fly-to as a WebM blob at a given size/duration — this is the manifest's `intro`.
+function recordIntro(w, h, seconds, lat, lng) {
+  return new Promise(resolve => {
+    G.width(w); G.height(h); host.style.width = w + 'px'; host.style.height = h + 'px';
+    G.ringsData([{ lat, lng }]).pointsData([{ lat, lng }]).pointColor(() => '#f2b64c').pointAltitude(0.01).pointRadius(0.5);
+    const stream = gc().captureStream(30);
+    const rec = new MediaRecorder(stream, { mimeType: MIME, videoBitsPerSecond: 10_000_000 });
+    const chunks = []; rec.ondataavailable = e => e.data.size && chunks.push(e.data);
+    rec.onstop = () => resolve(new Blob(chunks, { type: 'video/webm' }));
+    const start = { lat: lat - 8, lng: lng - 35, altitude: 2.9 }, end = { lat, lng, altitude: 0.55 };
+    const t0 = performance.now(), dur = seconds * 1000;
+    G.pointOfView(start, 0); rec.start();
+    (function loop() {
+      const t = Math.min(1, (performance.now() - t0) / dur), e = easeInOut(t);
+      G.pointOfView({ lat: start.lat + (end.lat - start.lat) * e, lng: start.lng + (end.lng - start.lng) * e, altitude: start.altitude + (end.altitude - start.altitude) * e }, 0);
+      if (t < 1) requestAnimationFrame(loop); else setTimeout(() => rec.stop(), 120);
+    })();
+  });
+}
+
+// ── asset fetch (direct, else via server CORS proxy) ──
+async function fetchBytes(url) {
+  try { const r = await fetch(url); if (!r.ok) throw 0; return new Uint8Array(await r.arrayBuffer()); }
+  catch (e) {
+    const r = await fetch('/api/reel/proxy?url=' + encodeURIComponent(url));
+    if (!r.ok) throw new Error('asset fetch failed: ' + url);
+    return new Uint8Array(await r.arrayBuffer());
+  }
+}
+const extOf = (url, def) => { const m = /\.([a-z0-9]{2,4})(?:\?|$)/i.exec(url || ''); return m ? m[1].toLowerCase() : def; };
+
+// ── ffmpeg.wasm ──
+let ff = null;
+async function loadFF() {
+  if (ff) return ff;
+  ff = new FFmpeg();
+  ff.on('log', ({ message }) => { if (/frame=|error|Error/i.test(message)) log(message); });
+  const base = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+  setStatus('Загрузка ffmpeg.wasm…');
+  await ff.load({
+    coreURL: await toBlobURL(`${base}/ffmpeg-core.js`, 'text/javascript'),
+    wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, 'application/wasm'),
+  });
+  return ff;
+}
+
+// Build a manifest from the form (or load provided URL).
+async function getManifest() {
+  const url = $('#manifestUrl').value.trim();
+  if (url) { const m = await fetch(url).then(r => r.json()); return m; }
+  const lat = num($('#lat').value, NaN), lng = num($('#lng').value, NaN);
+  if (isNaN(lat) || isNaN(lng)) throw new Error('нужны Lat/Lng или Manifest URL');
+  let clips = $('#clips').value.split('\n').map(s => s.trim()).filter(Boolean).map(u => ({ url: u }));
+  // Auto-source B-roll if none pasted and a provider key is configured.
+  if (!clips.length) {
+    const q = (qs.get('q') || $('#title').value || '').trim();
+    try {
+      const j = await fetch('/api/reel/clips?n=4&orientation=landscape&q=' + encodeURIComponent(q)).then(r => r.json());
+      if (j && j.clips && j.clips.length) {
+        clips = j.clips.map(c => ({ url: c.url, provider: c.provider, id: c.id, attribution: c.attribution, tags: c.tags }));
+        log('авто-клипы: ' + clips.length + ' · ' + (j.provider || '') + ' · запрос: ' + (j.query || '—'));
+        clips.forEach(c => c.attribution && log('  © ' + c.attribution));
+      } else if (j && !j.provider) log('авто-источник клипов не настроен (нет PEXELS/PIXABAY ключа)');
+    } catch (e) { log('авто-клипы недоступны: ' + (e.message || e)); }
+  }
+  const music = $('#music').value.trim(), overlay = $('#overlay').value.trim(), livecamUrl = $('#livecam').value.trim();
+  return buildDefaultManifest({
+    destination: { id: (qs.get('cam') || 'geo'), name: $('#title').value.trim() || 'Destination', coords: { lat, lng } },
+    formats: FORMATS, fps: num($('#fps').value, 30), bpm: num($('#bpm').value, 120),
+    music, overlay, clips,
+    livecam: livecamUrl ? { id: qs.get('cam') || 'cam', url: livecamUrl } : null,
+  });
+}
+
+// Assemble one crop with ffmpeg.wasm. Returns Blob(mp4).
+// Render a credit strip (author attributions) as a transparent PNG for a given format size.
+function makeCreditPng(w, h, text) {
+  return new Promise(res => {
+    const c = document.createElement('canvas'); c.width = w; c.height = h;
+    const x = c.getContext('2d');
+    const strip = Math.round(h * 0.10);
+    const g = x.createLinearGradient(0, h - strip, 0, h); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.5)');
+    x.fillStyle = g; x.fillRect(0, h - strip, w, strip);
+    x.fillStyle = 'rgba(231,237,245,0.92)'; x.font = Math.round(w * 0.019) + "px 'Space Mono', monospace"; x.textBaseline = 'alphabetic';
+    x.fillText(text, Math.round(w * 0.04), h - Math.round(w * 0.03));
+    c.toBlob(async b => res(new Uint8Array(await b.arrayBuffer())), 'image/png');
+  });
+}
+
+async function renderFormat(ff, m, fmt, introBlob, assetCache, creditText) {
+  const g = buildFilterComplex(m, fmt.name, { lut: false, preset: 'veryfast' });
+  const files = [];
+  for (let i = 0; i < m.timeline.length; i++) {
+    const s = m.timeline[i];
+    if (s.kind === 'intro') files.push({ name: `in${i}.webm`, data: new Uint8Array(await introBlob.arrayBuffer()) });
+    else { const url = s.source.url; const ext = extOf(url, 'mp4'); files.push({ name: `in${i}.${ext}`, data: await cached(assetCache, url) }); }
+  }
+  let idx = m.timeline.length;
+  if (g.hasOverlay) { const url = m.overlay.source; files.push({ name: `in${idx}.${extOf(url, 'webm')}`, data: await cached(assetCache, url) }); idx++; }
+  if (g.hasMusic) { const url = m.audio.track; files.push({ name: `in${idx}.${extOf(url, 'mp3')}`, data: await cached(assetCache, url) }); idx++; }
+
+  for (const f of files) await ff.writeFile(f.name, f.data);
+
+  const args = [];
+  files.forEach(f => args.push('-i', f.name));
+  let filter = g.filter, maps = g.maps;
+  let hasCredit = false;
+  if (creditText) {
+    const credit = await makeCreditPng(fmt.w, fmt.h, creditText);
+    await ff.writeFile('credit.png', credit);
+    args.push('-loop', '1', '-framerate', String(m.render.fps), '-i', 'credit.png'); // index === g.nextIdx
+    const introSeg = m.timeline.find(s => s.kind === 'intro');
+    const creditEnd = introSeg ? introSeg.outEnd : 3;   // show credits only over the intro/first seconds
+    filter += `;[${g.nextIdx}:v]format=rgba[cr];${g.outLabel}[cr]overlay=0:0:enable='between(t,0,${creditEnd})'[outc]`;
+    maps = ['-map', '[outc]'].concat(g.hasMusic ? ['-map', `${g.musicIdx}:a`] : []);
+    hasCredit = true;
+  }
+  args.push('-filter_complex', filter, ...maps, ...g.encode);
+  if (hasCredit && !g.hasMusic) args.push('-shortest');
+  args.push('-movflags', '+faststart', 'out.mp4');
+  log('ffmpeg ' + fmt.name + ': ' + args.join(' '));
+  await ff.exec(args);
+  const data = await ff.readFile('out.mp4');
+  for (const f of files) { try { await ff.deleteFile(f.name); } catch (e) {} }
+  if (hasCredit) { try { await ff.deleteFile('credit.png'); } catch (e) {} }
+  try { await ff.deleteFile('out.mp4'); } catch (e) {}
+  return new Blob([data.buffer], { type: 'video/mp4' });
+}
+async function cached(cache, url) { if (!cache.has(url)) cache.set(url, await fetchBytes(url)); return cache.get(url); }
+
+// ── upload to Blob + persist ──
+async function deliver(outputs, meta) {
+  let cfg = { blobEnabled: false };
+  try { cfg = await fetch('/api/cine/config').then(r => r.json()); } catch (e) {}
+  const items = [];
+  if (cfg.blobEnabled) {
+    setStatus('Загрузка в Blob…');
+    let upload = null; try { ({ upload } = await import('https://esm.sh/@vercel/blob@0.23.4/client')); } catch (e) {}
+    for (const o of outputs) {
+      try {
+        if (!upload) throw 0;
+        const res = await upload('reel/' + Date.now() + '-' + o.fmt.replace(':', 'x') + '.mp4', o.blob, { access: 'public', handleUploadUrl: '/api/cine/blob-token', contentType: 'video/mp4' });
+        items.push({ fmt: o.fmt, url: res.url, blob: o.blob });
+      } catch (e) { items.push({ fmt: o.fmt, blob: o.blob }); }
+    }
+    const up = items.filter(i => i.url);
+    if (up.length) { try { const rec = await fetch('/api/cine', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...meta, items: up.map(i => ({ format: i.fmt, url: i.url })) }) }).then(r => r.json()); if (rec.id) setStatus('Готово · набор: /api/cine/' + rec.id); } catch (e) {} }
+  } else { outputs.forEach(o => items.push(o)); setStatus('Готово. Blob не подключён — скачайте локально.'); }
+  showCards(items);
+}
+function showCards(items) {
+  $('#results').innerHTML = items.map(o => { const u = o.url || URL.createObjectURL(o.blob); const dl = o.url ? ' target="_blank"' : ' download="reel-' + o.fmt.replace(':', 'x') + '.mp4"'; return '<div class="rcard"><video src="' + u + '" controls muted loop playsinline></video><div class="rc-b"><span class="fmt">' + o.fmt + '</span><a class="btn" style="padding:7px 12px" href="' + u + '"' + dl + '>' + (o.url ? 'Открыть' : 'Скачать') + '</a></div></div>'; }).join('');
+}
+
+// ── run all (automatic) ──
+async function run() {
+  $('#go').disabled = true; $('#results').innerHTML = ''; $('#log').textContent = ''; setProg(0);
+  try {
+    setStatus('Готовим манифест…');
+    const m = await getManifest();
+    const errs = validateManifest(m); if (errs.length) { setStatus('Манифест невалиден'); errs.forEach(log); $('#go').disabled = false; return; }
+    const bad = checkBeatAlignment(m); if (bad.length) log('⚠ вне бита: ' + JSON.stringify(bad));
+    const intro = m.timeline.find(s => s.kind === 'intro');
+    const introSec = intro ? (intro.srcOut - intro.srcIn) : 2.5;
+    const lat = m.destination.coords.lat, lng = m.destination.coords.lng;
+
+    const ffmpeg = await loadFF();
+    const cache = new Map();
+    // author credits from clip attributions (Pexels/Pixabay require attribution)
+    const attrs = [...new Set(m.timeline.filter(s => s.source && s.source.attribution).map(s => s.source.attribution))];
+    const creditText = attrs.length ? ('Footage: ' + attrs.join('  ·  ')) : '';
+    if (creditText) log('кредиты: ' + creditText);
+    const outputs = [];
+    for (let fi = 0; fi < m.render.formats.length; fi++) {
+      const fmt = m.render.formats[fi];
+      setStatus('Формат ' + fmt.name + ' — intro (глобус)…');
+      const introBlob = await recordIntro(fmt.w, fmt.h, introSec, lat, lng);
+      setStatus('Формат ' + fmt.name + ' — монтаж ffmpeg…');
+      const blob = await renderFormat(ffmpeg, m, fmt, introBlob, cache, creditText);
+      outputs.push({ fmt: fmt.name, blob });
+      setProg((fi + 1) / m.render.formats.length);
+    }
+    await deliver(outputs, { lat, lng, dur: m.timeline[m.timeline.length - 1].outEnd, title: m.destination.name });
+  } catch (e) { setStatus('Ошибка: ' + (e.message || e)); log(String(e)); }
+  $('#go').disabled = false;
+}
+
+// Resolve ?cam=<id> -> lat/lng/title (+ livecam if the embed is a direct media URL) from the snapshot.
+async function resolveCam() {
+  const cam = qs.get('cam'); if (!cam) return;
+  try {
+    const snap = await fetch('/api/cameras/snapshot', { credentials: 'include' }).then(r => r.ok ? r.json() : null);
+    const c = ((snap && snap.cameras) || []).find(x => x.id === cam);
+    if (c) {
+      if (!$('#lat').value) $('#lat').value = c.lat;
+      if (!$('#lng').value) $('#lng').value = c.lng;
+      if (!$('#title').value) $('#title').value = c.title || [c.city, c.country].filter(Boolean).join(', ');
+      // livecam segment needs a fetchable mp4/HLS: prefer the camera's clipUrl, else embed if it's direct media.
+      if (!$('#livecam').value) {
+        const media = c.clipUrl || ((c.embed && /\.(mp4|m3u8)(\?|$)/i.test(c.embed)) ? c.embed : '');
+        if (media) $('#livecam').value = media;
+      }
+    }
+  } catch (e) { /* ignore */ }
+}
+
+$('#go').onclick = run;
+(async function init() { await resolveCam(); if (qs.get('auto') === '1') setTimeout(run, 800); })();
+</script>
+</body>
+</html>

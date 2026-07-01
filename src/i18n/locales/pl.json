@@ -47,5 +47,23 @@
     "favoritesEmpty": "Kliknij ♥ nad wideo, aby zapisać kamerę",
     "connected": "Podłączono: {n} kamer na żywo.",
     "emptyCategory": "Brak kamer w tej kategorii"
+  },
+  "deals": {
+    "title": "Gorące oferty wycieczek"
+  },
+  "esim": {
+    "for": "eSIM dla",
+    "from": "od",
+    "buy": "Kup",
+    "unlimited": "Bez limitu",
+    "days": "dni",
+    "gb": "GB",
+    "mb": "MB"
+  },
+  "legal": {
+    "privacy": "Polityka prywatności",
+    "terms": "Regulamin",
+    "refund": "Zwroty i dostawa",
+    "phone": "tel."
   }
 }

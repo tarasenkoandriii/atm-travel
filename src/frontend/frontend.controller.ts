@@ -4,39 +4,60 @@ import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 
 /**
- * Serves the single-file frontend (public/index.html) at "/".
- * On Vercel the file is bundled via functions.includeFiles ("public/**") in vercel.json;
- * we resolve it from a few candidate paths to work both on serverless and a persistent process.
+ * Serves the single-file frontend at "/" and the eSIM checkout page at "/esim".
+ * On Vercel these are bundled via functions.includeFiles ("public/**") in vercel.json;
+ * resolved from a few candidate paths to work on serverless and a persistent process.
  */
 @Controller()
 export class FrontendController {
-  private readonly html: string = FrontendController.load();
+  private readonly index: string = FrontendController.load('index.html');
+  private readonly esim: string = FrontendController.load('esim.html');
+  private readonly legal: string = FrontendController.load('legal.html');
+  private readonly cine: string = FrontendController.load('cine.html');
+  private readonly reel: string = FrontendController.load('reel.html');
 
-  private static load(): string {
+  private static load(file: string): string {
     const candidates = [
-      join(process.cwd(), 'public', 'index.html'),
-      join(__dirname, '..', '..', 'public', 'index.html'),
-      join(__dirname, '..', '..', '..', 'public', 'index.html'),
+      join(process.cwd(), 'public', file),
+      join(__dirname, '..', '..', 'public', file),
+      join(__dirname, '..', '..', '..', 'public', file),
     ];
     for (const p of candidates) {
-      try {
-        if (existsSync(p)) return readFileSync(p, 'utf8');
-      } catch {
-        /* try next */
-      }
+      try { if (existsSync(p)) return readFileSync(p, 'utf8'); } catch { /* try next */ }
     }
     return '';
   }
 
   @Get()
   root(@Res() res: Response) {
-    if (this.html) {
+    return this.serve(res, this.index);
+  }
+
+  @Get('esim')
+  esimPage(@Res() res: Response) {
+    return this.serve(res, this.esim);
+  }
+
+  @Get('legal/:doc')
+  legalPage(@Res() res: Response) {
+    return this.serve(res, this.legal);
+  }
+
+  @Get('cine')
+  cinePage(@Res() res: Response) {
+    return this.serve(res, this.cine);
+  }
+
+  @Get('reel')
+  reelPage(@Res() res: Response) {
+    return this.serve(res, this.reel);
+  }
+
+  private serve(res: Response, html: string) {
+    if (html) {
       res.setHeader('Cache-Control', 'public, max-age=60');
-      return res.type('html').send(this.html);
+      return res.type('html').send(html);
     }
-    return res
-      .status(500)
-      .type('html')
-      .send('<h1>ATM-travel.org</h1><p>frontend asset not found in bundle</p>');
+    return res.status(500).type('html').send('<h1>ATM-travel.org</h1><p>frontend asset not found in bundle</p>');
   }
 }

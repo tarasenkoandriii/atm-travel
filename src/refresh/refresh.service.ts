@@ -4,6 +4,8 @@ import { PrismaService } from '../prisma/prisma.service';
 import { YoutubeAdapter } from '../sources/adapters/youtube.adapter';
 import { WindyAdapter } from '../sources/adapters/windy.adapter';
 import { CamerasRepository } from '../cameras/cameras.repository';
+import { DealsService } from '../deals/deals.service';
+import { CheckoutService } from '../esim/checkout/checkout.service';
 import { SnapshotService } from '../cameras/snapshot.service';
 import { LivenessService } from './liveness.service';
 
@@ -19,6 +21,8 @@ export class RefreshService {
     private readonly repo: CamerasRepository,
     private readonly liveness: LivenessService,
     private readonly snapshot: SnapshotService,
+    private readonly deals: DealsService,
+    private readonly checkout: CheckoutService,
   ) {}
 
   async run(trigger: RefreshTrigger) {
@@ -62,6 +66,8 @@ export class RefreshService {
 
       // snapshot
       await this.snapshot.rebuild();
+      await this.deals.refresh().catch((e) => this.logger.warn(`Deals refresh skipped: ${String(e)}`));
+      await this.checkout.retryPending().catch((e) => this.logger.warn(`eSIM provision retry skipped: ${String(e)}`));
 
       await this.prisma.refreshRun.update({
         where: { id: run.id },

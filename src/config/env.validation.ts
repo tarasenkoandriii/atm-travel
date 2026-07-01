@@ -28,9 +28,31 @@ export const envSchema = z.object({
   TRAVEL_PRIMARY_BRANDS: z.string().default('viator,getyourguide'),
   TRAVEL_DEFAULT_CURRENCY: z.string().default('USD'),
   TRAVEL_LINK_TTL_SEC: z.coerce.number().int().positive().default(2592000), // cache affiliate links ~30d
+  VIATOR_DEALS_FEED_URL: z.string().optional().default(''), // gzipped JSON feed of discounted tours (from TP support)
+  DEALS_MIN_DISCOUNT: z.coerce.number().int().min(0).default(10),
+  DEALS_LIMIT: z.coerce.number().int().positive().default(12),
+  // eSIM (provider-agnostic; Airalo first)
+  ESIM_PROVIDER: z.string().default('airalo'),
+  ESIM_MARKUP_PCT: z.coerce.number().min(0).default(20),
+  AIRALO_CLIENT_ID: z.string().optional().default(''),
+  AIRALO_CLIENT_SECRET: z.string().optional().default(''),
+  AIRALO_BASE_URL: z.string().default('https://partners-api.airalo.com'),
+  AIRALO_API_VERSION: z.string().default('v2'),
+  ESIM_CHECKOUT_URL: z.string().optional().default(''),
+  // eSIM checkout (WayForPay + optional Google auth)
+  WFP_MERCHANT_ACCOUNT: z.string().optional().default(''),
+  WFP_MERCHANT_DOMAIN: z.string().optional().default(''),
+  WFP_SECRET_KEY: z.string().optional().default(''),
+  WFP_CURRENCY: z.string().default('USD'),
+  ESIM_FX_RATE: z.coerce.number().positive().default(1),
+  PUBLIC_BASE_URL: z.string().optional().default(''),
+  GOOGLE_CLIENT_ID: z.string().optional().default(''),
+  BLOB_READ_WRITE_TOKEN: z.string().optional().default(''),
+  PEXELS_API_KEY: z.string().optional().default(''),
+  PIXABAY_API_KEY: z.string().optional().default('')
 
   DEFAULT_LOCALE: z.string().default('en'),
-  SUPPORTED_LOCALES: z.string().default('en,pl,fr,ja,de,uk,ru'),
+  SUPPORTED_LOCALES: z.string().default('en,uk,ru,pl,fr,de,ja,it,pt,es'),
 
   ADMIN_API_KEY: z.string().min(1).default('change-me'),
   ALLOWED_ORIGINS: z.string().default('http://localhost:3000'),

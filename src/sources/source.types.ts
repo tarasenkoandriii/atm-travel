@@ -15,6 +15,7 @@ export interface DiscoveredCamera {
   res?: string;
   videoId?: string | null;
   embed?: string | null;
+  clipUrl?: string | null;
   img?: string | null;
   category?: string | null;
   wcCategory?: string | null;

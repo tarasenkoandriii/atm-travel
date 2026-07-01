@@ -47,5 +47,23 @@
     "favoritesEmpty": "Tippen Sie auf ♥ über dem Video, um eine Kamera zu speichern",
     "connected": "Verbunden: {n} Live-Kameras.",
     "emptyCategory": "Keine Kameras in dieser Kategorie"
+  },
+  "deals": {
+    "title": "Heiße Tour-Angebote"
+  },
+  "esim": {
+    "for": "eSIM für",
+    "from": "ab",
+    "buy": "Kaufen",
+    "unlimited": "Unbegrenzt",
+    "days": "T",
+    "gb": "GB",
+    "mb": "MB"
+  },
+  "legal": {
+    "privacy": "Datenschutz",
+    "terms": "Nutzungsbedingungen",
+    "refund": "Rückgabe & Lieferung",
+    "phone": "Tel."
   }
 }

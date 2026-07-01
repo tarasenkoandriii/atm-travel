@@ -9,6 +9,6 @@ import { CamerasModule } from '../cameras/cameras.module';
   imports: [CamerasModule],
   controllers: [TravelController],
   providers: [TravelService, DestinationResolver, TravelpayoutsProvider],
-  exports: [TravelService],
+  exports: [TravelService, TravelpayoutsProvider],
 })
 export class TravelModule {}

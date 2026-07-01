@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>eSIM · ATM-travel.org</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Space+Mono&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  :root{--bg:#05070d;--panel:#0a0f1a;--panel2:#0c1420;--line:#1a2436;--text:#e7edf5;--muted:#8b9bb4;--muted-2:#5a6a82;--cyan:#4fd7e0;--cyan-dim:#1f6b72;--amber:#f2b64c;}
+  *{box-sizing:border-box;} html,body{margin:0;background:var(--bg);color:var(--text);font-family:'Space Grotesk',system-ui,sans-serif;}
+  a{color:var(--cyan);text-decoration:none;}
+  .wrap{max-width:560px;margin:0 auto;padding:22px 16px 60px;}
+  header{display:flex;align-items:center;gap:10px;margin-bottom:22px;}
+  .logo{font-weight:700;letter-spacing:.02em;} .logo b{color:var(--cyan);}
+  .sub{font-family:'Space Mono',monospace;font-size:11px;color:var(--muted-2);}
+  h1{font-size:19px;margin:0 0 4px;} .lead{color:var(--muted);font-size:13px;margin:0 0 18px;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px;}
+  label{display:block;font-family:'Space Mono',monospace;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:7px;}
+  select,input{width:100%;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:12px;font:inherit;}
+  select:focus,input:focus{outline:none;border-color:var(--cyan-dim);}
+  .plans{display:flex;flex-direction:column;gap:8px;margin-top:4px;}
+  .plan{display:flex;align-items:center;gap:12px;border:1px solid var(--line);background:var(--panel2);border-radius:11px;padding:11px 13px;cursor:pointer;transition:border-color .15s,transform .1s;}
+  .plan:hover{border-color:var(--cyan-dim);} .plan.sel{border-color:var(--cyan);box-shadow:inset 0 0 0 1px var(--cyan);}
+  .plan .data{font-size:15px;font-weight:700;min-width:70px;} .plan .meta{font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);flex:1;}
+  .plan .price{font-family:'Space Mono',monospace;font-size:15px;color:var(--cyan);font-weight:700;}
+  .btn{display:block;width:100%;text-align:center;border:1px solid var(--cyan-dim);background:linear-gradient(180deg,#0e2730,#0c1a20);color:var(--cyan);font:inherit;font-weight:700;border-radius:11px;padding:14px;cursor:pointer;margin-top:6px;transition:transform .1s,border-color .15s;}
+  .btn:hover{border-color:var(--cyan);} .btn[disabled]{opacity:.4;cursor:not-allowed;}
+  .btn.sec{background:var(--panel2);color:var(--text);}
+  .muted{color:var(--muted);font-size:12px;} .mono{font-family:'Space Mono',monospace;}
+  .row{display:flex;gap:10px;align-items:center;} .row>*{flex:1;}
+  #gbtn{margin-bottom:10px;min-height:0;}
+  .qrbox{display:flex;flex-direction:column;align-items:center;gap:14px;padding:10px 0;}
+  #qr{background:#fff;padding:12px;border-radius:12px;} #qr img,#qr canvas{display:block;}
+  .pill{display:inline-block;font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);border:1px solid var(--line);border-radius:20px;padding:4px 10px;}
+  .err{color:#ff8b8b;font-size:13px;} .ok{color:var(--cyan);}
+  .instr{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:12px;font-size:12px;color:var(--muted);max-height:220px;overflow:auto;}
+  .spin{width:20px;height:20px;border:2px solid var(--line);border-top-color:var(--cyan);border-radius:50%;animation:sp 1s linear infinite;display:inline-block;vertical-align:middle;}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  .hide{display:none!important;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">ATM<b>·</b>travel</div>
+    <div class="sub">eSIM · интернет в поездке</div>
+  </header>
+
+  <!-- CHECKOUT FLOW -->
+  <div id="flow">
+    <h1>eSIM для поездки</h1>
+    <p class="lead">Выберите страну и тариф — активация по QR-коду сразу после оплаты.</p>
+
+    <div class="card">
+      <label for="country">Страна назначения</label>
+      <select id="country"><option value="">— выберите страну —</option></select>
+    </div>
+
+    <div class="card hide" id="plansCard">
+      <label>Тариф</label>
+      <div id="plans" class="plans"></div>
+    </div>
+
+    <div class="card hide" id="payCard">
+      <div id="gbtn"></div>
+      <label for="email">E-mail для инструкции и QR</label>
+      <input id="email" type="email" inputmode="email" placeholder="you@example.com" autocomplete="email">
+      <button id="pay" class="btn" disabled>Оплатить</button>
+      <p class="muted" style="margin:10px 2px 0">Оплата через WayForPay. После оплаты покажем QR-код и ссылку установки; копию отправим на e-mail.</p>
+      <p id="flowErr" class="err"></p>
+    </div>
+  </div>
+
+  <!-- RESULT (after payment return, ?ref=...) -->
+  <div id="result" class="hide">
+    <h1 id="resTitle">Готовим ваш eSIM…</h1>
+    <p class="lead" id="resLead"><span class="spin"></span> Проверяем оплату и выпускаем профиль.</p>
+    <div class="card" id="resCard">
+      <div class="qrbox">
+        <div id="qr" class="hide"></div>
+        <a id="apple" class="btn hide" href="#">Установить на этом iPhone</a>
+        <div id="iccid" class="pill hide"></div>
+      </div>
+      <div id="instr" class="instr hide"></div>
+      <p id="resErr" class="err"></p>
+    </div>
+    <a class="btn sec" href="/esim">Купить ещё один</a>
+  </div>
+</div>
+
+<script>
+(function(){
+  var $=function(s){return document.querySelector(s);};
+  var API=location.origin;
+  var BOOT=null, PLAN=null, EMAIL='';
+  var qs=new URLSearchParams(location.search);
+
+  // Curated destination list (name + ISO alpha-2). Extend freely.
+  var COUNTRIES=[["US","США"],["GB","Великобритания"],["FR","Франция"],["IT","Италия"],["ES","Испания"],["DE","Германия"],["PL","Польша"],["PT","Португалия"],["NL","Нидерланды"],["CH","Швейцария"],["AT","Австрия"],["CZ","Чехия"],["GR","Греция"],["TR","Турция"],["AE","ОАЭ"],["EG","Египет"],["TH","Таиланд"],["JP","Япония"],["KR","Южная Корея"],["CN","Китай"],["VN","Вьетнам"],["ID","Индонезия"],["IN","Индия"],["SG","Сингапур"],["MY","Малайзия"],["PH","Филиппины"],["GE","Грузия"],["AM","Армения"],["AZ","Азербайджан"],["KZ","Казахстан"],["IL","Израиль"],["MA","Марокко"],["MX","Мексика"],["CA","Канада"],["BR","Бразилия"],["AR","Аргентина"],["AU","Австралия"],["NZ","Новая Зеландия"],["ZA","ЮАР"],["RS","Сербия"],["HR","Хорватия"],["HU","Венгрия"],["RO","Румыния"],["BG","Болгария"],["SE","Швеция"],["NO","Норвегия"],["FI","Финляндия"],["DK","Дания"],["IE","Ирландия"],["IS","Исландия"],["CY","Кипр"],["MT","Мальта"],["LT","Литва"],["LV","Латвия"],["EE","Эстония"],["SK","Словакия"],["SI","Словения"],["UA","Украина"]];
+
+  function money(minor,cur){var v=(minor||0)/100,c=(cur||'USD').toUpperCase();if(c==='USD')return '$'+v.toFixed(2);if(c==='EUR')return '\u20AC'+v.toFixed(2);return v.toFixed(2)+' '+c;}
+  function dataLabel(p){if(p.unlimited)return 'Безлимит';var mb=p.dataMb||0;return mb>=1024?(mb/1024).toFixed(mb%1024?1:0)+' ГБ':mb+' МБ';}
+
+  function loadBoot(){return fetch(API+'/bootstrap',{credentials:'include'}).then(function(r){return r.json();}).then(function(b){BOOT=b;});}
+
+  // ---------- RESULT MODE ----------
+  var ref=qs.get('ref');
+  function showResult(){
+    $('#flow').classList.add('hide'); $('#result').classList.remove('hide');
+    var tries=0, timer=setInterval(poll, 3000); poll();
+    function poll(){
+      tries++;
+      fetch(API+'/api/esim/checkout/status?ref='+encodeURIComponent(ref),{credentials:'include'})
+        .then(function(r){return r.ok?r.json():null;})
+        .then(function(s){
+          if(!s)return;
+          if(s.status==='provisioned'){ clearInterval(timer); renderEsim(s); }
+          else if(s.status==='failed'){ clearInterval(timer); fail('Оплата не прошла или была отменена.'); }
+          else if(s.status==='paid'){ $('#resLead').innerHTML='<span class="spin"></span> Оплата получена — выпускаем eSIM…'; }
+          if(tries>40){ clearInterval(timer); if(s && s.status!=='provisioned') $('#resLead').innerHTML='Выпуск занимает больше обычного. Мы пришлём eSIM на e-mail, как только он будет готов.'; }
+        }).catch(function(){});
+    }
+    function fail(msg){ $('#resTitle').textContent='Не получилось'; $('#resLead').textContent=''; $('#resErr').textContent=msg; }
+  }
+  function renderEsim(s){
+    $('#resTitle').textContent='Ваш eSIM готов ✓';
+    $('#resLead').innerHTML='Отсканируйте QR-код на другом устройстве или установите на этом iPhone. Копия отправлена'+(s.email?(' на '+s.email):' на почту')+'.';
+    if(s.qrCodeUrl){ var box=$('#qr'); box.classList.remove('hide'); box.innerHTML='<img src="'+s.qrCodeUrl+'" width="220" height="220" alt="eSIM QR">'; }
+    else if(s.qrCode){ var b=$('#qr'); b.classList.remove('hide'); b.innerHTML=''; try{ new QRCode(b,{text:s.qrCode,width:220,height:220,correctLevel:QRCode.CorrectLevel.M}); }catch(e){ b.innerHTML='<div class="mono" style="color:#111;font-size:11px;word-break:break-all;max-width:220px">'+s.qrCode+'</div>'; } }
+    if(s.appleInstallUrl){ var a=$('#apple'); a.href=s.appleInstallUrl; a.classList.remove('hide'); }
+    if(s.iccid){ var ic=$('#iccid'); ic.textContent='ICCID: '+s.iccid; ic.classList.remove('hide'); }
+    if(s.instructionsHtml){ var i=$('#instr'); i.innerHTML=s.instructionsHtml; i.classList.remove('hide'); }
+  }
+
+  // ---------- CHECKOUT MODE ----------
+  function initCountries(){
+    var sel=$('#country');
+    COUNTRIES.sort(function(a,b){return a[1].localeCompare(b[1],'ru');}).forEach(function(c){
+      if(c[0].indexOf('-')>-1)return; var o=document.createElement('option'); o.value=c[0]; o.textContent=c[1]+' ('+c[0]+')'; sel.appendChild(o);
+    });
+    var pre=(qs.get('country')||'').toUpperCase(); if(pre){ sel.value=pre; if(sel.value)loadPlans(pre); }
+    sel.onchange=function(){ PLAN=null; $('#payCard').classList.add('hide'); if(sel.value)loadPlans(sel.value); else $('#plansCard').classList.add('hide'); };
+  }
+  function loadPlans(cc){
+    var wrap=$('#plans'); $('#plansCard').classList.remove('hide'); wrap.innerHTML='<div class="muted"><span class="spin"></span> Загружаем тарифы…</div>';
+    fetch(API+'/api/esim/packages?country='+encodeURIComponent(cc),{credentials:'include'})
+      .then(function(r){return r.ok?r.json():null;})
+      .then(function(j){
+        var items=(j&&j.items)||[];
+        items.sort(function(a,b){return a.priceMinor-b.priceMinor;});
+        if(!items.length){ wrap.innerHTML='<div class="muted">Для этой страны пока нет тарифов.</div>'; return; }
+        wrap.innerHTML='';
+        items.slice(0,12).forEach(function(p){
+          var el=document.createElement('div'); el.className='plan';
+          el.innerHTML='<span class="data">'+dataLabel(p)+'</span><span class="meta">'+p.days+' дн'+(p.unlimited?' · безлимит':'')+'</span><span class="price">'+money(p.priceMinor,p.currency)+'</span>';
+          el.onclick=function(){ document.querySelectorAll('.plan').forEach(function(x){x.classList.remove('sel');}); el.classList.add('sel'); PLAN=p; onPlan(); };
+          wrap.appendChild(el);
+        });
+      }).catch(function(){ wrap.innerHTML='<div class="err">Не удалось загрузить тарифы.</div>'; });
+  }
+  function onPlan(){
+    var pc=$('#payCard'); pc.classList.remove('hide');
+    if(!(BOOT&&BOOT.esim&&BOOT.esim.checkout&&BOOT.esim.checkout.enabled)){
+      $('#flowErr').textContent='Онлайн-оплата ещё не подключена на этом сайте.'; $('#pay').disabled=true; return;
+    }
+    initGoogle(); validate();
+  }
+  function validate(){ var ok=PLAN && /.+@.+\..+/.test($('#email').value.trim()); $('#pay').disabled=!ok; EMAIL=$('#email').value.trim(); }
+
+  function initGoogle(){
+    var cid=BOOT&&BOOT.esim&&BOOT.esim.checkout&&BOOT.esim.checkout.googleClientId;
+    var host=$('#gbtn'); if(!cid){ host.classList.add('hide'); return; }
+    if(host.dataset.init)return; host.dataset.init='1';
+    var s=document.createElement('script'); s.src='https://accounts.google.com/gsi/client'; s.async=true; s.defer=true;
+    s.onload=function(){
+      try{
+        google.accounts.id.initialize({client_id:cid, callback:function(resp){
+          fetch(API+'/api/esim/auth/google',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({idToken:resp.credential})})
+            .then(function(r){return r.ok?r.json():null;})
+            .then(function(j){ if(j&&j.email){ $('#email').value=j.email; validate(); } }).catch(function(){});
+        }});
+        google.accounts.id.renderButton(host,{theme:'filled_black',size:'large',width:328,text:'signin_with'});
+      }catch(e){ host.classList.add('hide'); }
+    };
+    document.head.appendChild(s);
+  }
+
+  function pay(){
+    if(!PLAN)return; var btn=$('#pay'); btn.disabled=true; btn.textContent='Переходим к оплате…';
+    fetch(API+'/api/esim/checkout/create',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',
+      body:JSON.stringify({packageId:PLAN.id,country:$('#country').value,email:EMAIL})})
+      .then(function(r){return r.ok?r.json():r.json().then(function(e){throw new Error(e.message||'error');});})
+      .then(function(res){ submitWfp(res.pay); })
+      .catch(function(e){ $('#flowErr').textContent='Не удалось создать заказ: '+e.message; btn.disabled=false; btn.textContent='Оплатить'; });
+  }
+  function submitWfp(pay){
+    var f=document.createElement('form'); f.method='POST'; f.action=pay.url; f.acceptCharset='utf-8';
+    Object.keys(pay.params).forEach(function(k){
+      var v=pay.params[k]; if(v==null)return;
+      if(Array.isArray(v)){ v.forEach(function(item){ add(k+'[]',item); }); } else { add(k,v); }
+    });
+    function add(name,val){ var i=document.createElement('input'); i.type='hidden'; i.name=name; i.value=String(val); f.appendChild(i); }
+    document.body.appendChild(f); f.submit();
+  }
+
+  // boot
+  loadBoot().then(function(){
+    if(ref){ showResult(); return; }
+    initCountries();
+    $('#email').addEventListener('input', validate);
+    $('#pay').addEventListener('click', pay);
+  });
+})();
+</script>
+</body>
+</html>

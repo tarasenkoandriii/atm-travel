@@ -10,6 +10,11 @@ import { CamerasModule } from './cameras/cameras.module';
 import { SourcesModule } from './sources/sources.module';
 import { WeatherModule } from './weather/weather.module';
 import { TravelModule } from './travel/travel.module';
+import { DealsModule } from './deals/deals.module';
+import { EsimModule } from './esim/esim.module';
+import { LegalModule } from './legal/legal.module';
+import { CineModule } from './cine/cine.module';
+import { ReelModule } from './reel/reel.module';
 import { RefreshModule } from './refresh/refresh.module';
 import { BootstrapModule } from './bootstrap/bootstrap.module';
 import { HealthModule } from './health/health.module';
@@ -26,6 +31,11 @@ import { FrontendModule } from './frontend/frontend.module';
     SourcesModule,
     WeatherModule,
     TravelModule,
+    DealsModule,
+    EsimModule,
+    LegalModule,
+    CineModule,
+    ReelModule,
     RefreshModule,
     BootstrapModule,
     HealthModule,

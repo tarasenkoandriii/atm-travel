@@ -1,7 +1,7 @@
 {
   "name": "atm-travel",
   "version": "1.6.0",
-  "description": "ATM-travel.org — live world cameras + weather + travel offers (NestJS)",
+  "description": "ATM-travel.org \u2014 live world cameras + weather + travel offers (NestJS)",
   "license": "UNLICENSED",
   "scripts": {
     "build": "prisma generate && nest build",
@@ -30,7 +30,8 @@
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "zod": "^3.23.8",
-    "cron": "^3.1.7"
+    "cron": "^3.1.7",
+    "@vercel/blob": "^0.23.4"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.4.0",

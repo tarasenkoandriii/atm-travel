@@ -78,6 +78,11 @@ export class TravelpayoutsProvider implements TravelOfferProvider {
     };
   }
 
+  /** Convert arbitrary brand URLs (e.g. Viator Deals feed links) into affiliate links. */
+  async toAffiliate(urls: string[], subId: string): Promise<string[]> {
+    return this.convertBatch(urls, subId);
+  }
+
   /**
    * Convert brand URLs -> affiliate URLs. Returns an array aligned with input.
    * Any per-link failure / missing config / API error falls back to the plain URL (links always work).

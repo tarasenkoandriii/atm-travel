@@ -47,5 +47,23 @@
     "favoritesEmpty": "Tap ♥ over the video to save a camera",
     "connected": "Connected: {n} live cameras.",
     "emptyCategory": "No cameras in this category"
+  },
+  "deals": {
+    "title": "Hot tour deals"
+  },
+  "esim": {
+    "for": "eSIM for",
+    "from": "from",
+    "buy": "Get",
+    "unlimited": "Unlimited",
+    "days": "d",
+    "gb": "GB",
+    "mb": "MB"
+  },
+  "legal": {
+    "privacy": "Privacy Policy",
+    "terms": "Terms of Use",
+    "refund": "Refund & Delivery",
+    "phone": "tel."
   }
 }

@@ -26,6 +26,7 @@ model Camera {
   res           String       @default("HD")
   videoId       String?
   embed         String?
+  clipUrl       String?
   img           String?
   category      String?
   wcCategory    String?
@@ -102,4 +103,36 @@ enum RefreshTrigger {
   CRON
   MANUAL
   WEBHOOK
+}
+
+model EsimSale {
+  id               String    @id @default(cuid())
+  orderReference   String    @unique
+  provider         String    @default("airalo")
+  packageId        String
+  country          String
+  email            String?
+  amountMinor      Int
+  currency         String
+  status           String    @default("pending") // pending | paid | provisioned | failed
+  iccid            String?
+  qrCode           String?   @db.Text
+  qrCodeUrl        String?   @db.Text
+  appleInstallUrl  String?   @db.Text
+  instructionsHtml String?   @db.Text
+  createdAt        DateTime  @default(now())
+  paidAt           DateTime?
+  provisionedAt    DateTime?
+
+  @@index([status])
+}
+
+model CineRender {
+  id          String   @id @default(cuid())
+  lat         Float
+  lng         Float
+  durationSec Int      @default(7)
+  title       String?
+  items       Json
+  createdAt   DateTime @default(now())
 }

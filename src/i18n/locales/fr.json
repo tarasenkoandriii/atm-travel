@@ -47,5 +47,23 @@
     "favoritesEmpty": "Cliquez sur ♥ au-dessus de la vidéo pour enregistrer une caméra",
     "connected": "Connecté : {n} caméras en direct.",
     "emptyCategory": "Aucune caméra dans cette catégorie"
+  },
+  "deals": {
+    "title": "Offres de tours à saisir"
+  },
+  "esim": {
+    "for": "eSIM pour",
+    "from": "dès",
+    "buy": "Obtenir",
+    "unlimited": "Illimité",
+    "days": "j",
+    "gb": "Go",
+    "mb": "Mo"
+  },
+  "legal": {
+    "privacy": "Politique de confidentialité",
+    "terms": "Conditions d'utilisation",
+    "refund": "Retours et livraison",
+    "phone": "tél."
   }
 }

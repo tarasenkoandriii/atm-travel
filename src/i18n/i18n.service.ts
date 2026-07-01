@@ -10,6 +10,9 @@ import pl from './locales/pl.json';
 import fr from './locales/fr.json';
 import ja from './locales/ja.json';
 import de from './locales/de.json';
+import it from './locales/it.json';
+import pt from './locales/pt.json';
+import es from './locales/es.json';
 
 type Dict = Record<string, any>;
 
@@ -18,7 +21,7 @@ type Dict = Record<string, any>;
 @Injectable()
 export class I18nService {
   private readonly logger = new Logger(I18nService.name);
-  private readonly dicts: Record<string, Dict> = { en, ru, uk, pl, fr, ja, de };
+  private readonly dicts: Record<string, Dict> = { en, ru, uk, pl, fr, ja, de, it, pt, es };
 
   constructor(private readonly config: ConfigService) {}
 

@@ -21,7 +21,7 @@ export class SnapshotService {
     return {
       id: c.id, type: c.type.toLowerCase(), title: c.title, city: c.city, country: c.country,
       cc: c.cc, lat: c.lat, lng: c.lng, tz: c.tz, res: c.res,
-      videoId: c.videoId, embed: c.embed, img: c.img,
+      videoId: c.videoId, embed: c.embed, clipUrl: c.clipUrl, img: c.img,
       category: c.category, wcCategory: c.wcCategory, provider: c.provider,
       iata: c.iata, isLive: c.isLive,
     };
