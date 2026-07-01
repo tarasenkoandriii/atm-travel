@@ -49,8 +49,7 @@ export const envSchema = z.object({
   GOOGLE_CLIENT_ID: z.string().optional().default(''),
   BLOB_READ_WRITE_TOKEN: z.string().optional().default(''),
   PEXELS_API_KEY: z.string().optional().default(''),
-  PIXABAY_API_KEY: z.string().optional().default('')
-
+  PIXABAY_API_KEY: z.string().optional().default(''),
   DEFAULT_LOCALE: z.string().default('en'),
   SUPPORTED_LOCALES: z.string().default('en,uk,ru,pl,fr,de,ja,it,pt,es'),
 

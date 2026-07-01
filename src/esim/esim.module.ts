@@ -13,10 +13,13 @@ import { CheckoutController } from './checkout/checkout.controller';
   providers: [
     AiraloProvider,
     // UbigiProvider,
-    // Register each concrete provider under the multi-token. Adding Ubigi = one line here;
-    // EsimService and all callers stay untouched.
-    { provide: ESIM_PROVIDERS, useExisting: AiraloProvider, multi: true },
-    // { provide: ESIM_PROVIDERS, useExisting: UbigiProvider, multi: true },
+    // Collect concrete providers into the ESIM_PROVIDERS array. Adding Ubigi = add it to the class
+    // providers above, inject it here, and push it into the returned array; callers stay untouched.
+    {
+      provide: ESIM_PROVIDERS,
+      useFactory: (airalo: AiraloProvider) => [airalo],
+      inject: [AiraloProvider],
+    },
     EsimService,
     WayforpayService,
     CheckoutService,
