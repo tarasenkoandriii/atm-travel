@@ -9,7 +9,7 @@ export interface NormalizedWeather {
     tempC: number; condition: string; code: number; icon: string;
     windKph: number; windDir: string; humidity: number; feelsLikeC: number; uv: number;
   } | null;
-  forecast: { date: string; maxC: number; minC: number; condition: string; code: number; rainChance: number }[];
+  forecast: { date: string; maxC: number; minC: number; condition: string; code: number; icon: string; rainChance: number }[];
   fetchedAt: string;
 }
 
@@ -76,6 +76,7 @@ export class WeatherService {
       minC: metric ? d.day?.mintemp_c : d.day?.mintemp_f,
       condition: d.day?.condition?.text ?? '',
       code: d.day?.condition?.code ?? 0,
+      icon: d.day?.condition?.icon ? `https:${d.day.condition.icon}` : '',
       rainChance: Number(d.day?.daily_chance_of_rain ?? 0),
     }));
     return {

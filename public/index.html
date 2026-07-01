@@ -811,7 +811,7 @@ $('#customInput').addEventListener('keydown',e=>{if(e.key==='Enter'){state.query
     var days = (w.forecast||[]).map(function(d){
       var dn = new Date(d.date).toLocaleDateString(LOCALE,{weekday:'short'});
       return '<div class="wx-day"><div class="d">'+dn+'</div>'+
-             (d.code?'<img src="https://cdn.weatherapi.com/weather/64x64/day/'+iconFile(d.code)+'.png" alt="">':'')+
+             (d.icon?'<img src="'+d.icon+'" alt="" width="40" height="40">':'')+
              '<div class="t"><b>'+Math.round(d.maxC)+'°</b> '+Math.round(d.minC)+'°</div></div>';
     }).join('');
     body.innerHTML =
