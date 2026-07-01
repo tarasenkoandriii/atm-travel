@@ -69,7 +69,7 @@
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;letter-spacing:.01em;}
   .hud .sub .c{color:var(--cyan);}
   .hud .sub .s{color:var(--muted-2);text-transform:uppercase;letter-spacing:.05em;}
-  .cine-btn{font-family:'Space Mono',monospace;font-size:11px;color:var(--cyan);background:linear-gradient(180deg,#0e2730,#0c1a20);border:1px solid var(--cyan-dim);border-radius:8px;padding:5px 9px;text-decoration:none;white-space:nowrap;margin-left:auto;align-self:center;}
+  .cine-btn{font-family:'Space Mono',monospace;font-size:11px;color:var(--cyan);background:linear-gradient(180deg,#0e2730,#0c1a20);border:1px solid var(--cyan-dim);border-radius:8px;padding:5px 9px;text-decoration:none;white-space:nowrap;margin-left:auto;align-self:center;pointer-events:auto;position:relative;z-index:6;}
   .cine-btn:hover{border-color:var(--cyan);}
   .res{font-family:'Space Mono',monospace;font-size:9px;font-weight:700;color:var(--space);
     background:var(--cyan);border-radius:5px;padding:2px 5px;letter-spacing:.04em;flex:0 0 auto;}
@@ -196,8 +196,8 @@
             <div class="city" id="hudCity">—</div>
             <div class="sub"><span class="c" id="hudCoords"></span> · <span id="hudClock"></span> · <span class="s" id="hudSrc"></span></div>
           </div>
-          <a class="cine-btn" id="cineBtn" href="#" target="_blank" rel="noopener" style="display:none">🎬 Cinematic</a>
-          <a class="cine-btn" id="reelBtn" href="#" target="_blank" rel="noopener" style="display:none">🎞️ Reel</a>
+          <a class="cine-btn" id="cineBtn" href="#" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="display:none">🎬 Cinematic</a>
+          <a class="cine-btn" id="reelBtn" href="#" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="display:none">🎞️ Reel</a>
           <span class="res" id="hudRes">4K</span>
         </div>
         <div class="veil" id="veil">
