@@ -53,11 +53,14 @@ export class RefreshService {
       const discovered = [...yt, ...wd];
       const added = await this.repo.upsertMany(discovered);
 
-      // 2) liveness
-      const checkable = await this.repo.findCheckable();
-      const { live, dead, checked } = await this.liveness.checkBatch(checkable);
+      // Liveness is already determined at discovery (Windy player.live.available / YouTube Data API),
+      // and is written during upsert. Skip the per-camera re-check pass (thousands of DB updates that
+      // don't fit serverless limits under a pooled connection).
+      const live = discovered.filter((c) => c.isLive).length;
+      const dead = 0;
+      const checked = discovered.length;
 
-      // 3) snapshot
+      // snapshot
       await this.snapshot.rebuild();
 
       await this.prisma.refreshRun.update({

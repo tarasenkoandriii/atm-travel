@@ -8,30 +8,34 @@ export class CamerasRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   async upsertMany(cams: DiscoveredCamera[]): Promise<number> {
+    if (!cams.length) return 0;
+    const now = new Date();
+    const data = cams.map((c) => ({
+      source: c.source, externalId: c.externalId, type: c.type, provider: c.provider ?? null,
+      title: c.title, city: c.city ?? null, country: c.country ?? null, cc: c.cc ?? null,
+      lat: c.lat, lng: c.lng, tz: c.tz ?? 'UTC', res: c.res ?? 'HD',
+      videoId: c.videoId ?? null, embed: c.embed ?? null, img: c.img ?? null,
+      category: c.category ?? null, wcCategory: c.wcCategory ?? null, iata: c.iata ?? null,
+      isLive: c.isLive ?? false,
+      lastCheckedAt: now, lastLiveAt: c.isLive ? now : null,
+      status: 'ACTIVE' as const,
+    }));
+
+    // Bulk insert new cameras in chunks (a few queries instead of one round-trip per camera —
+    // critical under Supabase pooler with connection_limit=1). isLive is known at discovery.
     let added = 0;
-    for (const c of cams) {
-      const res = await this.prisma.camera.upsert({
-        where: { source_externalId: { source: c.source, externalId: c.externalId } },
-        create: {
-          source: c.source, externalId: c.externalId, type: c.type, provider: c.provider,
-          title: c.title, city: c.city, country: c.country, cc: c.cc, lat: c.lat, lng: c.lng,
-          tz: c.tz ?? 'UTC', res: c.res ?? 'HD', videoId: c.videoId ?? null, embed: c.embed ?? null,
-          img: c.img ?? null, category: c.category ?? null, wcCategory: c.wcCategory ?? null,
-          iata: c.iata ?? null, isLive: c.isLive ?? false,
-        },
-        update: {
-          type: c.type, provider: c.provider, title: c.title, city: c.city, country: c.country,
-          cc: c.cc, lat: c.lat, lng: c.lng, tz: c.tz ?? 'UTC', res: c.res ?? 'HD',
-          videoId: c.videoId ?? null, embed: c.embed ?? null, img: c.img ?? null,
-          category: c.category ?? null, wcCategory: c.wcCategory ?? null,
-          iata: c.iata ?? undefined,
-          // revive previously-dead cameras when re-discovered
-          status: 'ACTIVE',
-        },
-        select: { createdAt: true, updatedAt: true },
-      });
-      if (res.createdAt.getTime() === res.updatedAt.getTime()) added++;
+    const CHUNK = 500;
+    for (let i = 0; i < data.length; i += CHUNK) {
+      const res = await this.prisma.camera.createMany({ data: data.slice(i, i + CHUNK), skipDuplicates: true });
+      added += res.count;
     }
+
+    // Reactivate any previously hidden/dead cameras that were re-discovered (single bulk query).
+    const ids = cams.map((c) => c.externalId);
+    await this.prisma.camera
+      .updateMany({ where: { externalId: { in: ids }, status: { not: 'ACTIVE' } }, data: { status: 'ACTIVE' } })
+      .catch(() => undefined);
+
     return added;
   }
 
