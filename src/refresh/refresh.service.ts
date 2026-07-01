@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { RefreshTrigger } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { YoutubeAdapter } from '../sources/adapters/youtube.adapter';
@@ -23,15 +23,34 @@ export class RefreshService {
   ) {}
 
   async run(trigger: RefreshTrigger) {
-    // Distributed overlap-guard (serverless-safe): skip if another run holds the lock.
-    const acquired = await this.prisma.tryAdvisoryLock(LOCK_KEY);
+    // Best-effort overlap-guard. Session-level advisory locks don't work under PgBouncer
+    // transaction pooling (Supabase pooler :6543), so a failure here must NOT abort the run.
+    let acquired = true;
+    try {
+      acquired = await this.prisma.tryAdvisoryLock(LOCK_KEY);
+    } catch (e) {
+      this.logger.warn(`Advisory lock unavailable (pooler?), proceeding without it: ${String(e)}`);
+      acquired = true;
+    }
     if (!acquired) {
       this.logger.warn('Refresh skipped — another run is in progress');
       return { skipped: true };
     }
 
     const t0 = Date.now();
-    const run = await this.prisma.refreshRun.create({ data: { trigger } });
+    // First real DB write — if this fails, the database is unreachable (clear 503 instead of raw 500).
+    let run: { id: string };
+    try {
+      run = await this.prisma.refreshRun.create({ data: { trigger } });
+    } catch (e) {
+      this.logger.error(`Refresh aborted — database unreachable: ${String(e)}`);
+      throw new ServiceUnavailableException({
+        error: 'db_unavailable',
+        message:
+          'Database not reachable. On Vercel use the Supabase POOLER connection string ' +
+          '(...pooler.supabase.com:6543/postgres?pgbouncer=true) for DATABASE_URL. Check /health.',
+      });
+    }
     try {
       // 1) discovery — YouTube only when its API key is configured (ТЗ §5)
       const [yt, wd] = await Promise.all([
@@ -69,7 +88,11 @@ export class RefreshService {
       });
       throw e;
     } finally {
-      await this.prisma.advisoryUnlock(LOCK_KEY);
+      try {
+        await this.prisma.advisoryUnlock(LOCK_KEY);
+      } catch {
+        /* best-effort — unlock may be a no-op under transaction pooling */
+      }
     }
   }
 
