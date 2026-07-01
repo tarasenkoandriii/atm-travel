@@ -1,6 +1,7 @@
 // ATM-travel.org — Prisma schema (ТЗ §4)
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
 }
 
 datasource db {
@@ -80,7 +81,25 @@ model Snapshot {
   builtAt DateTime @default(now())
 }
 
-enum CameraSource   { YOUTUBE WINDY }
-enum CameraType     { YOUTUBE IFRAME IMAGE }
-enum CameraStatus   { ACTIVE HIDDEN DEAD }
-enum RefreshTrigger { CRON MANUAL WEBHOOK }
+enum CameraSource {
+  YOUTUBE
+  WINDY
+}
+
+enum CameraType {
+  YOUTUBE
+  IFRAME
+  IMAGE
+}
+
+enum CameraStatus {
+  ACTIVE
+  HIDDEN
+  DEAD
+}
+
+enum RefreshTrigger {
+  CRON
+  MANUAL
+  WEBHOOK
+}

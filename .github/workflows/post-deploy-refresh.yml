@@ -1,0 +1,39 @@
+# Runs the camera-catalog refresh right after every successful PRODUCTION deploy on Vercel.
+# Vercel's GitHub integration creates a GitHub Deployment and fires `deployment_status`
+# with state=success once the deploy is live — we hook into that and ping the cron endpoint.
+#
+# Setup (one-time):
+#   1) Add a GitHub Actions secret CRON_SECRET (same value as the Vercel env var CRON_SECRET).
+#   2) Make sure the DB schema is applied (prisma migrate deploy) — see README.
+name: Post-deploy camera refresh
+
+on:
+  deployment_status: {}
+
+permissions:
+  contents: read
+
+jobs:
+  refresh:
+    # Only when a Production deployment succeeded (skip Preview deploys and failures)
+    if: >-
+      github.event.deployment_status.state == 'success' &&
+      github.event.deployment_status.environment == 'Production'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger /api/cron/refresh
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          # Public URL of the fresh deployment
+          URL: ${{ github.event.deployment_status.environment_url || github.event.deployment_status.target_url }}
+        run: |
+          set -e
+          echo "Refreshing catalog at: $URL"
+          code=$(curl -sS -o /tmp/refresh.json -w "%{http_code}" -X POST "$URL/api/cron/refresh" \
+            -H "Authorization: Bearer $CRON_SECRET" \
+            -H "Content-Type: application/json" --max-time 300)
+          echo "HTTP $code"
+          cat /tmp/refresh.json 2>/dev/null || true
+          echo
+          # Nest returns 201 for POST by default; accept 200 too
+          [ "$code" = "200" ] || [ "$code" = "201" ]

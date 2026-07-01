@@ -61,3 +61,25 @@ npm run start:dev             # http://localhost:3000  (API),  public/index.html
 ## Что осталось доделать под прод (вне объёма скаффолда)
 - Снапшот в Vercel Blob (если `SNAPSHOT_STORE=blob`) — реализован вариант `postgres`.
 - Мобильные табы/bottom-sheet из §15 (базовый адаптив пре-MVP сохранён; виджеты погоды/travel ложатся в стек).
+
+## Наполнение каталога сразу после деплоя
+
+По расписанию каталог обновляется в 12:00 UTC. Чтобы не ждать — запусти refresh вручную сразу после деплоя (схема БД уже должна быть накатана: `npx prisma migrate deploy`).
+
+Разовый запуск (curl):
+```bash
+# вариант через CRON_SECRET
+curl -X POST https://<your-domain>/api/cron/refresh \
+  -H "Authorization: Bearer $CRON_SECRET"
+
+# или через админ-ключ
+curl -X POST https://<your-domain>/api/admin/refresh \
+  -H "X-Admin-Key: $ADMIN_API_KEY"
+```
+Ответ вернёт `{ runId, added, live, dead, checked }`. Прогресс/историю смотри в `GET /api/admin/refresh/runs` (с `X-Admin-Key`).
+
+Автоматически на каждый прод-деплой: workflow `.github/workflows/post-deploy-refresh.yml` ловит успешный Production-деплой Vercel (событие `deployment_status`) и дёргает `/api/cron/refresh`. Настройка: добавь секрет репозитория `CRON_SECRET` (то же значение, что и env-переменная в Vercel).
+
+Опционально — авто-миграция при билде (тогда схема всегда актуальна к моменту refresh): поменяй build-скрипт на
+`"build": "prisma generate && prisma migrate deploy && nest build"`
+и задай `DATABASE_URL` в build-окружении Vercel. Если не хочешь мигрировать на каждом билде — оставь как есть и накатывай миграции вручную.
