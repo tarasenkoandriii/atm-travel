@@ -22,7 +22,7 @@
       var(--space);
     color:var(--text); font-family:'Inter',system-ui,sans-serif; overflow:hidden;
   }
-  .app{height:100dvh;display:grid;grid-template-rows:auto 1fr;gap:14px;padding:14px;}
+  .app{height:100dvh;display:grid;grid-template-rows:auto 1fr auto;gap:14px;padding:14px;}
   header.bar{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:4px 6px;}
   .brand{display:flex;align-items:baseline;gap:12px;}
   .brand .mark{font-family:'Space Grotesk',sans-serif;font-weight:700;letter-spacing:.22em;font-size:18px;}
@@ -149,7 +149,7 @@
     .hud .place{max-width:88%;}
   }
   @media (prefers-reduced-motion:reduce){ .layer{transition:opacity .25s ease;} .veil .pulse{animation:none;} }
-  #siteFooter{border-top:1px solid var(--line);margin:18px 0 0;padding:18px 22px 30px;color:var(--muted);font-size:12px;line-height:1.5;}
+  #siteFooter{border-top:1px solid var(--line);margin:0;padding:10px 6px 2px;color:var(--muted);font-size:12px;line-height:1.45;}
   #siteFooter .ft-inner{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;align-items:flex-start;max-width:1400px;margin:0 auto;}
   #siteFooter .ft-name{color:var(--text);} #siteFooter .ft-mono{font-family:'Space Mono',monospace;color:var(--muted);}
   #siteFooter .ft-addr,#siteFooter .ft-contact{margin-top:4px;}
@@ -230,22 +230,21 @@
       </div>
     </div>
   </div>
-</div>
-
-<footer id="siteFooter">
-  <div class="ft-inner">
-    <div class="ft-legal">
-      <div class="ft-name">ФОП Тарасенко Андрій · <span class="ft-mono">код ЄДРПОУ 2780309490</span></div>
-      <div class="ft-addr">03150, Україна, м. Київ, вул. Велика Васильківська 56, оф. 18</div>
-      <div class="ft-contact"><span id="ftPhoneLbl">тел.</span> <a href="tel:+380993177636">+38 099 317 7636</a> · <a href="https://wa.me/380993177636" target="_blank" rel="noopener">WhatsApp</a></div>
+  <footer id="siteFooter">
+    <div class="ft-inner">
+      <div class="ft-legal">
+        <div class="ft-name">ФОП Тарасенко Андрій · <span class="ft-mono">код ЄДРПОУ 2780309490</span></div>
+        <div class="ft-addr">03150, Україна, м. Київ, вул. Велика Васильківська 56, оф. 18</div>
+        <div class="ft-contact"><span id="ftPhoneLbl">тел.</span> <a href="tel:+380993177636">+38 099 317 7636</a> · <a href="https://wa.me/380993177636" target="_blank" rel="noopener">WhatsApp</a></div>
+      </div>
+      <nav class="ft-links">
+        <a id="ftPrivacy" href="/legal/privacy">Політика конфіденційності</a>
+        <a id="ftTerms" href="/legal/terms">Угода користувача</a>
+        <a id="ftRefund" href="/legal/refund">Політика повернення / доставки</a>
+      </nav>
     </div>
-    <nav class="ft-links">
-      <a id="ftPrivacy" href="/legal/privacy">Політика конфіденційності</a>
-      <a id="ftTerms" href="/legal/terms">Угода користувача</a>
-      <a id="ftRefund" href="/legal/refund">Політика повернення / доставки</a>
-    </nav>
-  </div>
-</footer>
+  </footer>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/globe.gl"></script>
 <script>
