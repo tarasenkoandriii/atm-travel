@@ -83,3 +83,14 @@ curl -X POST https://<your-domain>/api/admin/refresh \
 Опционально — авто-миграция при билде (тогда схема всегда актуальна к моменту refresh): поменяй build-скрипт на
 `"build": "prisma generate && prisma migrate deploy && nest build"`
 и задай `DATABASE_URL` в build-окружении Vercel. Если не хочешь мигрировать на каждом билде — оставь как есть и накатывай миграции вручную.
+
+## Vercel + Supabase: строка подключения (важно)
+
+На Vercel serverless прямое подключение Supabase (`db.<ref>.supabase.co:5432`) не работает — оно IPv6-only, а функции Vercel ходят по IPv4. Используй **пулер (Supavisor)**:
+
+- `DATABASE_URL` (для приложения, transaction pooler, IPv4):
+  `postgresql://postgres.<ref>:<pwd>@aws-0-<region>.pooler.supabase.com:6543/postgres?pgbouncer=true&connection_limit=1`
+- `DIRECT_URL` (для миграций, session pooler):
+  `postgresql://postgres.<ref>:<pwd>@aws-0-<region>.pooler.supabase.com:5432/postgres`
+
+Строки берутся в Supabase → Project Settings → Database → Connection string → вкладка **Connection pooling**. Задай их в Vercel → Settings → Environment Variables (для Production). Приложение больше не падает при недоступности БД на старте (Prisma подключается лениво), но эндпойнты с БД заработают только с корректной строкой.

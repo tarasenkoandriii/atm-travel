@@ -27,7 +27,15 @@ async function bootstrap() {
 
 // Caches the Nest app across warm invocations (ТЗ §16).
 export default async function handler(req: any, res: any) {
-  if (!ready) ready = bootstrap();
-  await ready;
-  server(req, res);
+  try {
+    if (!ready) ready = bootstrap();
+    await ready;
+    server(req, res);
+  } catch (e: any) {
+    ready = null; // allow a fresh bootstrap attempt on the next request
+    console.error('Nest bootstrap/handler error:', e);
+    res.statusCode = 500;
+    res.setHeader('content-type', 'application/json');
+    res.end(JSON.stringify({ error: 'server_init_failed', message: String(e?.message || e) }));
+  }
 }

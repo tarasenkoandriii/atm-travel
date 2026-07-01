@@ -6,8 +6,14 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   private readonly logger = new Logger(PrismaService.name);
 
   async onModuleInit() {
-    await this.$connect();
-    this.logger.log('Prisma connected');
+    // Lazy/non-fatal connect: on serverless (Vercel) a DB hiccup at boot must NOT crash the whole
+    // function. Prisma connects on first query anyway; this just warms the pool when possible.
+    try {
+      await this.$connect();
+      this.logger.log('Prisma connected');
+    } catch (e) {
+      this.logger.error(`Prisma connect failed at init (will retry lazily on first query): ${String(e)}`);
+    }
   }
 
   async onModuleDestroy() {
