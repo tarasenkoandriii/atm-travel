@@ -304,7 +304,7 @@ function poolFor(id,q){
 }
 function renderChips(){
   const box=$('#chips');box.innerHTML='';
-  const list=[{id:'all',label:'Все'},...dynCats(),...FIXED_CATS.map(c=>({id:c.slug,label:c.label}))];
+  const list=[{id:'all',label:(window.__i18nAll||'Все')},...dynCats(),...FIXED_CATS.map(c=>({id:c.slug,label:c.label}))];
   list.forEach(c=>{
     const el=document.createElement('button');
     el.className='chip'+(c.id===state.cat?' on':'')+(c.dyn?' dyn':'');
@@ -722,6 +722,66 @@ $('#customInput').addEventListener('keydown',e=>{if(e.key==='Enter'){state.query
     return (o==null)?fallback:o;
   }
 
+  function qs(s){return document.querySelector(s);}
+  function setTxt(sel,val){ var e=qs(sel); if(e&&val!=null) e.textContent=val; }
+
+  function localizeCount(el, word){
+    if(!el||!word) return;
+    var m=(el.textContent||'').match(/^\s*(\d+)/); if(!m) return;
+    var target=m[1]+' '+word;
+    if((el.textContent||'').trim()!==target) el.textContent=target;
+  }
+  function localizeToggle(){
+    var ctl=(DICT.controls)||{}, st=(typeof state!=='undefined')?state:null; if(!st) return;
+    var pl=qs('#playLbl'); if(pl){ var v=st.autoplay?(ctl.pause||'pause'):(ctl.play||'play'); if(pl.textContent!==v) pl.textContent=v; }
+    var sl=qs('#soundLbl'); if(sl){ var v2=st.sound?(ctl.soundOn||ctl.sound||'sound'):(ctl.sound||'sound'); if(sl.textContent!==v2) sl.textContent=v2; }
+  }
+  function localizeFavsEmpty(){
+    var ui=(DICT.ui)||{}; var fe=qs('#favsStrip .favs-empty'); if(!fe||!ui.favoritesEmpty) return;
+    if(fe.getAttribute('data-loc')==='1') return;
+    var svg=fe.querySelector('svg'); fe.textContent=''; if(svg) fe.appendChild(svg);
+    fe.appendChild(document.createTextNode(ui.favoritesEmpty)); fe.setAttribute('data-loc','1');
+  }
+  var _obsSet=false;
+  function setupObservers(){
+    if(_obsSet) return; _obsSet=true;
+    var ui=(DICT.ui)||{};
+    var mk=function(sel,fn){ var el=qs(sel); if(el) new MutationObserver(fn).observe(el,{childList:true,characterData:true,subtree:true}); };
+    mk('#poolCount', function(){ localizeCount(qs('#poolCount'), ui.cameras); });
+    mk('#catTotal',  function(){ localizeCount(qs('#catTotal'), ui.total); });
+    mk('#playLbl', localizeToggle);
+    mk('#soundLbl', localizeToggle);
+    var fs=qs('#favsStrip'); if(fs) new MutationObserver(localizeFavsEmpty).observe(fs,{childList:true,subtree:true});
+  }
+
+  // Localize the whole static UI from the /bootstrap dictionary (all site variants, ТЗ §9).
+  function applyI18n(){
+    var d=DICT||{}, cat=d.categories||{}, ctl=d.controls||{}, ui=d.ui||{}, veil=d.veil||{};
+    try{
+      if(typeof FIXED_CATS!=='undefined'){
+        window.__i18nAll = cat.all || window.__i18nAll;
+        FIXED_CATS.forEach(function(c){ if(cat[c.slug]) c.label=cat[c.slug]; });
+        if(typeof renderChips==='function') renderChips();
+      }
+    }catch(e){}
+    localizeToggle();
+    var bp=qs('#btnPlay'); if(bp&&ctl.autocycle) bp.title=ctl.autocycle;
+    var bs=qs('#btnSound'); if(bs&&ctl.sound) bs.title=ctl.sound;
+    var bh=qs('#btnHeart'); if(bh&&ctl.favorites) bh.title=ctl.favorites;
+    if(d.tagline) setTxt('header .brand .sub','atm-travel.org · '+d.tagline);
+    if(ui.categories) setTxt('#cats .cats-head span', ui.categories);
+    if(ctl.favorites) setTxt('#favs .favs-head .ttl', ctl.favorites);
+    setTxt('#veil .big', veil.title);
+    var vp=qs('#veilPlay'); if(vp&&veil.play) vp.textContent='\u25B6 '+veil.play;
+    setTxt('#veil .hint', veil.hint);
+    var ci=qs('#customInput'); if(ci&&ui.customPlaceholder) ci.placeholder=ui.customPlaceholder;
+    setTxt('#customGo', ui.find);
+    localizeCount(qs('#poolCount'), ui.cameras);
+    localizeCount(qs('#catTotal'), ui.total);
+    localizeFavsEmpty();
+    setupObservers();
+  }
+
   function buildLangSwitcher(){
     var controls = document.querySelector('header .controls');
     if(!controls || $('#atmLang')) return;
@@ -816,7 +876,7 @@ $('#customInput').addEventListener('keydown',e=>{if(e.key==='Enter'){state.query
           if(typeof renderChips==='function') renderChips();
           if(typeof poolFor==='function'){ state.pool = poolFor(state.cat, state.query); state.idx = 0; }
           var pc = $('#poolCount'); if(pc) pc.textContent = state.pool.length + ' камер';
-          var nt = $('#note'); if(nt) nt.innerHTML = 'Подключено: <b>'+CAMERAS.length+'</b> живых камер.';
+          var nt = $('#note'); if(nt){ var tmpl=(DICT.ui&&DICT.ui.connected)||'Connected: {n} live cameras.'; nt.innerHTML = tmpl.replace('{n}','<b>'+CAMERAS.length+'</b>'); }
           if(typeof updateGlobePoints==='function') updateGlobePoints();
           if(state.pool[0] && (!state.active) && typeof setActive==='function') setActive(state.pool[0]);
         }catch(e){ console.warn('catalog refresh', e); }
@@ -833,6 +893,7 @@ $('#customInput').addEventListener('keydown',e=>{if(e.key==='Enter'){state.query
         document.documentElement.lang = LOCALE;
         buildLangSwitcher();
         injectPanels();
+        applyI18n();
         return loadCatalog();
       })
       .then(startPoller)

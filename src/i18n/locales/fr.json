@@ -1,13 +1,51 @@
 {
   "brand": "ATM-travel.org",
   "tagline": "caméras en direct de la planète",
-  "controls": { "play": "lecture", "pause": "pause", "sound": "son", "favorites": "Favoris" },
-  "categories": {
-    "all": "Tout", "auto-moto": "Auto-moto", "nature": "Nature", "tourism": "Tourisme",
-    "real-estate": "Immobilier", "architecture": "Architecture",
-    "museums": "Musées", "custom": "Filtre personnalisé"
+  "controls": {
+    "play": "lecture",
+    "pause": "pause",
+    "sound": "son",
+    "soundOn": "son activé",
+    "autocycle": "Défilement auto",
+    "favorites": "Favoris"
   },
-  "weather": { "title": "Météo", "now": "Maintenant", "feels": "Ressenti", "wind": "Vent", "humidity": "Humidité" },
-  "travel": { "title": "Expériences ici", "tours": "Visites et activités", "hotels": "Hôtels", "flights": "Vols", "cta": "Voir les offres" },
-  "veil": { "title": "Une fenêtre sur le monde", "play": "Démarrer le direct" }
+  "categories": {
+    "all": "Tout",
+    "auto-moto": "Auto-moto",
+    "nature": "Nature",
+    "tourism": "Tourisme",
+    "real-estate": "Immobilier",
+    "architecture": "Architecture",
+    "museums": "Musées",
+    "custom": "Filtre perso"
+  },
+  "weather": {
+    "title": "Météo",
+    "now": "Maintenant",
+    "feels": "Ressenti",
+    "wind": "Vent",
+    "humidity": "Humidité"
+  },
+  "travel": {
+    "title": "Expériences ici",
+    "tours": "Visites et activités",
+    "hotels": "Hôtels",
+    "flights": "Vols",
+    "cta": "Voir les offres"
+  },
+  "veil": {
+    "title": "Une fenêtre sur le monde",
+    "play": "Démarrer le direct",
+    "hint": "Caméras en direct du monde entier — villes, côtes, montagnes et routes. Cliquez pour démarrer le direct."
+  },
+  "ui": {
+    "categories": "Catégories",
+    "cameras": "caméras",
+    "total": "au total",
+    "find": "Chercher",
+    "customPlaceholder": "Filtre perso : « quais », « montagnes », « traffic »…",
+    "favoritesEmpty": "Cliquez sur ♥ au-dessus de la vidéo pour enregistrer une caméra",
+    "connected": "Connecté : {n} caméras en direct.",
+    "emptyCategory": "Aucune caméra dans cette catégorie"
+  }
 }

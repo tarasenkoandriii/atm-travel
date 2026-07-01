@@ -1,13 +1,51 @@
 {
   "brand": "ATM-travel.org",
   "tagline": "live cameras of the planet",
-  "controls": { "play": "play", "pause": "pause", "sound": "sound", "favorites": "Favorites" },
-  "categories": {
-    "all": "All", "auto-moto": "Auto-moto", "nature": "Nature", "tourism": "Tourism",
-    "real-estate": "Real estate", "architecture": "Architecture",
-    "museums": "Museums", "custom": "Custom filter"
+  "controls": {
+    "play": "play",
+    "pause": "pause",
+    "sound": "sound",
+    "soundOn": "sound on",
+    "autocycle": "Auto-cycle",
+    "favorites": "Favorites"
   },
-  "weather": { "title": "Weather", "now": "Now", "feels": "Feels like", "wind": "Wind", "humidity": "Humidity" },
-  "travel": { "title": "Experiences here", "tours": "Tours & activities", "hotels": "Hotels", "flights": "Flights", "cta": "See offers" },
-  "veil": { "title": "A window to the world", "play": "Start the stream" }
+  "categories": {
+    "all": "All",
+    "auto-moto": "Auto-moto",
+    "nature": "Nature",
+    "tourism": "Tourism",
+    "real-estate": "Real estate",
+    "architecture": "Architecture",
+    "museums": "Museums",
+    "custom": "Custom filter"
+  },
+  "weather": {
+    "title": "Weather",
+    "now": "Now",
+    "feels": "Feels like",
+    "wind": "Wind",
+    "humidity": "Humidity"
+  },
+  "travel": {
+    "title": "Experiences here",
+    "tours": "Tours & activities",
+    "hotels": "Hotels",
+    "flights": "Flights",
+    "cta": "See offers"
+  },
+  "veil": {
+    "title": "A window to the world",
+    "play": "Start the stream",
+    "hint": "Live cameras from around the world — cities, coasts, mountains and roads. Tap to start the stream."
+  },
+  "ui": {
+    "categories": "Categories",
+    "cameras": "cameras",
+    "total": "total",
+    "find": "Find",
+    "customPlaceholder": "Custom filter: “waterfront”, “mountains”, “traffic”…",
+    "favoritesEmpty": "Tap ♥ over the video to save a camera",
+    "connected": "Connected: {n} live cameras.",
+    "emptyCategory": "No cameras in this category"
+  }
 }

@@ -1,13 +1,51 @@
 {
   "brand": "ATM-travel.org",
   "tagline": "地球のライブカメラ",
-  "controls": { "play": "再生", "pause": "一時停止", "sound": "音声", "favorites": "お気に入り" },
-  "categories": {
-    "all": "すべて", "auto-moto": "自動車・バイク", "nature": "自然", "tourism": "観光",
-    "real-estate": "不動産", "architecture": "建築",
-    "museums": "美術館・博物館", "custom": "カスタムフィルター"
+  "controls": {
+    "play": "再生",
+    "pause": "一時停止",
+    "sound": "音声",
+    "soundOn": "音声オン",
+    "autocycle": "自動切替",
+    "favorites": "お気に入り"
   },
-  "weather": { "title": "天気", "now": "現在", "feels": "体感", "wind": "風", "humidity": "湿度" },
-  "travel": { "title": "ここでの体験", "tours": "ツアー＆アクティビティ", "hotels": "ホテル", "flights": "航空券", "cta": "オファーを見る" },
-  "veil": { "title": "世界への窓", "play": "ライブを開始" }
+  "categories": {
+    "all": "すべて",
+    "auto-moto": "自動車・バイク",
+    "nature": "自然",
+    "tourism": "観光",
+    "real-estate": "不動産",
+    "architecture": "建築",
+    "museums": "美術館・博物館",
+    "custom": "カスタムフィルター"
+  },
+  "weather": {
+    "title": "天気",
+    "now": "現在",
+    "feels": "体感",
+    "wind": "風",
+    "humidity": "湿度"
+  },
+  "travel": {
+    "title": "ここでの体験",
+    "tours": "ツアー＆アクティビティ",
+    "hotels": "ホテル",
+    "flights": "航空券",
+    "cta": "オファーを見る"
+  },
+  "veil": {
+    "title": "世界への窓",
+    "play": "ライブを開始",
+    "hint": "世界中のライブカメラ — 都市、海岸、山、道路。タップしてライブを開始。"
+  },
+  "ui": {
+    "categories": "カテゴリー",
+    "cameras": "台",
+    "total": "合計",
+    "find": "検索",
+    "customPlaceholder": "カスタムフィルター：「海辺」「山」「traffic」…",
+    "favoritesEmpty": "動画の上の♥をタップしてカメラを保存",
+    "connected": "接続済み：{n} 台のライブカメラ",
+    "emptyCategory": "このカテゴリーにカメラはありません"
+  }
 }

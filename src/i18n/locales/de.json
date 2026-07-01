@@ -1,13 +1,51 @@
 {
   "brand": "ATM-travel.org",
   "tagline": "Live-Kameras des Planeten",
-  "controls": { "play": "Abspielen", "pause": "Pause", "sound": "Ton", "favorites": "Favoriten" },
-  "categories": {
-    "all": "Alle", "auto-moto": "Auto & Motorrad", "nature": "Natur", "tourism": "Tourismus",
-    "real-estate": "Immobilien", "architecture": "Architektur",
-    "museums": "Museen", "custom": "Eigener Filter"
+  "controls": {
+    "play": "Abspielen",
+    "pause": "Pause",
+    "sound": "Ton",
+    "soundOn": "Ton an",
+    "autocycle": "Auto-Wechsel",
+    "favorites": "Favoriten"
   },
-  "weather": { "title": "Wetter", "now": "Jetzt", "feels": "Gefühlt", "wind": "Wind", "humidity": "Luftfeuchtigkeit" },
-  "travel": { "title": "Erlebnisse hier", "tours": "Touren & Aktivitäten", "hotels": "Hotels", "flights": "Flüge", "cta": "Angebote ansehen" },
-  "veil": { "title": "Ein Fenster zur Welt", "play": "Stream starten" }
+  "categories": {
+    "all": "Alle",
+    "auto-moto": "Auto & Motorrad",
+    "nature": "Natur",
+    "tourism": "Tourismus",
+    "real-estate": "Immobilien",
+    "architecture": "Architektur",
+    "museums": "Museen",
+    "custom": "Eigener Filter"
+  },
+  "weather": {
+    "title": "Wetter",
+    "now": "Jetzt",
+    "feels": "Gefühlt",
+    "wind": "Wind",
+    "humidity": "Luftfeuchtigkeit"
+  },
+  "travel": {
+    "title": "Erlebnisse hier",
+    "tours": "Touren & Aktivitäten",
+    "hotels": "Hotels",
+    "flights": "Flüge",
+    "cta": "Angebote ansehen"
+  },
+  "veil": {
+    "title": "Ein Fenster zur Welt",
+    "play": "Stream starten",
+    "hint": "Live-Kameras aus aller Welt — Städte, Küsten, Berge und Straßen. Tippen zum Starten."
+  },
+  "ui": {
+    "categories": "Kategorien",
+    "cameras": "Kameras",
+    "total": "gesamt",
+    "find": "Suchen",
+    "customPlaceholder": "Eigener Filter: „Uferpromenaden“, „Berge“, „traffic“…",
+    "favoritesEmpty": "Tippen Sie auf ♥ über dem Video, um eine Kamera zu speichern",
+    "connected": "Verbunden: {n} Live-Kameras.",
+    "emptyCategory": "Keine Kameras in dieser Kategorie"
+  }
 }
