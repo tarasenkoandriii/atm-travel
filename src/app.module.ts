@@ -13,6 +13,7 @@ import { TravelModule } from './travel/travel.module';
 import { RefreshModule } from './refresh/refresh.module';
 import { BootstrapModule } from './bootstrap/bootstrap.module';
 import { HealthModule } from './health/health.module';
+import { FrontendModule } from './frontend/frontend.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { HealthModule } from './health/health.module';
     RefreshModule,
     BootstrapModule,
     HealthModule,
+    FrontendModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

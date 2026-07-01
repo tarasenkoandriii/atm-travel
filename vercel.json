@@ -4,11 +4,12 @@
     { "path": "/api/cron/refresh", "schedule": "0 12 * * *" }
   ],
   "functions": {
-    "api/index.ts": { "maxDuration": 300 }
+    "api/index.ts": {
+      "maxDuration": 300,
+      "includeFiles": "public/**"
+    }
   },
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api" },
-    { "source": "/bootstrap", "destination": "/api" },
-    { "source": "/health", "destination": "/api" }
+    { "source": "/(.*)", "destination": "/api" }
   ]
 }
