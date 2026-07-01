@@ -4,7 +4,7 @@
   "controls": { "play": "грати", "pause": "пауза", "sound": "звук", "favorites": "Обране" },
   "categories": {
     "all": "Усі", "auto-moto": "Авто-мото", "nature": "Природа", "tourism": "Туризм",
-    "real-estate": "Нерухомість", "people": "Дівчата", "architecture": "Пам'ятки архітектури",
+    "real-estate": "Нерухомість", "architecture": "Пам'ятки архітектури",
     "museums": "Музеї", "custom": "Власний фільтр"
   },
   "weather": { "title": "Погода", "now": "Зараз", "feels": "Відчувається", "wind": "Вітер", "humidity": "Вологість" },

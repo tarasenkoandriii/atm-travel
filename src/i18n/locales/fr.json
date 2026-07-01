@@ -4,7 +4,7 @@
   "controls": { "play": "lecture", "pause": "pause", "sound": "son", "favorites": "Favoris" },
   "categories": {
     "all": "Tout", "auto-moto": "Auto-moto", "nature": "Nature", "tourism": "Tourisme",
-    "real-estate": "Immobilier", "people": "Personnes", "architecture": "Architecture",
+    "real-estate": "Immobilier", "architecture": "Architecture",
     "museums": "Musées", "custom": "Filtre personnalisé"
   },
   "weather": { "title": "Météo", "now": "Maintenant", "feels": "Ressenti", "wind": "Vent", "humidity": "Humidité" },

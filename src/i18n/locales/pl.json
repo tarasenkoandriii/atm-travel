@@ -4,7 +4,7 @@
   "controls": { "play": "odtwórz", "pause": "pauza", "sound": "dźwięk", "favorites": "Ulubione" },
   "categories": {
     "all": "Wszystkie", "auto-moto": "Auto-moto", "nature": "Przyroda", "tourism": "Turystyka",
-    "real-estate": "Nieruchomości", "people": "Ludzie", "architecture": "Architektura",
+    "real-estate": "Nieruchomości", "architecture": "Architektura",
     "museums": "Muzea", "custom": "Własny filtr"
   },
   "weather": { "title": "Pogoda", "now": "Teraz", "feels": "Odczuwalna", "wind": "Wiatr", "humidity": "Wilgotność" },

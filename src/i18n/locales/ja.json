@@ -4,7 +4,7 @@
   "controls": { "play": "再生", "pause": "一時停止", "sound": "音声", "favorites": "お気に入り" },
   "categories": {
     "all": "すべて", "auto-moto": "自動車・バイク", "nature": "自然", "tourism": "観光",
-    "real-estate": "不動産", "people": "人々", "architecture": "建築",
+    "real-estate": "不動産", "architecture": "建築",
     "museums": "美術館・博物館", "custom": "カスタムフィルター"
   },
   "weather": { "title": "天気", "now": "現在", "feels": "体感", "wind": "風", "humidity": "湿度" },

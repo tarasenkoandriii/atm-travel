@@ -4,7 +4,7 @@
   "controls": { "play": "играть", "pause": "пауза", "sound": "звук", "favorites": "Избранное" },
   "categories": {
     "all": "Все", "auto-moto": "Автомото", "nature": "Природа", "tourism": "Туризм",
-    "real-estate": "Недвижимость", "people": "Девушки", "architecture": "Памятники архитектуры",
+    "real-estate": "Недвижимость", "architecture": "Памятники архитектуры",
     "museums": "Музеи", "custom": "Свой фильтр"
   },
   "weather": { "title": "Погода", "now": "Сейчас", "feels": "Ощущается", "wind": "Ветер", "humidity": "Влажность" },

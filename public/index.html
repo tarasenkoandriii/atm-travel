@@ -191,7 +191,7 @@
         <div class="veil" id="veil">
           <div class="big">Окно в мир</div>
           <button class="play" id="veilPlay">▶ Запустить эфир</button>
-          <div class="hint">4K-хайлайты — живые YouTube-трансляции. Чтобы загрузить <b>сотни камер</b> на глобус, впишите бесплатный ключ <b>Windy</b> в <b>WINDY_API_KEY</b> вверху файла.</div>
+          <div class="hint">Живые камеры со всего мира — от городов и побережий до гор и трасс. Нажмите, чтобы включить эфир.</div>
         </div>
       </div>
 
@@ -241,14 +241,14 @@ const CAMERAS = [
   {id:'nyc-times2',  type:'youtube', title:'Таймс-сквер · 24/7',      city:'Нью-Йорк',     country:'США',    cc:'US', lat:40.7588, lng:-73.9862, tz:'America/New_York', videoId:'VjSIXFwB_WQ', res:'4K', category:'tourism',      provider:'earthcam'},
   {id:'nyc-times3',  type:'youtube', title:'Таймс-сквер · аэро',      city:'Нью-Йорк',     country:'США',    cc:'US', lat:40.7575, lng:-73.9850, tz:'America/New_York', videoId:'rnXIjl_Rzy4', res:'4K', category:'tourism',      provider:'earthcam'},
   {id:'nola-street', type:'youtube', title:'Французский квартал',     city:'Новый Орлеан', country:'США',    cc:'US', lat:29.9584, lng:-90.0644, tz:'America/Chicago',  videoId:'Ksrleaxxxhw', res:'HD', category:'tourism',      provider:'earthcam'},
-  {id:'nola-bourbon',type:'youtube', title:'Бурбон-стрит',            city:'Новый Орлеан', country:'США',    cc:'US', lat:29.9588, lng:-90.0650, tz:'America/Chicago',  videoId:'ryyC8t-mxyQ', res:'HD', category:'people',       provider:'earthcam'},
-  {id:'nola-balcony',type:'youtube', title:'Балкон над Бурбон-стрит', city:'Новый Орлеан', country:'США',    cc:'US', lat:29.9591, lng:-90.0648, tz:'America/Chicago',  videoId:'rnNPl27Arpk', res:'HD', category:'people',       provider:'earthcam'},
+  {id:'nola-bourbon',type:'youtube', title:'Бурбон-стрит',            city:'Новый Орлеан', country:'США',    cc:'US', lat:29.9588, lng:-90.0650, tz:'America/Chicago',  videoId:'ryyC8t-mxyQ', res:'HD', category:'tourism',      provider:'earthcam'},
+  {id:'nola-balcony',type:'youtube', title:'Балкон над Бурбон-стрит', city:'Новый Орлеан', country:'США',    cc:'US', lat:29.9591, lng:-90.0648, tz:'America/Chicago',  videoId:'rnNPl27Arpk', res:'HD', category:'tourism',      provider:'earthcam'},
   {id:'venice-stmark',type:'youtube',title:'Бассейн Сан-Марко',       city:'Венеция',      country:'Италия', cc:'IT', lat:45.4326, lng:12.3397,  tz:'Europe/Rome',      videoId:'dFBRpHHwQeg', res:'4K', category:'architecture', provider:'worldcam', wcCategory:'Венеция · каналы'},
 ];
 
 const FIXED_CATS = [
   {slug:'auto-moto',label:'Автомото'},{slug:'nature',label:'Природа'},{slug:'tourism',label:'Туризм'},
-  {slug:'real-estate',label:'Недвижимость'},{slug:'people',label:'Девушки'},
+  {slug:'real-estate',label:'Недвижимость'},
   {slug:'architecture',label:'Памятники архитектуры'},{slug:'museums',label:'Музеи'},{slug:'custom',label:'Свой фильтр'},
 ];
 
@@ -329,7 +329,7 @@ function applyPool(switchCam){
 }
 function showEmpty(){
   const v=$('#veil');v.classList.remove('hidden');
-  v.innerHTML='<div class="big">В этой категории пока нет камер</div><div class="hint">Добавьте камеру в массив <b>CAMERAS</b> или подключите ключ <b>Windy</b>, чтобы заполнить категории.</div>';
+  v.innerHTML='<div class="big">В этой категории пока нет камер</div><div class="hint">Выберите другую категорию или «Все».</div>';
   $('#hud').style.opacity=0;
 }
 
@@ -587,7 +587,7 @@ function mapWindyCat(cats){
 async function loadWindy(){
   const setL=t=>{const e=$('#globeLoad'); if(e)e.textContent=t;};
   const setN=h=>{const e=$('#note'); if(e)e.innerHTML=h;};
-  if(!WINDY_API_KEY){ setN('Загружено '+CAMERAS.length+' YouTube-хайлайтов. Вставьте ключ Windy, чтобы добавить сотни камер.'); return; }
+  if(!WINDY_API_KEY){ setN(''); return; }
   setL('Windy: запрос…');
   const per=50; let off=0, added=0, recv=0, geo=0, total=Infinity, lastStatus=0, useInc=true;
   async function page(){
@@ -816,6 +816,7 @@ $('#customInput').addEventListener('keydown',e=>{if(e.key==='Enter'){state.query
           if(typeof renderChips==='function') renderChips();
           if(typeof poolFor==='function'){ state.pool = poolFor(state.cat, state.query); state.idx = 0; }
           var pc = $('#poolCount'); if(pc) pc.textContent = state.pool.length + ' камер';
+          var nt = $('#note'); if(nt) nt.innerHTML = 'Подключено: <b>'+CAMERAS.length+'</b> живых камер.';
           if(typeof updateGlobePoints==='function') updateGlobePoints();
           if(state.pool[0] && (!state.active) && typeof setActive==='function') setActive(state.pool[0]);
         }catch(e){ console.warn('catalog refresh', e); }

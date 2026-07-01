@@ -5,7 +5,7 @@ import { QueryCamerasDto } from './dto/query-cameras.dto';
 import { I18nService } from '../i18n/i18n.service';
 
 const FIXED_CATS = [
-  'auto-moto', 'nature', 'tourism', 'real-estate', 'people', 'architecture', 'museums', 'custom',
+  'auto-moto', 'nature', 'tourism', 'real-estate', 'architecture', 'museums', 'custom',
 ];
 
 @Injectable()
