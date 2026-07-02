@@ -251,35 +251,41 @@ async function renderFormat(ff, m, fmt, introBlob, assetCache, creditText, intro
   // throws "ArrayBuffer is already detached" and corrupts the render.
   for (const f of files) await ff.writeFile(f.name, new Uint8Array(f.data));
 
-  const args = [];
-  files.forEach(f => args.push('-i', f.name));
-  let filter = g.filter, maps = g.maps;
+  // write the credit frame once (reused across both attempts)
   let hasCredit = false;
-  if (creditText) {
-    const credit = await makeCreditPng(fmt.w, fmt.h, creditText);
-    await ff.writeFile('credit.png', new Uint8Array(credit));
-    // A single still frame (no -loop): overlay repeats the last frame for the whole base (repeatlast=1),
-    // so credits stay put during the enable window. -loop 1 here made ffmpeg "reinitialize filters" and
-    // abort with exit 1 / empty output.
-    args.push('-i', 'credit.png'); // index === g.nextIdx
-    const introSeg = m.timeline.find(s => s.kind === 'intro');
-    const creditEnd = introSeg ? introSeg.outEnd : 3;   // show credits only over the intro/first seconds
-    filter += `;[${g.nextIdx}:v]format=rgba[cr];${g.outLabel}[cr]overlay=0:0:enable='between(t,0,${creditEnd})'[outc]`;
-    maps = ['-map', '[outc]'].concat(g.hasMusic ? ['-map', `${g.musicIdx}:a`] : []);
-    hasCredit = true;
+  if (creditText) { const credit = await makeCreditPng(fmt.w, fmt.h, creditText); await ff.writeFile('credit.png', new Uint8Array(credit)); hasCredit = true; }
+  const introSeg = m.timeline.find(s => s.kind === 'intro');
+  const creditEnd = introSeg ? introSeg.outEnd : 3;   // credits only over the intro/first seconds
+
+  // one encode pass; withCredit=false is the fallback if the credit overlay makes ffmpeg bail
+  async function runOnce(withCredit) {
+    const args = [];
+    files.forEach(f => args.push('-i', f.name));
+    let filter = g.filter, maps = g.maps;
+    if (withCredit) {
+      args.push('-i', 'credit.png'); // index === g.nextIdx
+      // continuous, fps-matched stream via the loop FILTER (repeats the decoded frame — no decoder
+      // restart) so overlay reconciles its timebase with the 30fps [base]; a bare still frame triggers
+      // "reinitializing filters" / exit 1.
+      filter += `;[${g.nextIdx}:v]format=rgba,loop=loop=-1:size=1:start=0,fps=${m.render.fps}[cr];${g.outLabel}[cr]overlay=0:0:enable='between(t,0,${creditEnd})'[outc]`;
+      maps = ['-map', '[outc]'].concat(g.hasMusic ? ['-map', `${g.musicIdx}:a`] : []);
+    }
+    // NOTE: no -shortest — the output is already bounded by the finite [base] concat.
+    args.push('-filter_complex', filter, ...maps, ...g.encode, '-movflags', '+faststart', 'out.mp4');
+    log('ffmpeg ' + fmt.name + (withCredit ? '' : ' · без кредитов') + ': ' + args.join(' '));
+    const code = await ff.exec(args);
+    let data; try { data = await ff.readFile('out.mp4'); } catch (e) { data = new Uint8Array(0); }
+    log('out ' + fmt.name + (withCredit ? '' : ' (no-cred)') + ': ' + data.length + 'B (exit ' + code + ')');
+    try { await ff.deleteFile('out.mp4'); } catch (e) {}
+    return data;
   }
-  args.push('-filter_complex', filter, ...maps, ...g.encode);
-  // NOTE: no -shortest — the overlay output is already bounded by the finite [base] concat, and
-  // -shortest together with the looping credit image can make ffmpeg emit an EMPTY file.
-  args.push('-movflags', '+faststart', 'out.mp4');
-  log('ffmpeg ' + fmt.name + ': ' + args.join(' '));
-  const code = await ff.exec(args);
-  let data; try { data = await ff.readFile('out.mp4'); } catch (e) { data = new Uint8Array(0); }
-  log('out ' + fmt.name + ': ' + data.length + 'B (exit ' + code + ')');
+
+  let data = await runOnce(hasCredit);
+  if ((!data || !data.length) && hasCredit) { log('кредиты не легли — пересобираю без них'); data = await runOnce(false); }
+
   for (const f of files) { try { await ff.deleteFile(f.name); } catch (e) {} }
   if (hasCredit) { try { await ff.deleteFile('credit.png'); } catch (e) {} }
-  try { await ff.deleteFile('out.mp4'); } catch (e) {}
-  if (!data || !data.length) throw new Error('пустой рендер ffmpeg (exit ' + code + ') — см. лог выше');
+  if (!data || !data.length) throw new Error('пустой рендер ffmpeg — см. лог выше');
   return new Blob([data], { type: 'video/mp4' });
 }
 async function cached(cache, url) { if (!cache.has(url)) cache.set(url, await fetchBytes(url)); return cache.get(url); }
