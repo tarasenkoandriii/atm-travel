@@ -245,7 +245,11 @@ async function renderFormat(ff, m, fmt, introBlob, assetCache, creditText, intro
   if (g.hasOverlay) { const url = m.overlay.source; files.push({ name: `in${idx}.${extOf(url, 'webm')}`, data: await cached(assetCache, url) }); idx++; }
   if (g.hasMusic) { const url = m.audio.track; files.push({ name: `in${idx}.${extOf(url, 'mp3')}`, data: await cached(assetCache, url) }); idx++; }
 
-  for (const f of files) await ff.writeFile(f.name, f.data);
+  // ffmpeg.writeFile TRANSFERS the ArrayBuffer to the worker (detaching it on our side). The clip
+  // bytes come from a shared cache and are reused across timeline slots and across the 3 formats, so
+  // we must hand ffmpeg a fresh COPY each time — otherwise the second write of the same cached buffer
+  // throws "ArrayBuffer is already detached" and corrupts the render.
+  for (const f of files) await ff.writeFile(f.name, new Uint8Array(f.data));
 
   const args = [];
   files.forEach(f => args.push('-i', f.name));
