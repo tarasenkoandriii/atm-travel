@@ -150,16 +150,22 @@ async function ffAssetsReady() {
   };
   return ffAssets;
 }
-// Per-format progress state, read by the ffmpeg progress listener attached in newFF().
-let progLabel = '', progIndex = 0, progTotal = 1;
+// Per-format progress state, read by the ffmpeg log listener attached in newFF().
+let progLabel = '', progIndex = 0, progTotal = 1, curTotalSec = 0;
 async function newFF() {
   const a = await ffAssetsReady();
   const f = new FFmpeg();
-  f.on('log', ({ message }) => { if (/frame=|error|Error/i.test(message)) log(message); });
-  f.on('progress', ({ progress }) => {
-    const p = Math.max(0, Math.min(1, progress || 0));
-    if (progLabel) setStatus(progLabel + ' — монтаж ' + Math.round(p * 100) + '%');
-    setProg((progIndex + p) / progTotal);
+  // ffmpeg emits "frame=.. time=HH:MM:SS.xx" during encoding; derive % from time / known duration
+  // (the native `progress` event is unreliable for filter_complex + concat, so we parse the log).
+  f.on('log', ({ message }) => {
+    if (/error|Error/i.test(message)) log(message);
+    const t = /time=(\d+):(\d+):(\d+(?:\.\d+)?)/.exec(message);
+    if (t && curTotalSec > 0 && progLabel) {
+      const sec = (+t[1]) * 3600 + (+t[2]) * 60 + parseFloat(t[3]);
+      const p = Math.max(0, Math.min(1, sec / curTotalSec));
+      setStatus(progLabel + ' — монтаж ' + Math.round(p * 100) + '%');
+      setProg((progIndex + p) / progTotal);
+    }
   });
   await f.load({ classWorkerURL: a.classWorkerURL, coreURL: a.coreURL, wasmURL: a.wasmURL });
   return f;
@@ -306,7 +312,7 @@ async function run() {
     if (creditText) log('кредиты: ' + creditText);
 
     const items = []; let lastErr = ''; const n = m.render.formats.length;
-    progTotal = n;
+    progTotal = n; curTotalSec = (m.timeline[m.timeline.length - 1].outEnd) || 0;
     for (let fi = 0; fi < n; fi++) {
       const fmt = m.render.formats[fi];
       progIndex = fi; progLabel = 'Формат ' + fmt.name + ' (' + (fi + 1) + '/' + n + ')';
