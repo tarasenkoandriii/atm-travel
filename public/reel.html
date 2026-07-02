@@ -228,23 +228,39 @@ async function renderFormat(ff, m, fmt, introBlob, assetCache, creditText) {
 async function cached(cache, url) { if (!cache.has(url)) cache.set(url, await fetchBytes(url)); return cache.get(url); }
 
 // ── upload to Blob + persist ──
+function withTimeout(p, ms, label) {
+  return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout: ' + label)), ms))]);
+}
+async function loadUploader() {
+  const cdns = ['https://esm.sh/@vercel/blob@0.23.4/client', 'https://esm.run/@vercel/blob@0.23.4/client'];
+  for (const u of cdns) { try { const m = await withTimeout(import(u), 15000, 'sdk ' + u); if (m && m.upload) return m.upload; } catch (e) { console.warn('SDK load failed', u, e); } }
+  return null;
+}
 async function deliver(outputs, meta) {
   let cfg = { blobEnabled: false };
   try { cfg = await fetch('/api/cine/config').then(r => r.json()); } catch (e) {}
   const items = [];
-  if (cfg.blobEnabled) {
-    setStatus('Загрузка в Blob…');
-    let upload = null; try { ({ upload } = await import('https://esm.sh/@vercel/blob@0.23.4/client')); } catch (e) {}
-    for (const o of outputs) {
-      try {
-        if (!upload) throw 0;
-        const res = await upload('reel/' + Date.now() + '-' + o.fmt.replace(':', 'x') + '.mp4', o.blob, { access: 'public', handleUploadUrl: '/api/cine/blob-token', contentType: 'video/mp4' });
-        items.push({ fmt: o.fmt, url: res.url, blob: o.blob });
-      } catch (e) { items.push({ fmt: o.fmt, blob: o.blob }); }
-    }
-    const up = items.filter(i => i.url);
-    if (up.length) { try { const rec = await fetch('/api/cine', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...meta, items: up.map(i => ({ format: i.fmt, url: i.url })) }) }).then(r => r.json()); if (rec.id) setStatus('Готово · набор: /api/cine/' + rec.id); } catch (e) {} }
-  } else { outputs.forEach(o => items.push(o)); setStatus('Готово. Blob не подключён — скачайте локально.'); }
+  if (!cfg.blobEnabled) { outputs.forEach(o => items.push(o)); setStatus('Готово. Blob не подключён — скачайте локально.'); showCards(items); return; }
+
+  setStatus('Загрузка в Blob…');
+  const upload = await loadUploader();
+  if (!upload) { outputs.forEach(o => items.push(o)); setStatus('SDK хранилища не загрузился — скачайте локально.'); showCards(items); return; }
+
+  for (let i = 0; i < outputs.length; i++) {
+    const o = outputs[i];
+    setStatus('Загрузка ' + o.fmt + ' (' + (i + 1) + '/' + outputs.length + ')…');
+    try {
+      const res = await withTimeout(upload('reel/' + Date.now() + '-' + o.fmt.replace(':', 'x') + '.mp4', o.blob, {
+        access: 'public', handleUploadUrl: '/api/cine/blob-token', contentType: 'video/mp4', multipart: true,
+        onUploadProgress: (p) => setStatus('Загрузка ' + o.fmt + ' — ' + Math.round(p.percentage || 0) + '%'),
+      }), 180000, 'upload ' + o.fmt);
+      items.push({ fmt: o.fmt, url: res.url, blob: o.blob });
+    } catch (e) { console.warn('upload failed', o.fmt, e); items.push({ fmt: o.fmt, blob: o.blob }); }
+  }
+  const up = items.filter(i => i.url);
+  if (up.length) {
+    try { const rec = await fetch('/api/cine', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...meta, items: up.map(i => ({ format: i.fmt, url: i.url })) }) }).then(r => r.json()); setStatus((up.length === outputs.length ? 'Готово · ' : 'Загружено ' + up.length + '/' + outputs.length + ' · ') + (rec.id ? 'набор: /api/cine/' + rec.id : '')); } catch (e) {}
+  } else { setStatus('Не удалось загрузить — скачайте локально (см. консоль).'); }
   showCards(items);
 }
 function showCards(items) {

@@ -254,29 +254,43 @@ function showCards(items) {
   }).join('');
 }
 
+function withTimeout(p, ms, label) {
+  return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout: ' + label)), ms))]);
+}
+async function loadUploader() {
+  const cdns = ['https://esm.sh/@vercel/blob@0.23.4/client', 'https://esm.run/@vercel/blob@0.23.4/client'];
+  for (const u of cdns) { try { const m = await withTimeout(import(u), 15000, 'sdk ' + u); if (m && m.upload) return m.upload; } catch (e) { console.warn('SDK load failed', u, e); } }
+  return null;
+}
 async function deliver(outputs, meta) {
   let cfg = { blobEnabled: false };
   try { cfg = await fetch('/api/cine/config').then(r => r.json()); } catch (e) {}
   if (!cfg.blobEnabled) { $('#status').textContent = 'Готово. Хранилище не подключено — скачайте файлы локально.'; showCards(outputs); return; }
+
   $('#status').textContent = 'Загрузка в хранилище…';
-  let uploadFn = null;
-  try { ({ upload: uploadFn } = await import('https://esm.sh/@vercel/blob@0.23.4/client')); } catch (e) {}
+  const uploadFn = await loadUploader();
+  if (!uploadFn) { $('#status').textContent = 'SDK хранилища не загрузился — скачайте файлы локально.'; showCards(outputs); return; }
+
   const items = [];
-  for (const o of outputs) {
+  for (let i = 0; i < outputs.length; i++) {
+    const o = outputs[i];
+    $('#status').textContent = 'Загрузка ' + o.fmt + ' (' + (i + 1) + '/' + outputs.length + ')…';
     try {
-      if (!uploadFn) throw new Error('sdk');
       const name = 'cine/' + Date.now() + '-' + o.fmt.replace(':', 'x') + '.' + EXT();
-      const res = await uploadFn(name, o.blob, { access: 'public', handleUploadUrl: '/api/cine/blob-token', contentType: o.blob.type });
+      const res = await withTimeout(uploadFn(name, o.blob, {
+        access: 'public', handleUploadUrl: '/api/cine/blob-token', contentType: o.blob.type, multipart: true,
+        onUploadProgress: (p) => { $('#status').textContent = 'Загрузка ' + o.fmt + ' — ' + Math.round(p.percentage || 0) + '%'; },
+      }), 180000, 'upload ' + o.fmt);
       items.push({ fmt: o.fmt, url: res.url, blob: o.blob });
-    } catch (e) { items.push({ fmt: o.fmt, blob: o.blob }); }
+    } catch (e) { console.warn('upload failed', o.fmt, e); items.push({ fmt: o.fmt, blob: o.blob }); }
   }
   const uploaded = items.filter(i => i.url);
   if (uploaded.length) {
     try {
       const rec = await fetch('/api/cine', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...meta, items: uploaded.map(i => ({ format: i.fmt, url: i.url })) }) }).then(r => r.json());
-      if (rec && rec.id) $('#status').innerHTML = 'Готово. Набор: <a href="/api/cine/' + rec.id + '" target="_blank">/api/cine/' + rec.id + '</a>';
+      $('#status').innerHTML = (uploaded.length === outputs.length ? 'Готово. ' : 'Загружено ' + uploaded.length + '/' + outputs.length + '. ') + (rec && rec.id ? 'Набор: <a href="/api/cine/' + rec.id + '" target="_blank">/api/cine/' + rec.id + '</a>' : '');
     } catch (e) { $('#status').textContent = 'Загружено, но не удалось сохранить набор.'; }
-  } else { $('#status').textContent = 'Не удалось загрузить — файлы доступны для скачивания.'; }
+  } else { $('#status').textContent = 'Не удалось загрузить в хранилище — скачайте файлы локально (см. консоль).'; }
   showCards(items);
 }
 
