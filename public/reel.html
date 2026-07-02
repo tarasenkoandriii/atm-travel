@@ -135,18 +135,27 @@ async function fetchBytes(url) {
 const extOf = (url, def) => { const m = /\.([a-z0-9]{2,4})(?:\?|$)/i.exec(url || ''); return m ? m[1].toLowerCase() : def; };
 
 // ── ffmpeg.wasm ──
-let ff = null;
-async function loadFF() {
-  if (ff) return ff;
-  ff = new FFmpeg();
-  ff.on('log', ({ message }) => { if (/frame=|error|Error/i.test(message)) log(message); });
-  const base = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+// ffmpeg assets are built once (blob URLs), then a FRESH instance is created per format and
+// terminated after — this keeps the wasm heap from growing across the 3 renders.
+let ffAssets = null;
+async function ffAssetsReady() {
+  if (ffAssets) return ffAssets;
   setStatus('Загрузка ffmpeg.wasm…');
-  await ff.load({
+  const base = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+  const workerURL = 'https://esm.sh/@ffmpeg/ffmpeg@0.12.10/es2022/worker.js';
+  ffAssets = {
+    classWorkerURL: await toBlobURL(workerURL, 'text/javascript'),
     coreURL: await toBlobURL(`${base}/ffmpeg-core.js`, 'text/javascript'),
     wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, 'application/wasm'),
-  });
-  return ff;
+  };
+  return ffAssets;
+}
+async function newFF() {
+  const a = await ffAssetsReady();
+  const f = new FFmpeg();
+  f.on('log', ({ message }) => { if (/frame=|error|Error/i.test(message)) log(message); });
+  await f.load({ classWorkerURL: a.classWorkerURL, coreURL: a.coreURL, wasmURL: a.wasmURL });
+  return f;
 }
 
 // Build a manifest from the form (or load provided URL). introSecOverride = reuse cine flight length.
@@ -247,30 +256,15 @@ async function cached(cache, url) { if (!cache.has(url)) cache.set(url, await fe
 function withTimeout(p, ms, label) {
   return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout: ' + label)), ms))]);
 }
-async function deliver(outputs, meta) {
-  let cfg = { blobEnabled: false };
-  try { cfg = await fetch('/api/cine/config').then(r => r.json()); } catch (e) {}
-  const items = [];
-  if (!cfg.blobEnabled) { outputs.forEach(o => items.push(o)); setStatus('Готово. Blob не подключён — скачайте локально.'); showCards(items); return; }
-
-  const LIMIT = 4.4 * 1024 * 1024; let lastErr = '';
-  for (let i = 0; i < outputs.length; i++) {
-    const o = outputs[i];
-    setStatus('Загрузка ' + o.fmt + ' (' + (i + 1) + '/' + outputs.length + ')…');
-    try {
-      if (o.blob.size > LIMIT) throw new Error('файл ' + Math.round(o.blob.size / 1048576) + 'МБ > 4.4МБ');
-      const name = 'reel/' + Date.now() + '-' + o.fmt.replace(':', 'x') + '.mp4';
-      const res = await withTimeout(fetch('/api/cine/put?name=' + encodeURIComponent(name) + '&ct=video/mp4', {
-        method: 'POST', headers: { 'Content-Type': 'video/mp4' }, body: o.blob,
-      }).then(async r => { if (!r.ok) { let m = ''; try { m = (await r.json()).message || ''; } catch (e) {} throw new Error('put ' + r.status + (m ? ' — ' + m : '')); } return r.json(); }), 120000, 'put ' + o.fmt);
-      items.push({ fmt: o.fmt, url: res.url, blob: o.blob });
-    } catch (e) { lastErr = String(e.message || e); console.warn('server put failed', o.fmt, e); items.push({ fmt: o.fmt, blob: o.blob }); }
-  }
-  const up = items.filter(i => i.url);
-  if (up.length) {
-    try { const rec = await fetch('/api/cine', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...meta, items: up.map(i => ({ format: i.fmt, url: i.url })) }) }).then(r => r.json()); setStatus((up.length === outputs.length ? 'Готово · ' : 'Загружено ' + up.length + '/' + outputs.length + ' · ') + (rec.id ? 'набор: /api/cine/' + rec.id : '')); } catch (e) {}
-  } else { setStatus('Не удалось загрузить: ' + (lastErr || 'ошибка сервера') + ' — файлы можно скачать ниже.'); }
-  showCards(items);
+// Upload one finished mp4 to Blob via the server (same-origin). Returns the public URL.
+async function uploadOne(blob, fmt) {
+  const LIMIT = 4.4 * 1024 * 1024;
+  if (blob.size > LIMIT) throw new Error('файл ' + Math.round(blob.size / 1048576) + 'МБ > 4.4МБ');
+  const name = 'reel/' + Date.now() + '-' + fmt.replace(':', 'x') + '.mp4';
+  const res = await withTimeout(fetch('/api/cine/put?name=' + encodeURIComponent(name) + '&ct=video/mp4', {
+    method: 'POST', headers: { 'Content-Type': 'video/mp4' }, body: blob,
+  }).then(async r => { if (!r.ok) { let m = ''; try { m = (await r.json()).message || ''; } catch (e) {} throw new Error('put ' + r.status + (m ? ' — ' + m : '')); } return r.json(); }), 120000, 'put ' + fmt);
+  return res.url;
 }
 function showCards(items) {
   $('#results').innerHTML = items.map(o => { const u = o.url || URL.createObjectURL(o.blob); const dl = o.url ? ' target="_blank"' : ' download="reel-' + o.fmt.replace(':', 'x') + '.mp4"'; return '<div class="rcard"><video src="' + u + '" controls muted loop playsinline></video><div class="rc-b"><span class="fmt">' + o.fmt + '</span><a class="btn" style="padding:7px 12px" href="' + u + '"' + dl + '>' + (o.url ? 'Открыть' : 'Скачать') + '</a></div></div>'; }).join('');
@@ -296,31 +290,58 @@ async function run() {
     const introSec = intro ? (intro.srcOut - intro.srcIn) : 2.5;
     const lat = m.destination.coords.lat, lng = m.destination.coords.lng;
 
-    const ffmpeg = await loadFF();
+    let cfg = { blobEnabled: false }; try { cfg = await fetch('/api/cine/config').then(r => r.json()); } catch (e) {}
+    await ffAssetsReady();
     const cache = new Map();
     // author credits from clip attributions (Pexels/Pixabay require attribution)
     const attrs = [...new Set(m.timeline.filter(s => s.source && s.source.attribution).map(s => s.source.attribution))];
     const creditText = attrs.length ? ('Footage: ' + attrs.join('  ·  ')) : '';
     if (creditText) log('кредиты: ' + creditText);
-    const outputs = [];
-    for (let fi = 0; fi < m.render.formats.length; fi++) {
+
+    const items = []; let lastErr = ''; const n = m.render.formats.length;
+    for (let fi = 0; fi < n; fi++) {
       const fmt = m.render.formats[fi];
+      // intro: reuse cine flight (per-format) or record the globe
       let introBlob = null, introExt = 'webm';
       if (cineData) {
         const it = (cineData.items || []).find(x => x.format === fmt.name);
         if (it && it.url) {
           setStatus('Формат ' + fmt.name + ' — интро из cine…');
-          try { introBlob = new Blob([await cached(cache, it.url)]); introExt = 'mp4'; }
-          catch (e) { log('cine-интро ' + fmt.name + ' не загрузилось: ' + (e.message || e)); }
+          try { introBlob = new Blob([await cached(cache, it.url)]); introExt = 'mp4'; cache.delete(it.url); }
+          catch (e) { log('cine-интро ' + fmt.name + ': ' + (e.message || e)); }
         } else log('нет cine-клипа для ' + fmt.name + ' — запишу глобус');
       }
       if (!introBlob) { setStatus('Формат ' + fmt.name + ' — intro (глобус)…'); introBlob = await recordIntro(fmt.w, fmt.h, introSec, lat, lng); introExt = 'webm'; }
-      setStatus('Формат ' + fmt.name + ' — монтаж ffmpeg…');
-      const blob = await renderFormat(ffmpeg, m, fmt, introBlob, cache, creditText, introExt);
-      outputs.push({ fmt: fmt.name, blob });
-      setProg((fi + 1) / m.render.formats.length);
+
+      // fresh ffmpeg per ratio → terminate after, so the wasm heap is freed between renders
+      setStatus('Формат ' + fmt.name + ' (' + (fi + 1) + '/' + n + ') — монтаж ffmpeg…');
+      const ff = await newFF();
+      let blob;
+      try { blob = await renderFormat(ff, m, fmt, introBlob, cache, creditText, introExt); }
+      finally { try { ff.terminate(); } catch (e) {} }
+      introBlob = null;
+
+      // upload right away and drop the blob on success to keep tab memory low
+      let url = null;
+      if (cfg.blobEnabled) {
+        setStatus('Формат ' + fmt.name + ' — загрузка…');
+        try { url = await uploadOne(blob, fmt.name); } catch (e) { lastErr = String(e.message || e); console.warn('server put failed', fmt.name, e); }
+      }
+      items.push(url ? { fmt: fmt.name, url } : { fmt: fmt.name, blob });
+      blob = null;
+      showCards(items);   // progressive render
+      setProg((fi + 1) / n);
     }
-    await deliver(outputs, { lat, lng, dur: m.timeline[m.timeline.length - 1].outEnd, title: m.destination.name });
+
+    // persist the set (all uploaded urls)
+    const up = items.filter(i => i.url);
+    if (!cfg.blobEnabled) setStatus('Готово. Blob не подключён — скачайте локально.');
+    else if (up.length) {
+      try {
+        const rec = await fetch('/api/cine', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lat, lng, dur: m.timeline[m.timeline.length - 1].outEnd, title: m.destination.name, items: up.map(i => ({ format: i.fmt, url: i.url })) }) }).then(r => r.json());
+        setStatus((up.length === n ? 'Готово · ' : 'Загружено ' + up.length + '/' + n + ' · ') + (rec.id ? 'набор: /api/cine/' + rec.id : ''));
+      } catch (e) {}
+    } else setStatus('Не удалось загрузить: ' + (lastErr || 'ошибка сервера') + ' — файлы можно скачать ниже.');
   } catch (e) { setStatus('Ошибка: ' + (e.message || e)); log(String(e)); }
   $('#go').disabled = false;
 }
