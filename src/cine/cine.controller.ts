@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, NotFoundException, Param, PayloadTooLargeException, Post, Query, Req } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, InternalServerErrorException, NotFoundException, Param, PayloadTooLargeException, Post, Query, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
@@ -21,14 +21,21 @@ export class CineController {
   // and we push it to Blob with put(). Body is capped at Vercel's ~4.5MB request limit.
   @Post('put')
   async put(@Req() req: Request, @Query('name') name: string, @Query('ct') ct: string) {
-    if (!this.blobEnabled) throw new BadRequestException('blob not configured');
+    if (!this.blobEnabled) throw new BadRequestException('blob not configured (no BLOB_READ_WRITE_TOKEN)');
     const body: any = (req as any).body;
-    if (!body || !Buffer.isBuffer(body) || !body.length) throw new BadRequestException('empty body');
+    if (!body || !Buffer.isBuffer(body) || !body.length) {
+      throw new BadRequestException('empty or non-buffer body (raw parser not applied?) type=' + typeof body);
+    }
     if (body.length > 4.4 * 1024 * 1024) throw new PayloadTooLargeException('file exceeds 4.4MB server-upload limit');
-    const { put } = await import('@vercel/blob');
-    const safe = (name || 'cine/' + Date.now() + '.mp4').replace(/[^a-zA-Z0-9._/-]/g, '_');
-    const res = await put(safe, body, { access: 'public', contentType: ct || 'video/mp4', addRandomSuffix: true });
-    return { url: res.url };
+    try {
+      const { put } = await import('@vercel/blob');
+      const safe = (name || 'cine/' + Date.now() + '.mp4').replace(/[^a-zA-Z0-9._/-]/g, '_');
+      const res = await put(safe, body, { access: 'public', contentType: ct || 'video/mp4', addRandomSuffix: true });
+      return { url: res.url };
+    } catch (e: any) {
+      // Surface the real cause (token/store/network) instead of a generic 500.
+      throw new InternalServerErrorException('blob put failed: ' + String(e?.message || e));
+    }
   }
 
   // Vercel Blob client-upload: validates and returns an upload token to the browser SDK.

@@ -272,7 +272,7 @@ async function deliver(outputs, meta) {
       const name = 'cine/' + Date.now() + '-' + o.fmt.replace(':', 'x') + '.' + EXT();
       const res = await withTimeout(fetch('/api/cine/put?name=' + encodeURIComponent(name) + '&ct=' + encodeURIComponent(o.blob.type || 'video/mp4'), {
         method: 'POST', headers: { 'Content-Type': o.blob.type || 'application/octet-stream' }, body: o.blob,
-      }).then(async r => { if (!r.ok) throw new Error('put ' + r.status); return r.json(); }), 120000, 'put ' + o.fmt);
+      }).then(async r => { if (!r.ok) { let m = ''; try { m = (await r.json()).message || ''; } catch (e) {} throw new Error('put ' + r.status + (m ? ' — ' + m : '')); } return r.json(); }), 120000, 'put ' + o.fmt);
       items.push({ fmt: o.fmt, url: res.url, blob: o.blob });
     } catch (e) { console.warn('server put failed', o.fmt, e); items.push({ fmt: o.fmt, blob: o.blob }); }
   }
