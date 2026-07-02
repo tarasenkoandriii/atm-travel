@@ -187,7 +187,10 @@ function makeCreditPng(w, h, text) {
 }
 
 async function renderFormat(ff, m, fmt, introBlob, assetCache, creditText) {
-  const g = buildFilterComplex(m, fmt.name, { lut: false, preset: 'veryfast' });
+  // target a size that fits Vercel's ~4.5MB server-upload limit
+  const dur = (m.timeline[m.timeline.length - 1].outEnd) || 10;
+  const kbps = Math.max(800, Math.floor((4.2 * 1024 * 1024 * 8 / 1000) / dur) - 128);
+  const g = buildFilterComplex(m, fmt.name, { lut: false, preset: 'veryfast', videoBitrate: kbps + 'k', bufsize: (kbps * 2) + 'k' });
   const files = [];
   for (let i = 0; i < m.timeline.length; i++) {
     const s = m.timeline[i];
@@ -231,36 +234,29 @@ async function cached(cache, url) { if (!cache.has(url)) cache.set(url, await fe
 function withTimeout(p, ms, label) {
   return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout: ' + label)), ms))]);
 }
-async function loadUploader() {
-  const cdns = ['https://esm.sh/@vercel/blob@0.23.4/client', 'https://esm.run/@vercel/blob@0.23.4/client'];
-  for (const u of cdns) { try { const m = await withTimeout(import(u), 15000, 'sdk ' + u); if (m && m.upload) return m.upload; } catch (e) { console.warn('SDK load failed', u, e); } }
-  return null;
-}
 async function deliver(outputs, meta) {
   let cfg = { blobEnabled: false };
   try { cfg = await fetch('/api/cine/config').then(r => r.json()); } catch (e) {}
   const items = [];
   if (!cfg.blobEnabled) { outputs.forEach(o => items.push(o)); setStatus('Готово. Blob не подключён — скачайте локально.'); showCards(items); return; }
 
-  setStatus('Загрузка в Blob…');
-  const upload = await loadUploader();
-  if (!upload) { outputs.forEach(o => items.push(o)); setStatus('SDK хранилища не загрузился — скачайте локально.'); showCards(items); return; }
-
+  const LIMIT = 4.4 * 1024 * 1024;
   for (let i = 0; i < outputs.length; i++) {
     const o = outputs[i];
     setStatus('Загрузка ' + o.fmt + ' (' + (i + 1) + '/' + outputs.length + ')…');
     try {
-      const res = await withTimeout(upload('reel/' + Date.now() + '-' + o.fmt.replace(':', 'x') + '.mp4', o.blob, {
-        access: 'public', handleUploadUrl: '/api/cine/blob-token', contentType: 'video/mp4',
-        onUploadProgress: (p) => setStatus('Загрузка ' + o.fmt + ' — ' + Math.round(p.percentage || 0) + '%'),
-      }), 180000, 'upload ' + o.fmt);
+      if (o.blob.size > LIMIT) throw new Error('файл ' + Math.round(o.blob.size / 1048576) + 'МБ > 4.4МБ');
+      const name = 'reel/' + Date.now() + '-' + o.fmt.replace(':', 'x') + '.mp4';
+      const res = await withTimeout(fetch('/api/cine/put?name=' + encodeURIComponent(name) + '&ct=video/mp4', {
+        method: 'POST', headers: { 'Content-Type': 'video/mp4' }, body: o.blob,
+      }).then(async r => { if (!r.ok) throw new Error('put ' + r.status); return r.json(); }), 120000, 'put ' + o.fmt);
       items.push({ fmt: o.fmt, url: res.url, blob: o.blob });
-    } catch (e) { console.warn('upload failed', o.fmt, e); items.push({ fmt: o.fmt, blob: o.blob }); }
+    } catch (e) { console.warn('server put failed', o.fmt, e); items.push({ fmt: o.fmt, blob: o.blob }); }
   }
   const up = items.filter(i => i.url);
   if (up.length) {
     try { const rec = await fetch('/api/cine', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...meta, items: up.map(i => ({ format: i.fmt, url: i.url })) }) }).then(r => r.json()); setStatus((up.length === outputs.length ? 'Готово · ' : 'Загружено ' + up.length + '/' + outputs.length + ' · ') + (rec.id ? 'набор: /api/cine/' + rec.id : '')); } catch (e) {}
-  } else { setStatus('PUT к blob-хосту заблокирован (ERR_FAILED) — попробуйте Incognito (расширения). Файлы можно скачать ниже.'); }
+  } else { setStatus('Не удалось загрузить (файлы > 4.4 МБ или ошибка сервера) — скачайте локально ниже.'); }
   showCards(items);
 }
 function showCards(items) {

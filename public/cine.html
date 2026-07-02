@@ -220,7 +220,7 @@ async function runRecorders(formats, getSrc, getDims, lat, lng, cleanup) {
     const [W, H] = SIZES[f];
     const c = document.createElement('canvas'); c.width = W; c.height = H;
     const ctx = c.getContext('2d');
-    const rec = new MediaRecorder(c.captureStream(CFG.fps), MIME ? { mimeType: MIME, videoBitsPerSecond: 12_000_000 } : undefined);
+    const rec = new MediaRecorder(c.captureStream(CFG.fps), MIME ? { mimeType: MIME, videoBitsPerSecond: 4_000_000 } : undefined);
     const chunks = []; rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
     return { f, c, ctx, rec, chunks };
   });
@@ -257,32 +257,24 @@ function showCards(items) {
 function withTimeout(p, ms, label) {
   return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout: ' + label)), ms))]);
 }
-async function loadUploader() {
-  const cdns = ['https://esm.sh/@vercel/blob@0.23.4/client', 'https://esm.run/@vercel/blob@0.23.4/client'];
-  for (const u of cdns) { try { const m = await withTimeout(import(u), 15000, 'sdk ' + u); if (m && m.upload) return m.upload; } catch (e) { console.warn('SDK load failed', u, e); } }
-  return null;
-}
 async function deliver(outputs, meta) {
   let cfg = { blobEnabled: false };
   try { cfg = await fetch('/api/cine/config').then(r => r.json()); } catch (e) {}
   if (!cfg.blobEnabled) { $('#status').textContent = 'Готово. Хранилище не подключено — скачайте файлы локально.'; showCards(outputs); return; }
 
-  $('#status').textContent = 'Загрузка в хранилище…';
-  const uploadFn = await loadUploader();
-  if (!uploadFn) { $('#status').textContent = 'SDK хранилища не загрузился — скачайте файлы локально.'; showCards(outputs); return; }
-
+  const LIMIT = 4.4 * 1024 * 1024;
   const items = [];
   for (let i = 0; i < outputs.length; i++) {
     const o = outputs[i];
     $('#status').textContent = 'Загрузка ' + o.fmt + ' (' + (i + 1) + '/' + outputs.length + ')…';
     try {
+      if (o.blob.size > LIMIT) throw new Error('файл ' + Math.round(o.blob.size / 1048576) + 'МБ > 4.4МБ');
       const name = 'cine/' + Date.now() + '-' + o.fmt.replace(':', 'x') + '.' + EXT();
-      const res = await withTimeout(uploadFn(name, o.blob, {
-        access: 'public', handleUploadUrl: '/api/cine/blob-token', contentType: o.blob.type,
-        onUploadProgress: (p) => { $('#status').textContent = 'Загрузка ' + o.fmt + ' — ' + Math.round(p.percentage || 0) + '%'; },
-      }), 180000, 'upload ' + o.fmt);
+      const res = await withTimeout(fetch('/api/cine/put?name=' + encodeURIComponent(name) + '&ct=' + encodeURIComponent(o.blob.type || 'video/mp4'), {
+        method: 'POST', headers: { 'Content-Type': o.blob.type || 'application/octet-stream' }, body: o.blob,
+      }).then(async r => { if (!r.ok) throw new Error('put ' + r.status); return r.json(); }), 120000, 'put ' + o.fmt);
       items.push({ fmt: o.fmt, url: res.url, blob: o.blob });
-    } catch (e) { console.warn('upload failed', o.fmt, e); items.push({ fmt: o.fmt, blob: o.blob }); }
+    } catch (e) { console.warn('server put failed', o.fmt, e); items.push({ fmt: o.fmt, blob: o.blob }); }
   }
   const uploaded = items.filter(i => i.url);
   if (uploaded.length) {
@@ -290,7 +282,7 @@ async function deliver(outputs, meta) {
       const rec = await fetch('/api/cine', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...meta, items: uploaded.map(i => ({ format: i.fmt, url: i.url })) }) }).then(r => r.json());
       $('#status').innerHTML = (uploaded.length === outputs.length ? 'Готово. ' : 'Загружено ' + uploaded.length + '/' + outputs.length + '. ') + (rec && rec.id ? 'Набор: <a href="/api/cine/' + rec.id + '" target="_blank">/api/cine/' + rec.id + '</a>' : '');
     } catch (e) { $('#status').textContent = 'Загружено, но не удалось сохранить набор.'; }
-  } else { $('#status').innerHTML = 'PUT к blob-хосту заблокирован (net::ERR_FAILED). Скорее всего расширение браузера — попробуйте <b>Incognito</b>. Файлы можно скачать ниже.'; }
+  } else { $('#status').innerHTML = 'Не удалось загрузить (файлы > 4.4 МБ или ошибка сервера) — скачайте локально ниже.'; }
   showCards(items);
 }
 

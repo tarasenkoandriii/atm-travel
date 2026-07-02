@@ -1,4 +1,4 @@
-import { Body, Controller, Get, NotFoundException, Param, Post, Req } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, NotFoundException, Param, PayloadTooLargeException, Post, Query, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
@@ -16,6 +16,20 @@ export class CineController {
 
   @Get('config')
   cfg() { return { blobEnabled: this.blobEnabled }; }
+
+  // Server-side upload: browser POSTs the finished video here (same-origin, no browser→blob CORS),
+  // and we push it to Blob with put(). Body is capped at Vercel's ~4.5MB request limit.
+  @Post('put')
+  async put(@Req() req: Request, @Query('name') name: string, @Query('ct') ct: string) {
+    if (!this.blobEnabled) throw new BadRequestException('blob not configured');
+    const body: any = (req as any).body;
+    if (!body || !Buffer.isBuffer(body) || !body.length) throw new BadRequestException('empty body');
+    if (body.length > 4.4 * 1024 * 1024) throw new PayloadTooLargeException('file exceeds 4.4MB server-upload limit');
+    const { put } = await import('@vercel/blob');
+    const safe = (name || 'cine/' + Date.now() + '.mp4').replace(/[^a-zA-Z0-9._/-]/g, '_');
+    const res = await put(safe, body, { access: 'public', contentType: ct || 'video/mp4', addRandomSuffix: true });
+    return { url: res.url };
+  }
 
   // Vercel Blob client-upload: validates and returns an upload token to the browser SDK.
   @Post('blob-token')

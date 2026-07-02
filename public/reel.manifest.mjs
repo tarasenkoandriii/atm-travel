@@ -87,7 +87,10 @@ export function buildFilterComplex(m, formatName, opts = {}) {
 
   const maps = ['-map', outLabel];
   if (hasMusic) maps.push('-map', `${musicIdx}:a`);
-  const encode = ['-c:v', 'libx264', '-preset', opts.preset || 'veryfast', '-crf', String(m.render.crf ?? 20), '-pix_fmt', pix];
+  const encode = ['-c:v', 'libx264', '-preset', opts.preset || 'veryfast'];
+  if (opts.videoBitrate) { encode.push('-b:v', opts.videoBitrate, '-maxrate', opts.videoBitrate, '-bufsize', opts.bufsize || opts.videoBitrate); }
+  else { encode.push('-crf', String(m.render.crf ?? 20)); }
+  encode.push('-pix_fmt', pix);
   if (hasMusic) { encode.push('-c:a', 'aac', '-b:a', '128k', '-shortest'); }
 
   return { inputs, filter: parts.join(';'), maps, encode, hasOverlay, hasMusic, overlayIdx, musicIdx, nextIdx, outLabel };

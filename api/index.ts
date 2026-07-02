@@ -14,7 +14,7 @@ const server = express();
 let ready: Promise<void> | null = null;
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, new ExpressAdapter(server), { logger: ['error', 'warn', 'log'] });
+  const app = await NestFactory.create(AppModule, new ExpressAdapter(server), { bodyParser: false, logger: ['error', 'warn', 'log'] });
   app.use(
     helmet({
       contentSecurityPolicy: false,
@@ -25,6 +25,10 @@ async function bootstrap() {
     }),
   );
   app.use(cookieParser());
+  // Raw binary body for the server-side Blob upload (must run before the JSON parser). Capped at Vercel's ~4.5MB body limit.
+  app.use('/api/cine/put', express.raw({ type: () => true, limit: '5mb' }));
+  app.use(express.json({ limit: '2mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '2mb' }));
   app.enableCors({
     origin: (process.env.ALLOWED_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean),
     credentials: true,
