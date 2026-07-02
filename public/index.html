@@ -197,7 +197,7 @@
             <div class="sub"><span class="c" id="hudCoords"></span> · <span id="hudClock"></span> · <span class="s" id="hudSrc"></span></div>
           </div>
           <a class="cine-btn" id="cineBtn" href="#" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="display:none">🎬 Cinematic</a>
-          <a class="cine-btn" id="reelBtn" href="#" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="display:none">🎞️ Reel</a>
+          <a class="cine-btn" id="reelBtn" href="#" target="_blank" rel="noopener" onclick="event.stopPropagation()" style="display:none">🎞️ Reels</a>
           <span class="res" id="hudRes">4K</span>
         </div>
         <div class="veil" id="veil">
@@ -452,7 +452,7 @@ function setActive(cam,recenter){
   const r=$('#hudRes');r.textContent=cam.res||'HD';r.className='res'+((cam.res||'HD')!=='4K'?' hd':'');
   if(/[?&]cinematic=1/i.test(location.search)){
     var cb=$('#cineBtn');if(cb){cb.href='/cine?cam='+encodeURIComponent(cam.id)+'&auto=1';cb.style.display='';}
-    var rb=$('#reelBtn');if(rb){rb.href='/reel?cam='+encodeURIComponent(cam.id)+'&auto=1';rb.style.display='';}
+    var rb=$('#reelBtn');if(rb){rb.href='/reels?cam='+encodeURIComponent(cam.id)+'&auto=1';rb.style.display='';}
   }
   startClock(cam.tz);updateHeart();
   if(globe){ if(recenter)globe.pointOfView({lat:cam.lat,lng:cam.lng,altitude:curAlt()},900); updateGlobePoints(); globe.ringsData(reduced()?[]:[cam]); }

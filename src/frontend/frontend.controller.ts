@@ -48,7 +48,7 @@ export class FrontendController {
     return this.serve(res, this.cine);
   }
 
-  @Get('reel')
+  @Get('reels')
   reelPage(@Res() res: Response) {
     return this.serve(res, this.reel);
   }

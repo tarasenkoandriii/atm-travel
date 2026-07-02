@@ -8,7 +8,7 @@ type Clip = { provider: string; id: string; url: string; attribution: string; ta
  * CORS proxy for reel assets + automatic stock-clip sourcing (Pexels/Pixabay) so the montage can
  * pull relevant B-roll by destination instead of pasting URLs by hand. Server-side keys only.
  */
-@Controller('api/reel')
+@Controller('api/reels')
 export class ReelController {
   constructor(private readonly config: ConfigService) {}
 
