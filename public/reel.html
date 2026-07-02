@@ -112,7 +112,8 @@ const G = Globe({ rendererConfig: { preserveDrawingBuffer: true, antialias: true
   .ringColor(() => '#4fd7e0').ringMaxRadius(6).ringPropagationSpeed(3).ringRepeatPeriod(700);
 G.controls().enabled = false;
 const gc = () => host.querySelector('canvas');
-const easeInOut = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+// smootherstep (quintic): zero velocity AND acceleration at both ends → visibly smoother than cubic
+const easeInOut = t => t * t * t * (t * (t * 6 - 15) + 10);
 
 // Record a globe fly-to as a WebM blob at a given size/duration — this is the manifest's `intro`.
 function recordIntro(w, h, seconds, lat, lng, fps) {
@@ -123,12 +124,18 @@ function recordIntro(w, h, seconds, lat, lng, fps) {
     const rec = new MediaRecorder(stream, { mimeType: MIME, videoBitsPerSecond: 10_000_000 });
     const chunks = []; rec.ondataavailable = e => e.data.size && chunks.push(e.data);
     rec.onstop = () => resolve(new Blob(chunks, { type: 'video/webm' }));
-    const start = { lat: lat - 8, lng: lng - 35, altitude: 2.9 }, end = { lat, lng, altitude: 0.55 };
+    const start = { lat: lat - 6, lng: lng - 26, altitude: 2.5 }, end = { lat, lng, altitude: 0.62 };
+    const driftDeg = 14;   // gentle continuous longitude glide, ramped in so it's a slow cinematic drift near the end
     const t0 = performance.now(), dur = seconds * 1000;
     G.pointOfView(start, 0); rec.start();
     (function loop() {
       const t = Math.min(1, (performance.now() - t0) / dur), e = easeInOut(t);
-      G.pointOfView({ lat: start.lat + (end.lat - start.lat) * e, lng: start.lng + (end.lng - start.lng) * e, altitude: start.altitude + (end.altitude - start.altitude) * e }, 0);
+      const drift = driftDeg * t * t;   // quadratic ramp-in: ~0 at start, still gliding at the end
+      G.pointOfView({
+        lat: start.lat + (end.lat - start.lat) * e,
+        lng: start.lng + (end.lng - start.lng) * e + drift,
+        altitude: start.altitude + (end.altitude - start.altitude) * e,
+      }, 0);
       if (t < 1) requestAnimationFrame(loop); else setTimeout(() => rec.stop(), 120);
     })();
   });
@@ -371,7 +378,7 @@ async function run() {
       if (cineData) log('длина интро из cine ' + cineId + ' · ' + cineData.durationSec + 's');
       else log('cine ' + cineId + ' не найден — интро стандартной длины');
     }
-    const m = await getManifest(cineData ? cineData.durationSec : null);
+    const m = await getManifest(10);   // promo globe intro = 10s
     const errs = validateManifest(m); if (errs.length) { setStatus('Манифест невалиден'); errs.forEach(log); $('#go').disabled = false; $('#preview').disabled = false; return; }
     const bad = checkBeatAlignment(m); if (bad.length) log('⚠ вне бита: ' + JSON.stringify(bad));
     const intro = m.timeline.find(s => s.kind === 'intro');
