@@ -266,15 +266,18 @@ async function renderFormat(ff, m, fmt, introBlob, assetCache, creditText, intro
     hasCredit = true;
   }
   args.push('-filter_complex', filter, ...maps, ...g.encode);
-  if (hasCredit && !g.hasMusic) args.push('-shortest');
+  // NOTE: no -shortest — the overlay output is already bounded by the finite [base] concat, and
+  // -shortest together with the looping credit image can make ffmpeg emit an EMPTY file.
   args.push('-movflags', '+faststart', 'out.mp4');
   log('ffmpeg ' + fmt.name + ': ' + args.join(' '));
-  await ff.exec(args);
-  const data = await ff.readFile('out.mp4');
+  const code = await ff.exec(args);
+  let data; try { data = await ff.readFile('out.mp4'); } catch (e) { data = new Uint8Array(0); }
+  log('out ' + fmt.name + ': ' + data.length + 'B (exit ' + code + ')');
   for (const f of files) { try { await ff.deleteFile(f.name); } catch (e) {} }
   if (hasCredit) { try { await ff.deleteFile('credit.png'); } catch (e) {} }
   try { await ff.deleteFile('out.mp4'); } catch (e) {}
-  return new Blob([data.buffer], { type: 'video/mp4' });
+  if (!data || !data.length) throw new Error('пустой рендер ffmpeg (exit ' + code + ') — см. лог выше');
+  return new Blob([data], { type: 'video/mp4' });
 }
 async function cached(cache, url) { if (!cache.has(url)) cache.set(url, await fetchBytes(url)); return cache.get(url); }
 
@@ -349,6 +352,7 @@ async function run() {
       finally { try { ff.terminate(); } catch (e) {} }
       introBlob = null;
 
+      log('blob ' + fmt.name + ': ' + (blob ? blob.size : 0) + 'B');
       // upload right away and drop the blob on success to keep tab memory low
       let url = null;
       if (cfg.blobEnabled) {
