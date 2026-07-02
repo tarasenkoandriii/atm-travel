@@ -143,8 +143,8 @@ async function loadFF() {
   return ff;
 }
 
-// Build a manifest from the form (or load provided URL).
-async function getManifest() {
+// Build a manifest from the form (or load provided URL). introSecOverride = reuse cine flight length.
+async function getManifest(introSecOverride) {
   const url = $('#manifestUrl').value.trim();
   if (url) { const m = await fetch(url).then(r => r.json()); return m; }
   const lat = num($('#lat').value, NaN), lng = num($('#lng').value, NaN);
@@ -167,6 +167,7 @@ async function getManifest() {
     destination: { id: (qs.get('cam') || 'geo'), name: $('#title').value.trim() || 'Destination', coords: { lat, lng } },
     formats: FORMATS, fps: num($('#fps').value, 30), bpm: num($('#bpm').value, 120),
     music, overlay, clips,
+    introSec: introSecOverride || undefined,
     livecam: livecamUrl ? { id: qs.get('cam') || 'cam', url: livecamUrl } : null,
   });
 }
@@ -186,7 +187,7 @@ function makeCreditPng(w, h, text) {
   });
 }
 
-async function renderFormat(ff, m, fmt, introBlob, assetCache, creditText) {
+async function renderFormat(ff, m, fmt, introBlob, assetCache, creditText, introExt) {
   // target a size that fits Vercel's ~4.5MB server-upload limit
   const dur = (m.timeline[m.timeline.length - 1].outEnd) || 10;
   const kbps = Math.max(800, Math.floor((4.2 * 1024 * 1024 * 8 / 1000) / dur) - 128);
@@ -194,7 +195,7 @@ async function renderFormat(ff, m, fmt, introBlob, assetCache, creditText) {
   const files = [];
   for (let i = 0; i < m.timeline.length; i++) {
     const s = m.timeline[i];
-    if (s.kind === 'intro') files.push({ name: `in${i}.webm`, data: new Uint8Array(await introBlob.arrayBuffer()) });
+    if (s.kind === 'intro') files.push({ name: `in${i}.${introExt || 'webm'}`, data: new Uint8Array(await introBlob.arrayBuffer()) });
     else { const url = s.source.url; const ext = extOf(url, 'mp4'); files.push({ name: `in${i}.${ext}`, data: await cached(assetCache, url) }); }
   }
   let idx = m.timeline.length;
@@ -240,7 +241,7 @@ async function deliver(outputs, meta) {
   const items = [];
   if (!cfg.blobEnabled) { outputs.forEach(o => items.push(o)); setStatus('Готово. Blob не подключён — скачайте локально.'); showCards(items); return; }
 
-  const LIMIT = 4.4 * 1024 * 1024;
+  const LIMIT = 4.4 * 1024 * 1024; let lastErr = '';
   for (let i = 0; i < outputs.length; i++) {
     const o = outputs[i];
     setStatus('Загрузка ' + o.fmt + ' (' + (i + 1) + '/' + outputs.length + ')…');
@@ -251,12 +252,12 @@ async function deliver(outputs, meta) {
         method: 'POST', headers: { 'Content-Type': 'video/mp4' }, body: o.blob,
       }).then(async r => { if (!r.ok) { let m = ''; try { m = (await r.json()).message || ''; } catch (e) {} throw new Error('put ' + r.status + (m ? ' — ' + m : '')); } return r.json(); }), 120000, 'put ' + o.fmt);
       items.push({ fmt: o.fmt, url: res.url, blob: o.blob });
-    } catch (e) { console.warn('server put failed', o.fmt, e); items.push({ fmt: o.fmt, blob: o.blob }); }
+    } catch (e) { lastErr = String(e.message || e); console.warn('server put failed', o.fmt, e); items.push({ fmt: o.fmt, blob: o.blob }); }
   }
   const up = items.filter(i => i.url);
   if (up.length) {
     try { const rec = await fetch('/api/cine', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...meta, items: up.map(i => ({ format: i.fmt, url: i.url })) }) }).then(r => r.json()); setStatus((up.length === outputs.length ? 'Готово · ' : 'Загружено ' + up.length + '/' + outputs.length + ' · ') + (rec.id ? 'набор: /api/cine/' + rec.id : '')); } catch (e) {}
-  } else { setStatus('Не удалось загрузить (файлы > 4.4 МБ или ошибка сервера) — скачайте локально ниже.'); }
+  } else { setStatus('Не удалось загрузить: ' + (lastErr || 'ошибка сервера') + ' — файлы можно скачать ниже.'); }
   showCards(items);
 }
 function showCards(items) {
@@ -268,7 +269,15 @@ async function run() {
   $('#go').disabled = true; $('#results').innerHTML = ''; $('#log').textContent = ''; setProg(0);
   try {
     setStatus('Готовим манифест…');
-    const m = await getManifest();
+    // Stage-1 reuse: if ?cine=<id>, use the cine camera-flight (already in Blob) as the intro, and
+    // make the intro/pre-clip duration equal the cine length everywhere.
+    let cineData = null; const cineId = qs.get('cine');
+    if (cineId) {
+      try { cineData = await fetch('/api/cine/' + encodeURIComponent(cineId)).then(r => r.ok ? r.json() : null); } catch (e) {}
+      if (cineData) log('интро из cine ' + cineId + ' · ' + cineData.durationSec + 's');
+      else log('cine ' + cineId + ' не найден — интро запишется глобусом');
+    }
+    const m = await getManifest(cineData ? cineData.durationSec : null);
     const errs = validateManifest(m); if (errs.length) { setStatus('Манифест невалиден'); errs.forEach(log); $('#go').disabled = false; return; }
     const bad = checkBeatAlignment(m); if (bad.length) log('⚠ вне бита: ' + JSON.stringify(bad));
     const intro = m.timeline.find(s => s.kind === 'intro');
@@ -284,10 +293,18 @@ async function run() {
     const outputs = [];
     for (let fi = 0; fi < m.render.formats.length; fi++) {
       const fmt = m.render.formats[fi];
-      setStatus('Формат ' + fmt.name + ' — intro (глобус)…');
-      const introBlob = await recordIntro(fmt.w, fmt.h, introSec, lat, lng);
+      let introBlob = null, introExt = 'webm';
+      if (cineData) {
+        const it = (cineData.items || []).find(x => x.format === fmt.name);
+        if (it && it.url) {
+          setStatus('Формат ' + fmt.name + ' — интро из cine…');
+          try { introBlob = new Blob([await cached(cache, it.url)]); introExt = 'mp4'; }
+          catch (e) { log('cine-интро ' + fmt.name + ' не загрузилось: ' + (e.message || e)); }
+        } else log('нет cine-клипа для ' + fmt.name + ' — запишу глобус');
+      }
+      if (!introBlob) { setStatus('Формат ' + fmt.name + ' — intro (глобус)…'); introBlob = await recordIntro(fmt.w, fmt.h, introSec, lat, lng); introExt = 'webm'; }
       setStatus('Формат ' + fmt.name + ' — монтаж ffmpeg…');
-      const blob = await renderFormat(ffmpeg, m, fmt, introBlob, cache, creditText);
+      const blob = await renderFormat(ffmpeg, m, fmt, introBlob, cache, creditText, introExt);
       outputs.push({ fmt: fmt.name, blob });
       setProg((fi + 1) / m.render.formats.length);
     }

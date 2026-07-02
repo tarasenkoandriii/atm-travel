@@ -38,6 +38,8 @@
   input{width:100%;background:#0c1420;color:var(--text);border:1px solid var(--line);border-radius:9px;padding:9px;font:inherit;margin-top:4px;}
   .fmts{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;} .chip{font-family:'Space Mono',monospace;font-size:12px;border:1px solid var(--line);border-radius:20px;padding:6px 12px;cursor:pointer;color:var(--muted);} .chip.on{border-color:var(--cyan);color:var(--cyan);}
   .btn{border:1px solid var(--cyan-dim);background:linear-gradient(180deg,#0e2730,#0c1a20);color:var(--cyan);font:inherit;font-weight:700;border-radius:11px;padding:13px 18px;cursor:pointer;} .btn[disabled]{opacity:.45;cursor:not-allowed;}
+  .btn2{border:1px solid var(--line);background:#0c1420;color:var(--cyan);font:inherit;border-radius:11px;padding:13px 16px;cursor:pointer;} .btn2:hover{border-color:var(--cyan-dim);} .btn2[disabled]{opacity:.45;cursor:not-allowed;}
+  .rc-cap{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted);padding:0 11px 9px;}
   .status{font-family:'Space Mono',monospace;font-size:12px;color:var(--muted);margin-top:12px;min-height:18px;}
   .bar{height:6px;background:#0c1420;border-radius:4px;overflow:hidden;margin-top:8px;} .bar>i{display:block;height:100%;width:0;background:var(--cyan);transition:width .1s;}
   .results{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:14px;}
@@ -81,11 +83,15 @@
     </div>
     <div style="margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
       <button class="btn" id="go">● Записать (захват вкладки)</button>
+      <button class="btn2" id="clipsBtn">🎞 Подборка клипов</button>
+      <button class="btn2" id="reelsBtn">▶ Сгенерировать Reels</button>
       <span class="muted" id="mimeNote"></span>
     </div>
     <div class="status" id="status"></div>
     <div class="bar"><i id="prog"></i></div>
     <div class="results" id="results"></div>
+    <div class="muted" id="clipsNote" style="margin-top:12px"></div>
+    <div class="results" id="clipsPanel"></div>
     <ol style="margin-top:14px">
       <li>Нажми «Записать» → в диалоге выбери <b>эту вкладку</b> (Current Tab), 4K/60 запрашивается автоматически.</li>
       <li>Хореография: глобус крутится → зум в точку → оживает live-камера → всплывает погода. Затем live играет ещё Live-секунд.</li>
@@ -257,13 +263,14 @@ function showCards(items) {
 function withTimeout(p, ms, label) {
   return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout: ' + label)), ms))]);
 }
+let lastCineId = '';   // set after the render is persisted; reused by "Сгенерировать Reels"
 async function deliver(outputs, meta) {
   let cfg = { blobEnabled: false };
   try { cfg = await fetch('/api/cine/config').then(r => r.json()); } catch (e) {}
   if (!cfg.blobEnabled) { $('#status').textContent = 'Готово. Хранилище не подключено — скачайте файлы локально.'; showCards(outputs); return; }
 
   const LIMIT = 4.4 * 1024 * 1024;
-  const items = [];
+  const items = []; let lastErr = '';
   for (let i = 0; i < outputs.length; i++) {
     const o = outputs[i];
     $('#status').textContent = 'Загрузка ' + o.fmt + ' (' + (i + 1) + '/' + outputs.length + ')…';
@@ -274,15 +281,16 @@ async function deliver(outputs, meta) {
         method: 'POST', headers: { 'Content-Type': o.blob.type || 'application/octet-stream' }, body: o.blob,
       }).then(async r => { if (!r.ok) { let m = ''; try { m = (await r.json()).message || ''; } catch (e) {} throw new Error('put ' + r.status + (m ? ' — ' + m : '')); } return r.json(); }), 120000, 'put ' + o.fmt);
       items.push({ fmt: o.fmt, url: res.url, blob: o.blob });
-    } catch (e) { console.warn('server put failed', o.fmt, e); items.push({ fmt: o.fmt, blob: o.blob }); }
+    } catch (e) { lastErr = String(e.message || e); console.warn('server put failed', o.fmt, e); items.push({ fmt: o.fmt, blob: o.blob }); }
   }
   const uploaded = items.filter(i => i.url);
   if (uploaded.length) {
     try {
       const rec = await fetch('/api/cine', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...meta, items: uploaded.map(i => ({ format: i.fmt, url: i.url })) }) }).then(r => r.json());
+      if (rec && rec.id) lastCineId = rec.id;
       $('#status').innerHTML = (uploaded.length === outputs.length ? 'Готово. ' : 'Загружено ' + uploaded.length + '/' + outputs.length + '. ') + (rec && rec.id ? 'Набор: <a href="/api/cine/' + rec.id + '" target="_blank">/api/cine/' + rec.id + '</a>' : '');
     } catch (e) { $('#status').textContent = 'Загружено, но не удалось сохранить набор.'; }
-  } else { $('#status').innerHTML = 'Не удалось загрузить (файлы > 4.4 МБ или ошибка сервера) — скачайте локально ниже.'; }
+  } else { $('#status').textContent = 'Не удалось загрузить: ' + (lastErr || 'ошибка сервера') + ' — файлы можно скачать ниже.'; }
   showCards(items);
 }
 
@@ -344,8 +352,51 @@ async function resolveCam() {
   if (!isNaN(CFG.lat) && !isNaN(CFG.lng)) { G.pointOfView({ lat: CFG.lat, lng: CFG.lng, altitude: 1.6 }, 0); $('#badge').textContent = CFG.lat.toFixed(3) + ', ' + CFG.lng.toFixed(3); }
   else G.pointOfView({ lat: 20, lng: 0, altitude: 2.4 }, 0);
   $('#go').onclick = run;
+  $('#reelsBtn').onclick = openReels;
+  $('#clipsBtn').onclick = loadClips;
   if (CFG.auto && !isNaN(CFG.lat) && !isNaN(CFG.lng)) setTimeout(run, 800);
 })();
+
+// Открыть авто-монтаж Reels с текущими данными камеры (и переиспользованием cine-полёта, если он уже записан).
+function openReels() {
+  const cam = qs.get('cam');
+  let u = '/reels?auto=1';
+  if (cam) u += '&cam=' + encodeURIComponent(cam);
+  else {
+    const lat = $('#lat').value, lng = $('#lng').value, title = $('#title').value;
+    if (lat) u += '&lat=' + encodeURIComponent(lat);
+    if (lng) u += '&lng=' + encodeURIComponent(lng);
+    if (title) u += '&title=' + encodeURIComponent(title);
+  }
+  if (lastCineId) u += '&cine=' + encodeURIComponent(lastCineId);
+  else $('#status').textContent = 'Совет: сначала «Записать» (полёт зальётся в Blob), тогда Reels переиспользует его как интро.';
+  window.open(u, '_blank', 'noopener');
+}
+
+// Подборка B-roll клипов для монтажа через готовый /api/reels/clips (Pexels/Pixabay).
+async function loadClips() {
+  const btn = $('#clipsBtn'), panel = $('#clipsPanel'), note = $('#clipsNote');
+  const q = ($('#title').value || qs.get('q') || '').trim();
+  btn.disabled = true; note.textContent = 'Ищу клипы…'; panel.innerHTML = '';
+  try {
+    const j = await fetch('/api/reels/clips?n=6&orientation=landscape&q=' + encodeURIComponent(q)).then(r => r.json());
+    if (!j || !j.provider) { note.textContent = 'Авто-источник не настроен: задай PEXELS_API_KEY (или PIXABAY_API_KEY) в env и передеплой.'; return; }
+    const clips = j.clips || [];
+    if (!clips.length) { note.textContent = 'Ничего не нашлось по запросу «' + (j.query || q) + '». Уточни TITLE (лучше на англ.).'; return; }
+    note.innerHTML = 'Найдено ' + clips.length + ' · источник: ' + j.provider + ' · запрос: <b>' + (j.query || q) + '</b>. Клики «Открыть» — оригиналы. Указывай авторов в описании поста.';
+    for (const c of clips) {
+      const card = document.createElement('div'); card.className = 'rcard';
+      const v = document.createElement('video'); v.src = c.url; v.controls = true; v.preload = 'metadata'; v.muted = true; card.appendChild(v);
+      const b = document.createElement('div'); b.className = 'rc-b';
+      const tag = document.createElement('span'); tag.className = 'fmt'; tag.textContent = (c.tags && c.tags[0]) || 'clip';
+      const a = document.createElement('a'); a.href = c.url; a.target = '_blank'; a.rel = 'noopener'; a.textContent = 'Открыть';
+      b.appendChild(tag); b.appendChild(a); card.appendChild(b);
+      const cap = document.createElement('div'); cap.className = 'rc-cap'; cap.textContent = '© ' + (c.attribution || j.provider); card.appendChild(cap);
+      panel.appendChild(card);
+    }
+  } catch (e) { note.textContent = 'Ошибка загрузки клипов: ' + (e.message || e); }
+  finally { btn.disabled = false; }
+}
 </script>
 </body>
 </html>
