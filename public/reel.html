@@ -150,10 +150,17 @@ async function ffAssetsReady() {
   };
   return ffAssets;
 }
+// Per-format progress state, read by the ffmpeg progress listener attached in newFF().
+let progLabel = '', progIndex = 0, progTotal = 1;
 async function newFF() {
   const a = await ffAssetsReady();
   const f = new FFmpeg();
   f.on('log', ({ message }) => { if (/frame=|error|Error/i.test(message)) log(message); });
+  f.on('progress', ({ progress }) => {
+    const p = Math.max(0, Math.min(1, progress || 0));
+    if (progLabel) setStatus(progLabel + ' — монтаж ' + Math.round(p * 100) + '%');
+    setProg((progIndex + p) / progTotal);
+  });
   await f.load({ classWorkerURL: a.classWorkerURL, coreURL: a.coreURL, wasmURL: a.wasmURL });
   return f;
 }
@@ -299,8 +306,10 @@ async function run() {
     if (creditText) log('кредиты: ' + creditText);
 
     const items = []; let lastErr = ''; const n = m.render.formats.length;
+    progTotal = n;
     for (let fi = 0; fi < n; fi++) {
       const fmt = m.render.formats[fi];
+      progIndex = fi; progLabel = 'Формат ' + fmt.name + ' (' + (fi + 1) + '/' + n + ')';
       // intro: reuse cine flight (per-format) or record the globe
       let introBlob = null, introExt = 'webm';
       if (cineData) {
