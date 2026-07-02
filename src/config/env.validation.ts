@@ -50,6 +50,7 @@ export const envSchema = z.object({
   BLOB_READ_WRITE_TOKEN: z.string().optional().default(''),
   PEXELS_API_KEY: z.string().optional().default(''),
   PIXABAY_API_KEY: z.string().optional().default(''),
+  XAI_API_KEY: z.string().optional().default(''),   // Grok (xAI) — reel analysis
   DEFAULT_LOCALE: z.string().default('en'),
   SUPPORTED_LOCALES: z.string().default('en,uk,ru,pl,fr,de,ja,it,pt,es'),
 

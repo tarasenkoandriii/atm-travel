@@ -19,6 +19,8 @@
   textarea{min-height:70px;font-family:'Space Mono',monospace;font-size:12px;}
   .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-top:6px;}
   .btn{border:1px solid var(--cyan-dim);background:linear-gradient(180deg,#0e2730,#0c1a20);color:var(--cyan);font:inherit;font-weight:700;border-radius:11px;padding:13px 18px;cursor:pointer;} .btn[disabled]{opacity:.45;cursor:not-allowed;}
+  .btn2{border:1px solid var(--line);background:#0c1420;color:var(--text);font:inherit;font-weight:700;border-radius:11px;padding:13px 18px;cursor:pointer;} .btn2[disabled]{opacity:.4;cursor:not-allowed;}
+  .scoreRow{display:flex;justify-content:space-between;align-items:baseline;} .scoreRow b{font-size:24px;color:var(--cyan);font-family:'Space Mono',monospace;}
   .status{font-family:'Space Mono',monospace;font-size:12px;color:var(--muted);margin-top:12px;min-height:18px;}
   .log{font-family:'Space Mono',monospace;font-size:11px;color:var(--muted-2,#5a6a82);background:#070b12;border:1px solid var(--line);border-radius:8px;padding:8px;height:120px;overflow:auto;margin-top:8px;white-space:pre-wrap;}
   .bar{height:6px;background:#0c1420;border-radius:4px;overflow:hidden;margin-top:8px;} .bar>i{display:block;height:100%;width:0;background:var(--cyan);transition:width .2s;}
@@ -54,12 +56,20 @@
     </div>
     <div style="margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
       <button class="btn" id="go">▶ Собрать 3 ролика</button>
+      <button class="btn2" id="analyze" disabled>🧠 Анализ Grok</button>
       <span class="muted">1080p · x264 · всё в браузере</span>
     </div>
     <div class="status" id="status"></div>
     <div class="bar"><i id="prog"></i></div>
     <div class="log" id="log"></div>
     <div class="results" id="results"></div>
+
+    <div id="analysisBox" style="display:none;margin-top:18px">
+      <div class="scoreRow"><span class="muted">Оценка Grok AI</span><b id="scoreVal">—</b></div>
+      <div class="bar"><i id="scoreBar"></i></div>
+      <div style="margin-top:12px"><label>Рекомендации по улучшению</label><textarea id="recs" rows="7"></textarea></div>
+      <div style="margin-top:10px"><label>Статья для блога</label><textarea id="article" rows="9"></textarea></div>
+    </div>
   </div>
 
   <p class="muted" style="margin-top:12px">Порядок: <b>intro (глобус)</b> → нарезка сток-клипов по битам → <b>live-камера</b>, поверх — overlay (погода/оффер) и музыка. ffmpeg.wasm жмёт в x264/mp4, результат — в Vercel Blob.</p>
@@ -161,6 +171,7 @@ async function ffAssetsReady() {
 }
 // Per-format progress state, read by the ffmpeg log listener attached in newFF().
 let progLabel = '', progIndex = 0, progTotal = 1, curTotalSec = 0;
+let analysisBlob = null, analysisMeta = null;   // Grok analysis: video source for frames + metadata
 async function newFF() {
   const a = await ffAssetsReady();
   const f = new FFmpeg();
@@ -292,8 +303,9 @@ async function renderFormat(ff, m, fmt, introBlob, assetCache, creditText, intro
         chain.push(`${cur}[ovl]overlay=0:0:enable='between(t,${oStart},${oEnd})'[ov1]`); cur = '[ov1]';
       }
       if (withCredit) {
-        // still frame → continuous fps-matched stream via loop FILTER so overlay reconciles timebase
-        chain.push(`[${cIdx}:v]format=rgba,loop=loop=-1:size=1:start=0,fps=${fps}[cr]`);
+        // single still frame; overlay repeats it (repeatlast=1) over the finite base.
+        // NB: loop=-1 makes an INFINITE filter source that HANGS the mux — never use it here.
+        chain.push(`[${cIdx}:v]format=rgba[cr]`);
         chain.push(`${cur}[cr]overlay=0:0:enable='between(t,0,${creditEnd})'[ov2]`); cur = '[ov2]';
       }
       args.push('-filter_complex', chain.join(';'), '-map', cur, ...vc);
@@ -303,7 +315,7 @@ async function renderFormat(ff, m, fmt, introBlob, assetCache, creditText, intro
     if (hasMusic) args.push('-map', `${mIdx}:a`, '-c:a', 'aac', '-b:a', '128k', '-shortest');
     args.push('-movflags', '+faststart', 'out.mp4');
     log('mux ' + fmt.name + (withCredit ? '' : ' · без кредитов') + ': ' + args.join(' '));
-    const code = await ff.exec(args);
+    const code = await withTimeout(ff.exec(args), 240000, 'mux ' + fmt.name);
     let data; try { data = await ff.readFile('out.mp4'); } catch (e) { data = new Uint8Array(0); }
     log('out ' + fmt.name + (withCredit ? '' : ' (no-cred)') + ': ' + (data ? data.length : 0) + 'B (exit ' + code + ')');
     try { await ff.deleteFile('out.mp4'); } catch (e) {}
@@ -371,6 +383,8 @@ async function run() {
 
     const items = []; let lastErr = ''; const n = m.render.formats.length;
     progTotal = n; curTotalSec = (m.timeline[m.timeline.length - 1].outEnd) || 0;
+    analysisBlob = null; $('#analyze').disabled = true; $('#analysisBox').style.display = 'none';
+    analysisMeta = { title: m.destination.name, attributions: attrs, durationSec: +curTotalSec.toFixed(1), formats: m.render.formats.map(f => f.name), clips: m.timeline.filter(s => s.kind === 'clip' || s.kind === 'livecam').length };
     for (let fi = 0; fi < n; fi++) {
       const fmt = m.render.formats[fi];
       progIndex = fi; progLabel = 'Формат ' + fmt.name + ' (' + (fi + 1) + '/' + n + ')';
@@ -395,6 +409,7 @@ async function run() {
       introBlob = null;
 
       log('blob ' + fmt.name + ': ' + (blob ? blob.size : 0) + 'B');
+      if (fi === 0 && blob) analysisBlob = blob;   // keep one video for Grok frame extraction
       // upload right away and drop the blob on success to keep tab memory low
       let url = null;
       if (cfg.blobEnabled) {
@@ -418,6 +433,7 @@ async function run() {
     } else setStatus('Не удалось загрузить: ' + (lastErr || 'ошибка сервера') + ' — файлы можно скачать ниже.');
   } catch (e) { setStatus('Ошибка: ' + (e.message || e)); log(String(e)); }
   $('#go').disabled = false;
+  if (analysisBlob) $('#analyze').disabled = false;   // enable Grok analysis once we have a video
 }
 
 // Resolve ?cam=<id> -> lat/lng/title (+ livecam if the embed is a direct media URL) from the snapshot.
@@ -440,6 +456,65 @@ async function resolveCam() {
 }
 
 $('#go').onclick = run;
+
+// ── Grok analysis: pull a few frames from the rendered video, send to the server, show score/recs/article ──
+async function grabFrames(blob, count) {
+  const url = URL.createObjectURL(blob);
+  const v = document.createElement('video');
+  v.src = url; v.muted = true; v.playsInline = true; v.preload = 'auto';
+  try {
+    await new Promise((res, rej) => { v.onloadeddata = res; v.onerror = () => rej(new Error('видео не читается')); setTimeout(() => rej(new Error('таймаут видео')), 15000); });
+    const dur = isFinite(v.duration) && v.duration > 0 ? v.duration : 1;
+    const cvs = document.createElement('canvas');
+    const s = Math.min(1, 640 / Math.max(v.videoWidth || 1, v.videoHeight || 1));   // shrink to keep tokens down
+    cvs.width = Math.max(2, Math.round((v.videoWidth || 360) * s));
+    cvs.height = Math.max(2, Math.round((v.videoHeight || 640) * s));
+    const ctx = cvs.getContext('2d');
+    const frames = [];
+    for (let i = 0; i < count; i++) {
+      const t = Math.min(dur - 0.05, dur * (i + 0.5) / count);
+      await new Promise((res) => { v.onseeked = res; v.currentTime = Math.max(0, t); });
+      ctx.drawImage(v, 0, 0, cvs.width, cvs.height);
+      frames.push(cvs.toDataURL('image/jpeg', 0.7));
+    }
+    return frames;
+  } finally { URL.revokeObjectURL(url); }
+}
+
+async function analyze() {
+  if (!analysisBlob) { setStatus('Сначала соберите ролик'); return; }
+  const btn = $('#analyze'); btn.disabled = true;
+  const langMap = { uk: 'украинском', ru: 'русском', en: 'английском', pl: 'польском', fr: 'французском', de: 'немецком', ja: 'японском', it: 'итальянском', pt: 'португальском', es: 'испанском' };
+  const lang = (window.LOCALE || document.documentElement.lang || 'ru');
+  try {
+    setStatus('Кадры для анализа…');
+    const frames = await grabFrames(analysisBlob, 5);
+    setStatus('Grok анализирует ролик…');
+    const r = await withTimeout(
+      fetch('/api/reels/analyze', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ frames, ...(analysisMeta || {}), langName: langMap[lang] || 'русском' }),
+      }).then(async res => { if (!res.ok) { let m = ''; try { m = (await res.json()).message || (await res.text()); } catch (e) {} throw new Error('analyze ' + res.status + (m ? ' — ' + m : '')); } return res.json(); }),
+      120000, 'grok');
+    if (r.error) { setStatus('Grok: ' + r.error); return; }
+    showAnalysis(r);
+    setStatus('Анализ готов · оценка ' + (r.score != null ? r.score + '%' : '—'));
+  } catch (e) { setStatus('Ошибка анализа: ' + (e.message || e)); log('grok: ' + (e.message || e)); }
+  finally { btn.disabled = false; }
+}
+
+function showAnalysis(r) {
+  const box = $('#analysisBox'); box.style.display = 'block';
+  const score = Math.max(0, Math.min(100, Number(r.score) || 0));
+  $('#scoreVal').textContent = (r.score != null ? score + '%' : '—');
+  $('#scoreBar').style.width = score + '%';
+  $('#recs').value = r.recommendations || r.raw || '';
+  $('#article').value = r.article || '';
+  box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+$('#analyze').onclick = analyze;
+
 (async function init() {
   const csId = qs.get('clipset');
   if (csId) {

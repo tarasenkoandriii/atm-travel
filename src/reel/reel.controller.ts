@@ -28,6 +28,82 @@ export class ReelController {
     return { clips: row ? (row.items as any) : [] };
   }
 
+  // Grok AI analysis of the finished montage: the browser samples a few frames and posts them here,
+  // we ask xAI (vision) for a 0-100 score, improvement tips, and a short blog article.
+  @Post('analyze')
+  async analyze(@Body() body: {
+    frames?: string[]; title?: string; attributions?: string[];
+    durationSec?: number; formats?: string[]; clips?: number; langName?: string;
+  }) {
+    const key = this.config.get<string>('XAI_API_KEY');
+    if (!key) return { error: 'Grok не настроен (XAI_API_KEY)' };
+    const frames = (Array.isArray(body?.frames) ? body.frames : []).filter((f) => typeof f === 'string' && f.startsWith('data:image')).slice(0, 6);
+    if (!frames.length) return { error: 'нет кадров для анализа' };
+    const lang = body?.langName || 'русском';
+
+    const meta = [
+      body?.title ? `Локация/заголовок: ${body.title}` : '',
+      body?.durationSec ? `Длительность: ${body.durationSec} c` : '',
+      body?.clips != null ? `Клипов в нарезке: ${body.clips}` : '',
+      body?.formats?.length ? `Форматы: ${body.formats.join(', ')}` : '',
+      body?.attributions?.length ? `Источники футажа: ${body.attributions.join('; ')}` : '',
+    ].filter(Boolean).join('\n');
+
+    const sys = 'Ты — эксперт по коротким travel-видео (Reels/TikTok/Shorts) для сервиса живых камер мира ATM-travel. ' +
+      'Тебе дают несколько кадров одного вертикального ролика (интро-глобус → нарезка стоковых клипов по локации → живая камера) и метаданные. ' +
+      'Оценивай честно и по делу. Верни СТРОГО JSON без markdown-ограждений и без текста вокруг.';
+    const userText =
+      `Кадры ролика идут по порядку. Метаданные:\n${meta || '(нет)'}\n\n` +
+      `Верни JSON строго такого вида:\n` +
+      `{"score": <целое 0-100 — общая оценка качества и виральности>,` +
+      `"recommendations": "<конкретные рекомендации по улучшению маркированным списком: хук/первый кадр, темп и длина планов, цвет/экспозиция, текстовые подписи, звук/музыка, призыв к действию — на ${lang} языке>",` +
+      `"article": "<небольшая статья для блога, 120-180 слов, вовлекающая, про эту локацию и ролик, с призывом посмотреть живую камеру на ATM-travel — на ${lang} языке>"}\n` +
+      `Только JSON, ничего кроме него.`;
+
+    const content: any[] = [{ type: 'text', text: userText }];
+    for (const f of frames) content.push({ type: 'image_url', image_url: { url: f, detail: 'low' } });
+
+    try {
+      const resp = await fetch('https://api.x.ai/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+        body: JSON.stringify({ model: 'grok-4.3', messages: [{ role: 'system', content: sys }, { role: 'user', content }] }),
+      });
+      if (!resp.ok) { const t = await resp.text().catch(() => ''); return { error: `xAI ${resp.status}${t ? ': ' + t.slice(0, 200) : ''}` }; }
+      const data: any = await resp.json();
+      const rawTxt = data?.choices?.[0]?.message?.content || '';
+      const parsed = this.parseJson(rawTxt);
+      if (parsed) {
+        return {
+          score: this.clampScore(parsed.score),
+          recommendations: this.asText(parsed.recommendations),
+          article: this.asText(parsed.article),
+        };
+      }
+      return { raw: String(rawTxt).slice(0, 4000) };
+    } catch (e: any) {
+      return { error: 'Grok недоступен: ' + String(e?.message || e) };
+    }
+  }
+
+  private parseJson(s: string): any {
+    if (!s) return null;
+    let t = String(s).trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
+    try { return JSON.parse(t); } catch {}
+    const a = t.indexOf('{'), b = t.lastIndexOf('}');
+    if (a >= 0 && b > a) { try { return JSON.parse(t.slice(a, b + 1)); } catch {} }
+    return null;
+  }
+  private clampScore(v: any): number | null {
+    const n = Math.round(Number(v));
+    return isFinite(n) ? Math.max(0, Math.min(100, n)) : null;
+  }
+  private asText(v: any): string {
+    if (v == null) return '';
+    if (Array.isArray(v)) return v.map((x) => (typeof x === 'string' ? '• ' + x : JSON.stringify(x))).join('\n');
+    return String(v);
+  }
+
   private readonly allow = [
     'pexels.com', 'pixabay.com', 'coverr.co', 'mixkit.co', 'cdn.coverr.co',
     'player.vimeo.com', 'videos.pexels.com', 'cdn.pixabay.com',
