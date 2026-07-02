@@ -141,7 +141,9 @@ let ffAssets = null;
 async function ffAssetsReady() {
   if (ffAssets) return ffAssets;
   setStatus('Загрузка ffmpeg.wasm…');
-  const base = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd';
+  // ESM core: the module worker loads the core via dynamic import() and needs a default export.
+  // The UMD core has none → "failed to import ffmpeg-core.js"; the esm build fixes it.
+  const base = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm';
   // The ffmpeg worker must be same-origin (browsers block `new Worker(cross-origin-url)`), but the
   // real single-thread worker.js pulls in ./const.js + ./errors.js via relative imports, so it can't
   // just be blob'd. Trick: a tiny SAME-ORIGIN blob worker that `import`s the real ESM worker from a
