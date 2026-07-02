@@ -56,6 +56,7 @@
     </div>
     <div style="margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
       <button class="btn" id="go">▶ Собрать 3 ролика</button>
+      <button class="btn2" id="preview">👁 Превью ÷6 fps</button>
       <button class="btn2" id="analyze" disabled>🧠 Анализ Grok</button>
       <span class="muted">1080p · x264 · всё в браузере</span>
     </div>
@@ -114,11 +115,11 @@ const gc = () => host.querySelector('canvas');
 const easeInOut = t => t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 
 // Record a globe fly-to as a WebM blob at a given size/duration — this is the manifest's `intro`.
-function recordIntro(w, h, seconds, lat, lng) {
+function recordIntro(w, h, seconds, lat, lng, fps) {
   return new Promise(resolve => {
     G.width(w); G.height(h); host.style.width = w + 'px'; host.style.height = h + 'px';
     G.ringsData([{ lat, lng }]).pointsData([{ lat, lng }]).pointColor(() => '#f2b64c').pointAltitude(0.01).pointRadius(0.5);
-    const stream = gc().captureStream(30);
+    const stream = gc().captureStream(fps || 30);
     const rec = new MediaRecorder(stream, { mimeType: MIME, videoBitsPerSecond: 10_000_000 });
     const chunks = []; rec.ondataavailable = e => e.data.size && chunks.push(e.data);
     rec.onstop = () => resolve(new Blob(chunks, { type: 'video/webm' }));
@@ -172,6 +173,7 @@ async function ffAssetsReady() {
 // Per-format progress state, read by the ffmpeg log listener attached in newFF().
 let progLabel = '', progIndex = 0, progTotal = 1, curTotalSec = 0;
 let analysisBlob = null, analysisMeta = null;   // Grok analysis: video source for frames + metadata
+let previewMode = false;   // preview button → ÷6 fps fast rough render
 async function newFF() {
   const a = await ffAssetsReady();
   const f = new FFmpeg();
@@ -217,9 +219,11 @@ async function getManifest(introSecOverride) {
     } catch (e) { log('авто-клипы недоступны: ' + (e.message || e)); }
   }
   const music = $('#music').value.trim(), overlay = $('#overlay').value.trim(), livecamUrl = $('#livecam').value.trim();
+  const baseFps = num($('#fps').value, 30);
+  const fps = previewMode ? Math.max(4, Math.round(baseFps / 6)) : baseFps;   // preview = ÷6 fps (fast, rough)
   return buildDefaultManifest({
     destination: { id: (qs.get('cam') || 'geo'), name: $('#title').value.trim() || 'Destination', coords: { lat, lng } },
-    formats: FORMATS, fps: num($('#fps').value, 30), bpm: num($('#bpm').value, 120),
+    formats: FORMATS, fps, bpm: num($('#bpm').value, 120),
     music, overlay, clips,
     introSec: introSecOverride || undefined,
     livecam: livecamUrl ? { id: qs.get('cam') || 'cam', url: livecamUrl } : null,
@@ -355,7 +359,8 @@ function showCards(items) {
 
 // ── run all (automatic) ──
 async function run() {
-  $('#go').disabled = true; $('#results').innerHTML = ''; $('#log').textContent = ''; setProg(0);
+  $('#go').disabled = true; $('#preview').disabled = true; $('#results').innerHTML = ''; $('#log').textContent = ''; setProg(0);
+  if (previewMode) log('режим ПРЕВЬЮ · fps÷6 (быстро, черновой)');
   try {
     setStatus('Готовим манифест…');
     // Stage-1 reuse: if ?cine=<id>, use the cine camera-flight (already in Blob) as the intro, and
@@ -363,11 +368,11 @@ async function run() {
     let cineData = null; const cineId = qs.get('cine');
     if (cineId) {
       try { cineData = await fetch('/api/cine/' + encodeURIComponent(cineId)).then(r => r.ok ? r.json() : null); } catch (e) {}
-      if (cineData) log('интро из cine ' + cineId + ' · ' + cineData.durationSec + 's');
-      else log('cine ' + cineId + ' не найден — интро запишется глобусом');
+      if (cineData) log('длина интро из cine ' + cineId + ' · ' + cineData.durationSec + 's');
+      else log('cine ' + cineId + ' не найден — интро стандартной длины');
     }
     const m = await getManifest(cineData ? cineData.durationSec : null);
-    const errs = validateManifest(m); if (errs.length) { setStatus('Манифест невалиден'); errs.forEach(log); $('#go').disabled = false; return; }
+    const errs = validateManifest(m); if (errs.length) { setStatus('Манифест невалиден'); errs.forEach(log); $('#go').disabled = false; $('#preview').disabled = false; return; }
     const bad = checkBeatAlignment(m); if (bad.length) log('⚠ вне бита: ' + JSON.stringify(bad));
     const intro = m.timeline.find(s => s.kind === 'intro');
     const introSec = intro ? (intro.srcOut - intro.srcIn) : 2.5;
@@ -388,17 +393,11 @@ async function run() {
     for (let fi = 0; fi < n; fi++) {
       const fmt = m.render.formats[fi];
       progIndex = fi; progLabel = 'Формат ' + fmt.name + ' (' + (fi + 1) + '/' + n + ')';
-      // intro: reuse cine flight (per-format) or record the globe
-      let introBlob = null, introExt = 'webm';
-      if (cineData) {
-        const it = (cineData.items || []).find(x => x.format === fmt.name);
-        if (it && it.url) {
-          setStatus('Формат ' + fmt.name + ' — интро из cine…');
-          try { introBlob = new Blob([await cached(cache, it.url)]); introExt = 'mp4'; cache.delete(it.url); }
-          catch (e) { log('cine-интро ' + fmt.name + ': ' + (e.message || e)); }
-        } else log('нет cine-клипа для ' + fmt.name + ' — запишу глобус');
-      }
-      if (!introBlob) { setStatus('Формат ' + fmt.name + ' — intro (глобус)…'); introBlob = await recordIntro(fmt.w, fmt.h, introSec, lat, lng); introExt = 'webm'; }
+      // intro: always a clean offscreen globe fly-to (globe-only). The cine clip is a full-screen
+      // OBS-style capture, so it's NOT reused here — the intro should show just the globe.
+      setStatus('Формат ' + fmt.name + ' — intro (глобус)…');
+      let introBlob = await recordIntro(fmt.w, fmt.h, introSec, lat, lng, m.render.fps);
+      let introExt = 'webm';
 
       // fresh ffmpeg per ratio → terminate after, so the wasm heap is freed between renders
       setStatus('Формат ' + fmt.name + ' (' + (fi + 1) + '/' + n + ') — монтаж ffmpeg…');
@@ -432,7 +431,7 @@ async function run() {
       } catch (e) {}
     } else setStatus('Не удалось загрузить: ' + (lastErr || 'ошибка сервера') + ' — файлы можно скачать ниже.');
   } catch (e) { setStatus('Ошибка: ' + (e.message || e)); log(String(e)); }
-  $('#go').disabled = false;
+  $('#go').disabled = false; $('#preview').disabled = false;
   if (analysisBlob) $('#analyze').disabled = false;   // enable Grok analysis once we have a video
 }
 
@@ -455,7 +454,8 @@ async function resolveCam() {
   } catch (e) { /* ignore */ }
 }
 
-$('#go').onclick = run;
+$('#go').onclick = () => { previewMode = false; run(); };
+$('#preview').onclick = () => { previewMode = true; run(); };
 
 // ── Grok analysis: pull a few frames from the rendered video, send to the server, show score/recs/article ──
 async function grabFrames(blob, count) {
@@ -526,7 +526,7 @@ $('#analyze').onclick = analyze;
   }
   if (presetClips.length) $('#clips').value = presetClips.map(c => c.url).join('\n');
   await resolveCam();
-  if (qs.get('auto') === '1') setTimeout(run, 800);
+  if (qs.get('auto') === '1') setTimeout(() => { previewMode = true; run(); }, 800);   // auto = fast preview
 })();
 </script>
 </body>
