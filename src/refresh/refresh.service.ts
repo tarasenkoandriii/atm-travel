@@ -68,6 +68,10 @@ export class RefreshService {
       await this.snapshot.rebuild();
       await this.deals.refresh().catch((e) => this.logger.warn(`Deals refresh skipped: ${String(e)}`));
       await this.checkout.retryPending().catch((e) => this.logger.warn(`eSIM provision retry skipped: ${String(e)}`));
+      // Prune short-lived clip selections older than 2 days.
+      await this.prisma.clipSet
+        .deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 2 * 86400 * 1000) } } })
+        .catch((e) => this.logger.warn(`ClipSet prune skipped: ${String(e)}`));
 
       await this.prisma.refreshRun.update({
         where: { id: run.id },

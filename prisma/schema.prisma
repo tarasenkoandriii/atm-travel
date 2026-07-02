@@ -136,3 +136,10 @@ model CineRender {
   items       Json
   createdAt   DateTime @default(now())
 }
+
+// Short-lived clip selection passed from /cine to /reels by id (avoids long ?clips URLs).
+model ClipSet {
+  id        String   @id @default(cuid())
+  items     Json
+  createdAt DateTime @default(now())
+}

@@ -1,6 +1,7 @@
-import { Controller, Get, Query, Res } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { ConfigService } from '@nestjs/config';
+import { PrismaService } from '../prisma/prisma.service';
 
 type Clip = { provider: string; id: string; url: string; attribution: string; tags: string[]; w?: number; h?: number };
 
@@ -10,7 +11,22 @@ type Clip = { provider: string; id: string; url: string; attribution: string; ta
  */
 @Controller('api/reels')
 export class ReelController {
-  constructor(private readonly config: ConfigService) {}
+  constructor(private readonly config: ConfigService, private readonly prisma: PrismaService) {}
+
+  // Short-lived clip selection: /cine POSTs the chosen clips, gets an id, and passes ?clipset=<id>
+  // to /reels instead of a long base64 ?clips URL.
+  @Post('clipset')
+  async createClipset(@Body() body: { clips?: any[] }) {
+    const clips = Array.isArray(body?.clips) ? body.clips.slice(0, 40) : [];
+    const row = await this.prisma.clipSet.create({ data: { items: clips as any } });
+    return { id: row.id };
+  }
+
+  @Get('clipset/:id')
+  async getClipset(@Param('id') id: string) {
+    const row = await this.prisma.clipSet.findUnique({ where: { id } });
+    return { clips: row ? (row.items as any) : [] };
+  }
 
   private readonly allow = [
     'pexels.com', 'pixabay.com', 'coverr.co', 'mixkit.co', 'cdn.coverr.co',

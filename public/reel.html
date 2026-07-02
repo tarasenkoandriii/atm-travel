@@ -79,6 +79,12 @@ const setProg = p => $('#prog').style.width = Math.round(p * 100) + '%';
 const num = (v, d) => { const n = parseFloat(v); return isNaN(n) ? d : n; };
 
 const FORMATS = [{ name: '9:16', w: 1080, h: 1920 }, { name: '4:5', w: 1080, h: 1350 }, { name: '16:9', w: 1920, h: 1080 }];
+// Clips passed from /cine: ?clipset=<id> (fetched in init) or ?clips= (base64-JSON / comma URLs).
+let presetClips = (() => {
+  const cp = qs.get('clips'); if (!cp) return [];
+  try { const j = JSON.parse(decodeURIComponent(escape(atob(cp)))); if (Array.isArray(j)) return j; } catch (e) {}
+  return cp.split(',').map(u => u.trim()).filter(Boolean).map(u => ({ url: u }));
+})();
 const MIME = (() => { const c = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm']; for (const m of c) if (window.MediaRecorder && MediaRecorder.isTypeSupported(m)) return m; return 'video/webm'; })();
 
 // prefill from params
@@ -150,6 +156,12 @@ async function getManifest(introSecOverride) {
   const lat = num($('#lat').value, NaN), lng = num($('#lng').value, NaN);
   if (isNaN(lat) || isNaN(lng)) throw new Error('нужны Lat/Lng или Manifest URL');
   let clips = $('#clips').value.split('\n').map(s => s.trim()).filter(Boolean).map(u => ({ url: u }));
+  // Clips passed from /cine take priority over the textarea / auto-source.
+  if (presetClips.length) {
+    clips = presetClips.map(c => ({ url: c.url, provider: c.provider, id: c.id, attribution: c.attribution, tags: c.tags }));
+    log('клипы из cine-подборки: ' + clips.length);
+    clips.forEach(c => c.attribution && log('  © ' + c.attribution));
+  }
   // Auto-source B-roll if none pasted and a provider key is configured.
   if (!clips.length) {
     const q = (qs.get('q') || $('#title').value || '').trim();
@@ -333,7 +345,19 @@ async function resolveCam() {
 }
 
 $('#go').onclick = run;
-(async function init() { await resolveCam(); if (qs.get('auto') === '1') setTimeout(run, 800); })();
+(async function init() {
+  const csId = qs.get('clipset');
+  if (csId) {
+    try {
+      const j = await fetch('/api/reels/clipset/' + encodeURIComponent(csId)).then(r => r.ok ? r.json() : null);
+      if (j && j.clips && j.clips.length) { presetClips = j.clips; log('клипсет ' + csId + ': ' + presetClips.length + ' клипов'); }
+      else log('клипсет ' + csId + ' пуст/просрочен');
+    } catch (e) { log('клипсет не загрузился: ' + (e.message || e)); }
+  }
+  if (presetClips.length) $('#clips').value = presetClips.map(c => c.url).join('\n');
+  await resolveCam();
+  if (qs.get('auto') === '1') setTimeout(run, 800);
+})();
 </script>
 </body>
 </html>

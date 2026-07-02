@@ -15,6 +15,7 @@ export class FrontendController {
   private readonly legal: string = FrontendController.load('legal.html');
   private readonly cine: string = FrontendController.load('cine.html');
   private readonly reel: string = FrontendController.load('reel.html');
+  private readonly reelManifest: string = FrontendController.load('reel.manifest.mjs');
 
   private static load(file: string): string {
     const candidates = [
@@ -51,6 +52,13 @@ export class FrontendController {
   @Get('reels')
   reelPage(@Res() res: Response) {
     return this.serve(res, this.reel);
+  }
+
+  // ES module imported by reel.html; must be served with a JS MIME (rewrites send /(.*) to /api).
+  @Get('reel.manifest.mjs')
+  reelManifestFile(@Res() res: Response) {
+    res.setHeader('Cache-Control', 'public, max-age=60');
+    return res.type('text/javascript').send(this.reelManifest || '// reel.manifest.mjs not found');
   }
 
   private serve(res: Response, html: string) {

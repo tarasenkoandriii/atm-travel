@@ -264,6 +264,9 @@ function withTimeout(p, ms, label) {
   return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout: ' + label)), ms))]);
 }
 let lastCineId = '';   // set after the render is persisted; reused by "Сгенерировать Reels"
+let foundClips = [];   // clips from "Подборка клипов"; passed to Reels via ?clipset (or ?clips fallback)
+let clipsetId = '';    // short-lived server record id for the selected clips
+const b64e = (s) => btoa(unescape(encodeURIComponent(s)));
 async function deliver(outputs, meta) {
   let cfg = { blobEnabled: false };
   try { cfg = await fetch('/api/cine/config').then(r => r.json()); } catch (e) {}
@@ -369,7 +372,12 @@ function openReels() {
     if (title) u += '&title=' + encodeURIComponent(title);
   }
   if (lastCineId) u += '&cine=' + encodeURIComponent(lastCineId);
-  else $('#status').textContent = 'Совет: сначала «Записать» (полёт зальётся в Blob), тогда Reels переиспользует его как интро.';
+  if (clipsetId) u += '&clipset=' + encodeURIComponent(clipsetId);
+  else if (foundClips.length) {
+    const payload = foundClips.map(c => ({ url: c.url, attribution: c.attribution, tags: c.tags, provider: c.provider, id: c.id }));
+    u += '&clips=' + encodeURIComponent(b64e(JSON.stringify(payload)));
+  }
+  if (!lastCineId) $('#status').textContent = 'Совет: сначала «Записать» (полёт зальётся в Blob), тогда Reels переиспользует его как интро.';
   window.open(u, '_blank', 'noopener');
 }
 
@@ -382,7 +390,14 @@ async function loadClips() {
     const j = await fetch('/api/reels/clips?n=6&orientation=landscape&q=' + encodeURIComponent(q)).then(r => r.json());
     if (!j || !j.provider) { note.textContent = 'Авто-источник не настроен: задай PEXELS_API_KEY (или PIXABAY_API_KEY) в env и передеплой.'; return; }
     const clips = j.clips || [];
+    foundClips = clips;
     if (!clips.length) { note.textContent = 'Ничего не нашлось по запросу «' + (j.query || q) + '». Уточни TITLE (лучше на англ.).'; return; }
+    // Persist as a short-lived clipset so /reels gets a short ?clipset=<id> instead of a long URL.
+    try {
+      const payload = foundClips.map(c => ({ url: c.url, attribution: c.attribution, tags: c.tags, provider: c.provider, id: c.id }));
+      const r = await fetch('/api/reels/clipset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ clips: payload }) }).then(x => x.json());
+      if (r && r.id) clipsetId = r.id;
+    } catch (e) { /* fall back to inline ?clips */ }
     note.innerHTML = 'Найдено ' + clips.length + ' · источник: ' + j.provider + ' · запрос: <b>' + (j.query || q) + '</b>. Клики «Открыть» — оригиналы. Указывай авторов в описании поста.';
     for (const c of clips) {
       const card = document.createElement('div'); card.className = 'rcard';
