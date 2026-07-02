@@ -260,7 +260,7 @@ async function deliver(outputs, meta) {
   const up = items.filter(i => i.url);
   if (up.length) {
     try { const rec = await fetch('/api/cine', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...meta, items: up.map(i => ({ format: i.fmt, url: i.url })) }) }).then(r => r.json()); setStatus((up.length === outputs.length ? 'Готово · ' : 'Загружено ' + up.length + '/' + outputs.length + ' · ') + (rec.id ? 'набор: /api/cine/' + rec.id : '')); } catch (e) {}
-  } else { setStatus('Не удалось загрузить — скачайте локально (см. консоль).'); }
+  } else { setStatus('PUT к blob-хосту заблокирован (ERR_FAILED) — попробуйте Incognito (расширения). Файлы можно скачать ниже.'); }
   showCards(items);
 }
 function showCards(items) {

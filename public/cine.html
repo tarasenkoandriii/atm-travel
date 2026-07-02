@@ -290,7 +290,7 @@ async function deliver(outputs, meta) {
       const rec = await fetch('/api/cine', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...meta, items: uploaded.map(i => ({ format: i.fmt, url: i.url })) }) }).then(r => r.json());
       $('#status').innerHTML = (uploaded.length === outputs.length ? 'Готово. ' : 'Загружено ' + uploaded.length + '/' + outputs.length + '. ') + (rec && rec.id ? 'Набор: <a href="/api/cine/' + rec.id + '" target="_blank">/api/cine/' + rec.id + '</a>' : '');
     } catch (e) { $('#status').textContent = 'Загружено, но не удалось сохранить набор.'; }
-  } else { $('#status').textContent = 'Не удалось загрузить в хранилище — скачайте файлы локально (см. консоль).'; }
+  } else { $('#status').innerHTML = 'PUT к blob-хосту заблокирован (net::ERR_FAILED). Скорее всего расширение браузера — попробуйте <b>Incognito</b>. Файлы можно скачать ниже.'; }
   showCards(items);
 }
 
