@@ -378,7 +378,7 @@ async function run() {
       if (cineData) log('длина интро из cine ' + cineId + ' · ' + cineData.durationSec + 's');
       else log('cine ' + cineId + ' не найден — интро стандартной длины');
     }
-    const m = await getManifest(10);   // promo globe intro = 10s
+    const m = await getManifest(cineData ? cineData.durationSec : 10);   // intro length = cine clip (else 10s)
     const errs = validateManifest(m); if (errs.length) { setStatus('Манифест невалиден'); errs.forEach(log); $('#go').disabled = false; $('#preview').disabled = false; return; }
     const bad = checkBeatAlignment(m); if (bad.length) log('⚠ вне бита: ' + JSON.stringify(bad));
     const intro = m.timeline.find(s => s.kind === 'intro');
@@ -400,11 +400,21 @@ async function run() {
     for (let fi = 0; fi < n; fi++) {
       const fmt = m.render.formats[fi];
       progIndex = fi; progLabel = 'Формат ' + fmt.name + ' (' + (fi + 1) + '/' + n + ')';
-      // intro: always a clean offscreen globe fly-to (globe-only). The cine clip is a full-screen
-      // OBS-style capture, so it's NOT reused here — the intro should show just the globe.
-      setStatus('Формат ' + fmt.name + ' — intro (глобус)…');
-      let introBlob = await recordIntro(fmt.w, fmt.h, introSec, lat, lng, m.render.fps);
-      let introExt = 'webm';
+      // intro: prefer the pre-rendered cine globe clip (per-format, globe-only); else record here
+      let introBlob = null, introExt = 'webm';
+      if (cineData) {
+        const it = (cineData.items || []).find(x => x.format === fmt.name);
+        if (it && it.url) {
+          setStatus('Формат ' + fmt.name + ' — интро из cine…');
+          try { introBlob = new Blob([await cached(cache, it.url)]); introExt = extOf(it.url, 'mp4'); cache.delete(it.url); }
+          catch (e) { log('cine-интро ' + fmt.name + ': ' + (e.message || e)); }
+        } else log('нет cine-клипа для ' + fmt.name + ' — запишу глобус');
+      }
+      if (!introBlob) {
+        setStatus('Формат ' + fmt.name + ' — intro (глобус)…');
+        introBlob = await recordIntro(fmt.w, fmt.h, introSec, lat, lng, m.render.fps);
+        introExt = 'webm';
+      }
 
       // fresh ffmpeg per ratio → terminate after, so the wasm heap is freed between renders
       setStatus('Формат ' + fmt.name + ' (' + (fi + 1) + '/' + n + ') — монтаж ffmpeg…');

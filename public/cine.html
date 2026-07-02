@@ -108,8 +108,8 @@ const qs = new URLSearchParams(location.search);
 const num = (v, d) => { const n = parseFloat(v); return isNaN(n) ? d : n; };
 const CFG = {
   lat: num(qs.get('lat'), NaN), lng: num(qs.get('lng'), NaN),
-  dur: Math.min(20, Math.max(2, parseInt(qs.get('dur') || '4', 10))),   // "wow" intro, default 4
-  live: Math.min(20, Math.max(0, parseInt(qs.get('live') || '3', 10))), // live hold, default 3
+  dur: Math.min(20, Math.max(2, parseInt(qs.get('dur') || '10', 10))),   // globe promo intro, default 10s
+  live: Math.min(20, Math.max(0, parseInt(qs.get('live') || '0', 10))),  // no live hold (globe-only)
   fps: Math.min(60, Math.max(24, parseInt(qs.get('fps') || '60', 10))),
   title: qs.get('title') || qs.get('label') || '',
   embed: qs.get('embed') || '',
@@ -120,7 +120,7 @@ const CFG = {
 const SIZES = { '9:16': [1080, 1920], '4:5': [1080, 1350], '16:9': [1920, 1080] };
 const MIME = (() => { const c = ['video/mp4;codecs=h264','video/mp4','video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm']; for (const m of c) if (window.MediaRecorder && MediaRecorder.isTypeSupported(m)) return m; return ''; })();
 const EXT = () => MIME.indexOf('mp4') > -1 ? 'mp4' : 'webm';
-const easeInOut = t => t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2,3)/2;
+const easeInOut = t => t * t * t * (t * (t * 6 - 15) + 10);   // quintic smootherstep — smooth ends
 const clamp01 = t => Math.max(0, Math.min(1, t));
 
 // prefill UI from params
@@ -150,11 +150,12 @@ function sizeStage(w, h) { G.width(w); G.height(h); }
 const Director = {
   weather: null,
   async prepare(lat, lng, title, embed) {
+    this.title = title || ''; this.lat = lat; this.lng = lng;
     $('#badge').textContent = lat.toFixed(3) + ', ' + lng.toFixed(3);
     $('#lowerT').textContent = title || '';
     $('#lowerC').textContent = lat.toFixed(4) + ', ' + lng.toFixed(4);
     G.ringsData([{ lat, lng }]).pointsData([{ lat, lng }]);
-    G.pointOfView({ lat: lat - 10, lng: lng - 40, altitude: 2.9 }, 0);
+    G.pointOfView({ lat: lat - 6, lng: lng - 26, altitude: 2.5 }, 0);
     // preload live embed (hidden) so it is already playing when revealed
     const live = $('#liveFrame'); live.classList.remove('on');
     if (embed) { live.src = embed; } else { live.removeAttribute('src'); }
@@ -169,25 +170,22 @@ const Director = {
   },
   // Advance the scene for a given elapsed time (ms). Returns nothing.
   tick(elapsedMs, lat, lng) {
-    const dur = CFG._dur, live = CFG._live;
-    const tW = clamp01(elapsedMs / (dur * 1000));               // 0..1 across the wow intro
-    // Phase 1 (0..0.35): slow globe rotation, wide.  Phase 2 (0.35..1): zoom to point.
-    const spinEnd = 0.35;
-    if (tW < spinEnd) {
-      const s = tW / spinEnd;
-      G.pointOfView({ lat: lat - 10 + 4 * s, lng: (lng - 40) + 26 * s, altitude: 2.9 - 0.2 * s }, 0);
-    } else {
-      const z = easeInOut((tW - spinEnd) / (1 - spinEnd));
-      G.pointOfView({ lat: (lat - 6) + 6 * z, lng: (lng - 14) + 14 * z, altitude: 2.7 - (2.7 - 0.5) * z }, 0);
-    }
-    // Live reveal near the end of the wow window
-    if (tW > 0.82 && $('#liveFrame').getAttribute('src')) $('#liveFrame').classList.add('on');
-    // Lower-third title in during zoom
-    if (tW > 0.5) $('#lower').classList.add('on');
-    // Weather pops just after the wow peak
-    if (elapsedMs > dur * 1000 + 300) $('#wx').classList.add('on');
+    const dur = CFG._dur;
+    const t = clamp01(elapsedMs / (dur * 1000));
+    const e = easeInOut(t);
+    const drift = 14 * t * t;   // gentle continuous longitude glide, ramps in → cinematic drift near the end
+    const s = { lat: lat - 6, lng: lng - 26, altitude: 2.5 }, en = { lat, lng, altitude: 0.62 };
+    G.pointOfView({
+      lat: s.lat + (en.lat - s.lat) * e,
+      lng: s.lng + (en.lng - s.lng) * e + drift,
+      altitude: s.altitude + (en.altitude - s.altitude) * e,
+    }, 0);
+    // globe-only recording burns overlays onto the frame (drawOverlays); show the DOM widgets on the
+    // page too, in parallel, so you can watch them while recording.
+    if (t > 0.45) $('#lower').classList.add('on');
+    if (this.weather && t > 0.65) $('#wx').classList.add('on');
   },
-  total() { return (CFG._dur + CFG._live) * 1000; },
+  total() { return CFG._dur * 1000; },
 };
 
 // ─────────────────────────────── capture ───────────────────────────────
@@ -201,6 +199,41 @@ function coverDraw(ctx, src, sw, sh, dw, dh) {
   else { cw = sw; ch = sw / dr; cx = 0; cy = (sh - ch) / 2; }
   ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(src, cx, cy, cw, ch, 0, 0, dw, dh);
+}
+
+// Draw the lower-third title + weather chip straight onto the recording canvas — DOM widgets aren't
+// captured by canvas.captureStream, so they must be painted in. Text only (no cross-origin weather
+// icon, which would taint the canvas and break MediaRecorder).
+function rrect(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+function drawOverlays(ctx, W, H, t) {
+  const title = Director.title, wx = Director.weather, lat = Director.lat, lng = Director.lng;
+  ctx.save();
+  // Lower-third (title + coords) fades in 0.40..0.55
+  const la = Math.max(0, Math.min(1, (t - 0.40) / 0.15));
+  if (la > 0 && (title || lat != null)) {
+    ctx.globalAlpha = la;
+    const pad = Math.round(W * 0.06), baseY = H - Math.round(H * 0.085);
+    ctx.fillStyle = '#4fd7e0';
+    ctx.fillRect(pad, baseY - Math.round(H * 0.05), Math.max(3, Math.round(W * 0.011)), Math.round(H * 0.072));
+    const tx = pad + Math.round(W * 0.035);
+    if (title) { ctx.fillStyle = '#fff'; ctx.font = `700 ${Math.round(H * 0.030)}px system-ui, -apple-system, sans-serif`; ctx.textBaseline = 'alphabetic'; ctx.fillText(title, tx, baseY - Math.round(H * 0.012)); }
+    ctx.fillStyle = 'rgba(228,240,246,0.85)'; ctx.font = `500 ${Math.round(H * 0.018)}px ui-monospace, monospace`;
+    ctx.fillText(lat.toFixed(4) + ', ' + lng.toFixed(4), tx, baseY + Math.round(H * 0.02));
+    ctx.globalAlpha = 1;
+  }
+  // Weather chip top-left fades in 0.60..0.75
+  const wa = Math.max(0, Math.min(1, (t - 0.60) / 0.15));
+  if (wa > 0 && wx && wx.current) {
+    ctx.globalAlpha = wa;
+    const pad = Math.round(W * 0.06), x = pad, y = Math.round(H * 0.055);
+    const label = Math.round(wx.current.tempC) + '°  ' + (wx.current.condition || '');
+    ctx.font = `700 ${Math.round(H * 0.024)}px system-ui, -apple-system, sans-serif`;
+    const bw = Math.min(W - pad * 2, ctx.measureText(label).width + Math.round(W * 0.06)), bh = Math.round(H * 0.05);
+    ctx.fillStyle = 'rgba(12,20,32,0.55)'; rrect(ctx, x, y, bw, bh, Math.round(bh * 0.32)); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.textBaseline = 'middle'; ctx.fillText(label, x + Math.round(W * 0.03), y + bh / 2); ctx.textBaseline = 'alphabetic';
+    ctx.globalAlpha = 1;
+  }
+  ctx.restore();
 }
 
 async function captureScreen(formats, lat, lng) {
@@ -239,7 +272,8 @@ async function runRecorders(formats, getSrc, getDims, lat, lng, cleanup) {
       const el = performance.now() - t0;
       Director.tick(el, lat, lng);
       const src = getSrc(); const [sw, sh] = getDims();
-      if (src) recs.forEach(r => coverDraw(r.ctx, src, sw, sh, r.c.width, r.c.height));
+      const tt = clamp01(el / total);
+      if (src) recs.forEach(r => { coverDraw(r.ctx, src, sw, sh, r.c.width, r.c.height); drawOverlays(r.ctx, r.c.width, r.c.height, tt); });
       $('#prog').style.width = Math.round(clamp01(el / total) * 100) + '%';
       if (el < total) requestAnimationFrame(frame); else resolve();
     })();
@@ -301,8 +335,8 @@ async function deliver(outputs, meta) {
 async function run() {
   const lat = parseFloat($('#lat').value), lng = parseFloat($('#lng').value);
   if (isNaN(lat) || isNaN(lng)) { $('#status').textContent = 'Укажите Lat и Lng.'; return; }
-  CFG._dur = Math.min(20, Math.max(2, parseInt($('#dur').value || '4', 10)));
-  CFG._live = Math.min(20, Math.max(0, parseInt($('#live').value || '3', 10)));
+  CFG._dur = Math.min(20, Math.max(2, parseInt($('#dur').value || '10', 10)));
+  CFG._live = Math.min(20, Math.max(0, parseInt($('#live').value || '0', 10)));
   CFG.fps = Math.min(60, Math.max(24, parseInt($('#fps').value || '60', 10)));
   const title = $('#title').value.trim();
   const embed = $('#embed').value.trim();
@@ -312,18 +346,14 @@ async function run() {
   $('#go').disabled = true; $('#results').innerHTML = ''; $('#prog').style.width = '0';
   await Director.prepare(lat, lng, title, embed);
 
+  // Globe-only capture — a clean cinematic globe fly-to, reusable as the reels intro (no full-screen grab).
   let outputs;
   try {
-    $('#status').textContent = 'Выберите «эту вкладку» в диалоге захвата…';
-    outputs = await captureScreen(formats, lat, lng);
-  } catch (e) {
-    // user cancelled or unsupported -> fallback to globe-only canvas capture
-    $('#status').textContent = 'Захват экрана недоступен — пишу глобус (без live). ' + (e && e.message ? '' : '');
-    try { outputs = await captureCanvas(formats, lat, lng); }
-    catch (e2) { $('#status').textContent = 'Не удалось записать: ' + (e2.message || e2); $('#go').disabled = false; return; }
-  }
+    $('#status').textContent = 'Пишу облёт глобуса…';
+    outputs = await captureCanvas(formats, lat, lng);
+  } catch (e2) { $('#status').textContent = 'Не удалось записать: ' + (e2.message || e2); $('#go').disabled = false; return; }
   $('#prog').style.width = '100%';
-  await deliver(outputs, { lat, lng, dur: CFG._dur + CFG._live, title });
+  await deliver(outputs, { lat, lng, dur: CFG._dur, title });
   $('#go').disabled = false;
 }
 
