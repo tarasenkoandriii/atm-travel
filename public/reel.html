@@ -231,61 +231,94 @@ function makeCreditPng(w, h, text) {
 }
 
 async function renderFormat(ff, m, fmt, introBlob, assetCache, creditText, introExt) {
-  // target a size that fits Vercel's ~4.5MB server-upload limit
+  const w = fmt.w, h = fmt.h, fps = m.render.fps;
   const dur = (m.timeline[m.timeline.length - 1].outEnd) || 10;
+  // target a size that fits Vercel's ~4.5MB server-upload limit
   const kbps = Math.max(800, Math.floor((4.2 * 1024 * 1024 * 8 / 1000) / dur) - 128);
-  const g = buildFilterComplex(m, fmt.name, { lut: false, preset: 'veryfast', videoBitrate: kbps + 'k', bufsize: (kbps * 2) + 'k' });
-  const files = [];
+  const vc = ['-c:v', 'libx264', '-preset', 'veryfast', '-b:v', kbps + 'k', '-maxrate', kbps + 'k', '-bufsize', (kbps * 2) + 'k', '-pix_fmt', 'yuv420p'];
+
+  // ── Stage 1: normalize each timeline segment to an identically-encoded seg{i}.mp4 in ISOLATION.
+  // Decoding one clip per pass (setsar=1 + fps= forcing CFR) sidesteps the multi-input concat-FILTER
+  // "reinitializing filters" crash that heterogeneous clips (different SAR/VFR/params) trigger, and
+  // keeps peak memory to a single clip. A clip that fails is simply skipped.
+  const segNames = [];
   for (let i = 0; i < m.timeline.length; i++) {
     const s = m.timeline[i];
-    if (s.kind === 'intro') files.push({ name: `in${i}.${introExt || 'webm'}`, data: new Uint8Array(await introBlob.arrayBuffer()) });
-    else { const url = s.source.url; const ext = extOf(url, 'mp4'); files.push({ name: `in${i}.${ext}`, data: await cached(assetCache, url) }); }
+    let inName, data;
+    if (s.kind === 'intro') { inName = `src.${introExt || 'webm'}`; data = new Uint8Array(await introBlob.arrayBuffer()); }
+    else { const url = s.source.url; inName = `src.${extOf(url, 'mp4')}`; data = new Uint8Array(await cached(assetCache, url)); }
+    await ff.writeFile(inName, data);
+    const seg = `seg${i}.mp4`;
+    const vf = `trim=${s.srcIn}:${s.srcOut},setpts=PTS-STARTPTS,scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h},setsar=1,fps=${fps},format=yuv420p`;
+    const a1 = ['-i', inName, '-an', '-vf', vf, ...vc, '-movflags', '+faststart', seg];
+    const c1 = await ff.exec(a1);
+    let sd; try { sd = await ff.readFile(seg); } catch (e) { sd = new Uint8Array(0); }
+    log('seg' + i + ' ' + fmt.name + ': ' + (sd ? sd.length : 0) + 'B (exit ' + c1 + ')');
+    try { await ff.deleteFile(inName); } catch (e) {}
+    if (!sd || !sd.length) { log('seg' + i + ' пустой — пропускаю'); try { await ff.deleteFile(seg); } catch (e) {} continue; }
+    segNames.push(seg);
   }
-  let idx = m.timeline.length;
-  if (g.hasOverlay) { const url = m.overlay.source; files.push({ name: `in${idx}.${extOf(url, 'webm')}`, data: await cached(assetCache, url) }); idx++; }
-  if (g.hasMusic) { const url = m.audio.track; files.push({ name: `in${idx}.${extOf(url, 'mp3')}`, data: await cached(assetCache, url) }); idx++; }
+  if (!segNames.length) throw new Error('ни один сегмент не собрался — см. лог выше');
 
-  // ffmpeg.writeFile TRANSFERS the ArrayBuffer to the worker (detaching it on our side). The clip
-  // bytes come from a shared cache and are reused across timeline slots and across the 3 formats, so
-  // we must hand ffmpeg a fresh COPY each time — otherwise the second write of the same cached buffer
-  // throws "ArrayBuffer is already detached" and corrupts the render.
-  for (const f of files) await ff.writeFile(f.name, new Uint8Array(f.data));
+  // concat list for the demuxer (identical params → clean join)
+  await ff.writeFile('list.txt', new TextEncoder().encode(segNames.map(n => `file '${n}'`).join('\n') + '\n'));
 
-  // write the credit frame once (reused across both attempts)
+  // optional extra inputs for stage 2
+  const hasOverlay = !!(m.overlay && m.overlay.source);
+  const hasMusic = !!(m.audio && m.audio.track);
+  if (hasOverlay) await ff.writeFile('overlay.webm', new Uint8Array(await cached(assetCache, m.overlay.source)));
+  const musicName = hasMusic ? ('music.' + extOf(m.audio.track, 'mp3')) : '';
+  if (hasMusic) await ff.writeFile(musicName, new Uint8Array(await cached(assetCache, m.audio.track)));
   let hasCredit = false;
-  if (creditText) { const credit = await makeCreditPng(fmt.w, fmt.h, creditText); await ff.writeFile('credit.png', new Uint8Array(credit)); hasCredit = true; }
+  if (creditText) { await ff.writeFile('credit.png', new Uint8Array(await makeCreditPng(w, h, creditText))); hasCredit = true; }
   const introSeg = m.timeline.find(s => s.kind === 'intro');
   const creditEnd = introSeg ? introSeg.outEnd : 3;   // credits only over the intro/first seconds
 
-  // one encode pass; withCredit=false is the fallback if the credit overlay makes ffmpeg bail
-  async function runOnce(withCredit) {
-    const args = [];
-    files.forEach(f => args.push('-i', f.name));
-    let filter = g.filter, maps = g.maps;
-    if (withCredit) {
-      args.push('-i', 'credit.png'); // index === g.nextIdx
-      // continuous, fps-matched stream via the loop FILTER (repeats the decoded frame — no decoder
-      // restart) so overlay reconciles its timebase with the 30fps [base]; a bare still frame triggers
-      // "reinitializing filters" / exit 1.
-      filter += `;[${g.nextIdx}:v]format=rgba,loop=loop=-1:size=1:start=0,fps=${m.render.fps}[cr];${g.outLabel}[cr]overlay=0:0:enable='between(t,0,${creditEnd})'[outc]`;
-      maps = ['-map', '[outc]'].concat(g.hasMusic ? ['-map', `${g.musicIdx}:a`] : []);
+  // ── Stage 2: concat via the DEMUXER, then overlays/music over the single base stream.
+  // withCredit=false is the fallback if the credit overlay makes ffmpeg bail.
+  async function stage2(withCredit) {
+    const args = ['-f', 'concat', '-safe', '0', '-i', 'list.txt'];
+    let idx = 1, oIdx = -1, cIdx = -1, mIdx = -1;
+    if (hasOverlay) { args.push('-i', 'overlay.webm'); oIdx = idx++; }
+    if (withCredit) { args.push('-i', 'credit.png'); cIdx = idx++; }
+    if (hasMusic) { args.push('-i', musicName); mIdx = idx++; }
+
+    const useFilter = hasOverlay || withCredit;
+    if (useFilter) {
+      const chain = []; let cur = '[0:v]';
+      if (hasOverlay) {
+        const oStart = m.overlay.startAt ?? 0, oEnd = m.overlay.endAt ?? dur;
+        chain.push(`[${oIdx}:v]scale=${w}:${h},format=rgba[ovl]`);
+        chain.push(`${cur}[ovl]overlay=0:0:enable='between(t,${oStart},${oEnd})'[ov1]`); cur = '[ov1]';
+      }
+      if (withCredit) {
+        // still frame → continuous fps-matched stream via loop FILTER so overlay reconciles timebase
+        chain.push(`[${cIdx}:v]format=rgba,loop=loop=-1:size=1:start=0,fps=${fps}[cr]`);
+        chain.push(`${cur}[cr]overlay=0:0:enable='between(t,0,${creditEnd})'[ov2]`); cur = '[ov2]';
+      }
+      args.push('-filter_complex', chain.join(';'), '-map', cur, ...vc);
+    } else {
+      args.push('-map', '0:v', '-c:v', 'copy');   // identical segs → just remux
     }
-    // NOTE: no -shortest — the output is already bounded by the finite [base] concat.
-    args.push('-filter_complex', filter, ...maps, ...g.encode, '-movflags', '+faststart', 'out.mp4');
-    log('ffmpeg ' + fmt.name + (withCredit ? '' : ' · без кредитов') + ': ' + args.join(' '));
+    if (hasMusic) args.push('-map', `${mIdx}:a`, '-c:a', 'aac', '-b:a', '128k', '-shortest');
+    args.push('-movflags', '+faststart', 'out.mp4');
+    log('mux ' + fmt.name + (withCredit ? '' : ' · без кредитов') + ': ' + args.join(' '));
     const code = await ff.exec(args);
     let data; try { data = await ff.readFile('out.mp4'); } catch (e) { data = new Uint8Array(0); }
-    log('out ' + fmt.name + (withCredit ? '' : ' (no-cred)') + ': ' + data.length + 'B (exit ' + code + ')');
+    log('out ' + fmt.name + (withCredit ? '' : ' (no-cred)') + ': ' + (data ? data.length : 0) + 'B (exit ' + code + ')');
     try { await ff.deleteFile('out.mp4'); } catch (e) {}
     return data;
   }
 
-  let data = await runOnce(hasCredit);
-  if ((!data || !data.length) && hasCredit) { log('кредиты не легли — пересобираю без них'); data = await runOnce(false); }
+  let data = await stage2(hasCredit);
+  if ((!data || !data.length) && hasCredit) { log('кредиты не легли — мукс без них'); data = await stage2(false); }
 
-  for (const f of files) { try { await ff.deleteFile(f.name); } catch (e) {} }
+  for (const n of segNames) { try { await ff.deleteFile(n); } catch (e) {} }
+  try { await ff.deleteFile('list.txt'); } catch (e) {}
+  if (hasOverlay) { try { await ff.deleteFile('overlay.webm'); } catch (e) {} }
+  if (hasMusic) { try { await ff.deleteFile(musicName); } catch (e) {} }
   if (hasCredit) { try { await ff.deleteFile('credit.png'); } catch (e) {} }
-  if (!data || !data.length) throw new Error('пустой рендер ffmpeg — см. лог выше');
+  if (!data || !data.length) throw new Error('пустой mux ffmpeg — см. лог выше');
   return new Blob([data], { type: 'video/mp4' });
 }
 async function cached(cache, url) { if (!cache.has(url)) cache.set(url, await fetchBytes(url)); return cache.get(url); }
