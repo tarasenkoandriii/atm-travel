@@ -257,8 +257,11 @@ async function renderFormat(ff, m, fmt, introBlob, assetCache, creditText, intro
   let hasCredit = false;
   if (creditText) {
     const credit = await makeCreditPng(fmt.w, fmt.h, creditText);
-    await ff.writeFile('credit.png', credit);
-    args.push('-loop', '1', '-framerate', String(m.render.fps), '-i', 'credit.png'); // index === g.nextIdx
+    await ff.writeFile('credit.png', new Uint8Array(credit));
+    // A single still frame (no -loop): overlay repeats the last frame for the whole base (repeatlast=1),
+    // so credits stay put during the enable window. -loop 1 here made ffmpeg "reinitialize filters" and
+    // abort with exit 1 / empty output.
+    args.push('-i', 'credit.png'); // index === g.nextIdx
     const introSeg = m.timeline.find(s => s.kind === 'intro');
     const creditEnd = introSeg ? introSeg.outEnd : 3;   // show credits only over the intro/first seconds
     filter += `;[${g.nextIdx}:v]format=rgba[cr];${g.outLabel}[cr]overlay=0:0:enable='between(t,0,${creditEnd})'[outc]`;
