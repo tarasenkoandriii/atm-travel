@@ -251,7 +251,7 @@ async function deliver(outputs, meta) {
     setStatus('Загрузка ' + o.fmt + ' (' + (i + 1) + '/' + outputs.length + ')…');
     try {
       const res = await withTimeout(upload('reel/' + Date.now() + '-' + o.fmt.replace(':', 'x') + '.mp4', o.blob, {
-        access: 'public', handleUploadUrl: '/api/cine/blob-token', contentType: 'video/mp4', multipart: true,
+        access: 'public', handleUploadUrl: '/api/cine/blob-token', contentType: 'video/mp4',
         onUploadProgress: (p) => setStatus('Загрузка ' + o.fmt + ' — ' + Math.round(p.percentage || 0) + '%'),
       }), 180000, 'upload ' + o.fmt);
       items.push({ fmt: o.fmt, url: res.url, blob: o.blob });

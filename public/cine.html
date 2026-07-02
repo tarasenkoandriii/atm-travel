@@ -278,7 +278,7 @@ async function deliver(outputs, meta) {
     try {
       const name = 'cine/' + Date.now() + '-' + o.fmt.replace(':', 'x') + '.' + EXT();
       const res = await withTimeout(uploadFn(name, o.blob, {
-        access: 'public', handleUploadUrl: '/api/cine/blob-token', contentType: o.blob.type, multipart: true,
+        access: 'public', handleUploadUrl: '/api/cine/blob-token', contentType: o.blob.type,
         onUploadProgress: (p) => { $('#status').textContent = 'Загрузка ' + o.fmt + ' — ' + Math.round(p.percentage || 0) + '%'; },
       }), 180000, 'upload ' + o.fmt);
       items.push({ fmt: o.fmt, url: res.url, blob: o.blob });
