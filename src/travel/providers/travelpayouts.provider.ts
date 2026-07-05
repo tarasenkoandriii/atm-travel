@@ -4,6 +4,26 @@ import { createHash } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BuiltOffers, Destination, TravelBrand, TravelOfferProvider } from '../travel.types';
 
+// cc (ISO-3166 alpha-2) -> country slug used by Airalo (`/<slug>-esim`) and Yesim (`/country/<slug>/`).
+// Covers common camera countries; unknown cc falls back to the brand store homepage (still affiliate).
+const COUNTRY_SLUG: Record<string, string> = {
+  US: 'united-states', GB: 'united-kingdom', UA: 'ukraine', PL: 'poland', DE: 'germany', FR: 'france',
+  IT: 'italy', ES: 'spain', PT: 'portugal', NL: 'netherlands', BE: 'belgium', CH: 'switzerland',
+  AT: 'austria', CZ: 'czech-republic', SK: 'slovakia', HU: 'hungary', RO: 'romania', BG: 'bulgaria',
+  GR: 'greece', HR: 'croatia', RS: 'serbia', SI: 'slovenia', IE: 'ireland', DK: 'denmark', SE: 'sweden',
+  NO: 'norway', FI: 'finland', IS: 'iceland', EE: 'estonia', LV: 'latvia', LT: 'lithuania',
+  TR: 'turkey', GE: 'georgia', AM: 'armenia', AZ: 'azerbaijan', IL: 'israel', AE: 'united-arab-emirates',
+  SA: 'saudi-arabia', QA: 'qatar', EG: 'egypt', MA: 'morocco', TN: 'tunisia', ZA: 'south-africa',
+  KE: 'kenya', TZ: 'tanzania', PR: 'puerto-rico',
+  JP: 'japan', KR: 'south-korea', CN: 'china', HK: 'hong-kong', TW: 'taiwan', TH: 'thailand',
+  VN: 'vietnam', ID: 'indonesia', MY: 'malaysia', SG: 'singapore', PH: 'philippines', IN: 'india',
+  LK: 'sri-lanka', NP: 'nepal', KH: 'cambodia', LA: 'laos', MM: 'myanmar',
+  AU: 'australia', NZ: 'new-zealand', FJ: 'fiji',
+  CA: 'canada', MX: 'mexico', BR: 'brazil', AR: 'argentina', CL: 'chile', PE: 'peru', CO: 'colombia',
+  CU: 'cuba', DO: 'dominican-republic', CR: 'costa-rica', PA: 'panama', UY: 'uruguay', BO: 'bolivia', EC: 'ecuador',
+};
+
+
 /**
  * Travelpayouts affiliate provider (ТЗ §8). Start brands: Viator + GetYourGuide.
  *
@@ -57,6 +77,17 @@ export class TravelpayoutsProvider implements TravelOfferProvider {
     }
   }
 
+  // eSIM affiliate deep-links (Airalo / Yesim) by destination country; homepage fallback when unknown.
+  private get esimBrands(): ('airalo' | 'yesim')[] {
+    return ((this.config.get<string>('TRAVEL_ESIM_BRANDS') ?? 'airalo,yesim')
+      .split(',').map((s) => s.trim()).filter(Boolean) as ('airalo' | 'yesim')[]);
+  }
+  private esimUrl(brand: 'airalo' | 'yesim', dest: Destination): string {
+    const slug = COUNTRY_SLUG[(dest.cc || '').toUpperCase()];
+    if (brand === 'airalo') return slug ? `https://www.airalo.com/${slug}-esim` : 'https://www.airalo.com/';
+    return slug ? `https://yesim.app/country/${slug}/` : 'https://yesim.app/';
+  }
+
   async buildOffers(
     dest: Destination,
     opts: { brands: TravelBrand[]; locale: string; currency: string; subId: string; originIata?: string },
@@ -66,6 +97,8 @@ export class TravelpayoutsProvider implements TravelOfferProvider {
     for (const brand of opts.brands) items.push({ key: `exp:${brand}`, url: this.brandUrl(brand, dest, opts) });
     items.push({ key: 'hotels', url: this.brandUrl('hotels', dest, opts) });
     items.push({ key: 'flights', url: this.brandUrl('flights', dest, { ...opts }) });
+    const esimBrands = this.esimBrands;
+    for (const b of esimBrands) items.push({ key: `esim:${b}`, url: this.esimUrl(b, dest) });
 
     const converted = await this.convertBatch(items.map((i) => i.url), opts.subId);
     const byKey = new Map(items.map((it, i) => [it.key, converted[i] ?? it.url]));
@@ -74,6 +107,7 @@ export class TravelpayoutsProvider implements TravelOfferProvider {
       experiences: opts.brands.map((brand) => ({ brand, url: byKey.get(`exp:${brand}`)! })),
       hotels: { url: byKey.get('hotels')! },
       flights: { url: byKey.get('flights')! },
+      esim: esimBrands.map((b) => ({ brand: b, url: byKey.get(`esim:${b}`)! })),
       affiliate: this.configured,
     };
   }

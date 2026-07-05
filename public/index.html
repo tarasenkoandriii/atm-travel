@@ -759,6 +759,15 @@ $('#customInput').addEventListener('keydown',e=>{if(e.key==='Enter'){state.query
   .tv-cta:hover{background:#103049;border-color:var(--cyan);}
   .tv-cta.sec{border-color:var(--line);color:var(--muted);}
   .tv-cta.sec:hover{color:var(--text);border-color:var(--cyan-dim);}
+  .tv-esim{display:flex;align-items:center;flex-wrap:wrap;gap:7px;margin-top:9px;padding-top:9px;border-top:1px dashed var(--line);}
+  .tv-esim-lbl{font-family:'Space Mono',monospace;font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin-right:2px;}
+  .esim-brand{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--line);background:#0c1726;color:var(--text);
+    border-radius:9px;padding:7px 11px;font-size:12px;text-decoration:none;transition:border-color .15s,transform .15s;}
+  .esim-brand:hover{transform:translateY(-1px);}
+  .esim-brand .eb-ico{width:17px;height:17px;border-radius:5px;display:inline-flex;align-items:center;justify-content:center;
+    font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:#0b0f14;flex:0 0 auto;}
+  .esim-airalo{border-color:#7a3b46;} .esim-airalo:hover{border-color:#e0637a;} .esim-airalo .eb-ico{background:linear-gradient(135deg,#f2a94c,#e0637a);}
+  .esim-yesim{border-color:#7a5a2a;} .esim-yesim:hover{border-color:#e0a63a;} .esim-yesim .eb-ico{background:linear-gradient(135deg,#f2c14c,#e08a2a);}
   .atm-lang{appearance:none;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:9px;
     height:38px;padding:0 8px;font-family:'Space Mono',monospace;font-size:12px;cursor:pointer;}
   @media (max-width:880px){ .tv-cta,.tv-ctas{font-size:13px;} .atm-lang{height:42px;} }
@@ -872,7 +881,7 @@ $('#customInput').addEventListener('keydown',e=>{if(e.key==='Enter'){state.query
     var wx = document.createElement('div'); wx.id='atmWeather';
     wx.innerHTML = '<div class="wx-head"><span>'+t('weather.title','Weather')+'</span></div><div id="wxBody" class="wx-meta">—</div>';
     var tv = document.createElement('div'); tv.id='atmTravel';
-    tv.innerHTML = '<div class="tv-head"><span>'+t('travel.title','Experiences here')+'</span></div><div id="tvBody" class="tv-ctas"></div>';
+    tv.innerHTML = '<div class="tv-head"><span>'+t('travel.title','Experiences here')+'</span></div><div id="tvBody" class="tv-ctas"></div><div id="tvEsim" class="tv-esim" style="display:none"></div>';
     cats.appendChild(wx); cats.appendChild(tv);
 
     // Contextual eSIM chip (cheapest plan for the active camera's country) — hidden until data.
@@ -977,6 +986,22 @@ $('#customInput').addEventListener('keydown',e=>{if(e.key==='Enter'){state.query
     if(o.hotels)  html += '<a class="tv-cta sec" target="_blank" rel="nofollow sponsored noopener" href="'+o.hotels.url+'">'+o.hotels.label+'</a>';
     if(o.flights) html += '<a class="tv-cta sec" target="_blank" rel="nofollow sponsored noopener" href="'+o.flights.url+'">'+o.flights.label+'</a>';
     body.innerHTML = html || '<span style="color:var(--muted-2)">—</span>';
+
+    // eSIM as its own mini sub-block (brand chips) — only when our own eSIM checkout is not enabled,
+    // so we don't duplicate the #atmEsim chip or cannibalize the higher-margin direct sale.
+    var esWrap = $('#tvEsim');
+    if(esWrap){
+      var esimDirect = !!(BOOT.esim && BOOT.esim.enabled);
+      var esims = (!esimDirect && o.esim) ? o.esim : [];
+      if(esims.length){
+        var chips = esims.map(function(e){
+          var ini = (e.brand||'?').charAt(0).toUpperCase();
+          return '<a class="esim-brand esim-'+e.brand+'" target="_blank" rel="nofollow sponsored noopener" href="'+e.url+'"><span class="eb-ico">'+ini+'</span>'+e.label+'</a>';
+        }).join('');
+        esWrap.innerHTML = '<span class="tv-esim-lbl">'+t('esim.title','eSIM')+'</span>'+chips;
+        esWrap.style.display='';
+      } else { esWrap.innerHTML=''; esWrap.style.display='none'; }
+    }
   }
 
   function onCameraChange(cam){

@@ -57,6 +57,9 @@ export class TravelService {
       flights: built.flights
         ? { label: labels['flights'] ?? 'Flights', url: built.flights.url, hotPrices }
         : undefined,
+      esim: built.esim?.length
+        ? built.esim.map((e) => ({ brand: e.brand, label: e.brand === 'airalo' ? 'Airalo eSIM' : 'Yesim eSIM', url: e.url }))
+        : undefined,
       currency,
       affiliate: built.affiliate,
       fetchedAt: new Date().toISOString(),

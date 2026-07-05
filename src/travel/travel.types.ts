@@ -22,6 +22,7 @@ export interface TravelOffersResult {
   experiences: { brand: TravelBrand; label: string; url: string }[]; // primary layer (Viator/GetYourGuide)
   hotels?: { label: string; url: string };                            // supplementary
   flights?: { label: string; url: string; hotPrices?: any[] };        // supplementary + "горящие" prices
+  esim?: { brand: string; label: string; url: string }[];             // eSIM affiliate (Airalo/Yesim) by country
   currency: string;
   affiliate: boolean; // true when links are affiliate-wrapped; false = plain brand links (no keys / review mode)
   fetchedAt: string;
@@ -32,6 +33,7 @@ export interface BuiltOffers {
   experiences: { brand: TravelBrand; url: string }[];
   hotels?: { url: string };
   flights?: { url: string };
+  esim?: { brand: 'airalo' | 'yesim'; url: string }[];
   affiliate: boolean;
 }
 

@@ -29,6 +29,7 @@ export const envSchema = z.object({
   TRAVEL_DEFAULT_CURRENCY: z.string().default('USD'),
   TRAVEL_LINK_TTL_SEC: z.coerce.number().int().positive().default(2592000), // cache affiliate links ~30d
   VIATOR_DEALS_FEED_URL: z.string().optional().default(''), // gzipped JSON feed of discounted tours (from TP support)
+  TRAVEL_ESIM_BRANDS: z.string().default('airalo,yesim'),   // eSIM affiliate brands shown in /api/travel/offers
   DEALS_MIN_DISCOUNT: z.coerce.number().int().min(0).default(10),
   DEALS_LIMIT: z.coerce.number().int().positive().default(12),
   // eSIM (provider-agnostic; Airalo first)
