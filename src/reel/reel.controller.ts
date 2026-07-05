@@ -2,6 +2,8 @@ import { Body, Controller, Get, Param, Post, Query, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
+import { AudioService } from '../audio/audio.service';
+import type { AudioProviderId, AudioRequest } from '../audio/audio.types';
 
 type Clip = { provider: string; id: string; url: string; attribution: string; tags: string[]; w?: number; h?: number };
 
@@ -11,7 +13,11 @@ type Clip = { provider: string; id: string; url: string; attribution: string; ta
  */
 @Controller('api/reels')
 export class ReelController {
-  constructor(private readonly config: ConfigService, private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly config: ConfigService,
+    private readonly prisma: PrismaService,
+    private readonly audio: AudioService,
+  ) {}
 
   // Short-lived clip selection: /cine POSTs the chosen clips, gets an id, and passes ?clipset=<id>
   // to /reels instead of a long base64 ?clips URL.
@@ -26,6 +32,48 @@ export class ReelController {
   async getClipset(@Param('id') id: string) {
     const row = await this.prisma.clipSet.findUnique({ where: { id } });
     return { clips: row ? (row.items as any) : [] };
+  }
+
+  // Suggested soundtrack candidates (Jamendo/Freesound/Mubert via AudioModule). The UI lists them
+  // with listen/select; only one track is used as the reel's soundtrack.
+  @Post('audio')
+  async audioCandidates(@Body() body: {
+    query?: string; mood?: string[]; genre?: string[];
+    bpmRange?: [number, number]; durationSec?: number;
+    prefer?: AudioProviderId[]; limit?: number;
+  }) {
+    if (!this.audio.enabled) return { configured: false, tracks: [] };
+    const req: AudioRequest = {
+      kind: 'music',
+      query: body?.query,
+      mood: body?.mood,
+      genre: body?.genre,
+      bpmRange: body?.bpmRange,
+      durationSec: body?.durationSec,
+      commercialUseRequired: true,
+    };
+    try {
+      const tracks = await this.audio.candidates(req, body?.prefer, Math.min(12, body?.limit || 8));
+      return {
+        configured: true,
+        tracks: tracks.map((t) => ({
+          provider: t.provider,
+          id: t.providerTrackId,
+          title: t.title,
+          artist: t.artist || '',
+          durationSec: t.durationSec,
+          bpm: t.bpm ?? null,
+          previewUrl: t.previewUrl || t.audioUrl,
+          audioUrl: t.audioUrl,
+          attribution: t.license.attributionRequired
+            ? (t.license.attributionText || `${t.title}${t.artist ? ' — ' + t.artist : ''} (${t.license.type})`)
+            : '',
+          requiresPaidLicense: t.license.requiresPaidLicense === true,
+        })),
+      };
+    } catch (e: any) {
+      return { configured: true, tracks: [], error: String(e?.message || e) };
+    }
   }
 
   // Grok AI analysis of the finished montage: the browser samples a few frames and posts them here,

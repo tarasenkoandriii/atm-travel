@@ -12,6 +12,8 @@ import { WeatherModule } from './weather/weather.module';
 import { TravelModule } from './travel/travel.module';
 import { DealsModule } from './deals/deals.module';
 import { EsimModule } from './esim/esim.module';
+import { AudioModule } from './audio/audio.module';
+import { PublishModule } from './publish/publish.module';
 import { LegalModule } from './legal/legal.module';
 import { CineModule } from './cine/cine.module';
 import { ReelModule } from './reel/reel.module';
@@ -33,6 +35,8 @@ import { FrontendModule } from './frontend/frontend.module';
     TravelModule,
     DealsModule,
     EsimModule,
+    AudioModule,
+    PublishModule,
     LegalModule,
     CineModule,
     ReelModule,

