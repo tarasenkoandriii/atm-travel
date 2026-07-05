@@ -158,6 +158,7 @@
   #siteFooter .ft-links{display:flex;flex-direction:column;gap:6px;text-align:right;font-family:'Space Mono',monospace;}
   @media (max-width:880px){ #siteFooter .ft-inner{flex-direction:column;} #siteFooter .ft-links{text-align:left;} }
 </style>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flag-icons@7.5.0/css/flag-icons.min.css">
   <script nowprocket data-noptimize="1" data-cfasync="false" data-wpfc-render="false" seraph-accel-crit="1" data-no-defer="1">
   (function () {
       var script = document.createElement("script");
@@ -770,7 +771,19 @@ $('#customInput').addEventListener('keydown',e=>{if(e.key==='Enter'){state.query
   .esim-yesim{border-color:#7a5a2a;} .esim-yesim:hover{border-color:#e0a63a;} .esim-yesim .eb-ico{background:linear-gradient(135deg,#f2c14c,#e08a2a);}
   .atm-lang{appearance:none;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:9px;
     height:38px;padding:0 8px;font-family:'Space Mono',monospace;font-size:12px;cursor:pointer;}
-  @media (max-width:880px){ .tv-cta,.tv-ctas{font-size:13px;} .atm-lang{height:42px;} }
+  .lang-switch{position:relative;}
+  .lang-switch .fi{width:22px;height:15px;border-radius:3px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.35);flex:0 0 auto;}
+  .lang-btn{display:inline-flex;align-items:center;gap:7px;height:38px;padding:0 10px;background:var(--panel);color:var(--text);
+    border:1px solid var(--line);border-radius:9px;cursor:pointer;font-family:'Space Mono',monospace;font-size:12px;}
+  .lang-btn:hover{border-color:var(--cyan-dim);}
+  .lang-btn .lang-code{letter-spacing:.03em;} .lang-btn .lang-car{color:var(--muted);font-size:10px;}
+  .lang-menu{position:absolute;top:44px;right:0;z-index:40;min-width:180px;max-height:60vh;overflow:auto;
+    background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:5px;box-shadow:0 12px 30px rgba(0,0,0,.45);}
+  .lang-menu[hidden]{display:none;}
+  .lang-item{display:flex;align-items:center;gap:9px;width:100%;text-align:left;background:transparent;color:var(--text);
+    border:0;border-radius:8px;padding:8px 9px;cursor:pointer;font-family:inherit;font-size:13px;}
+  .lang-item:hover{background:#12233a;} .lang-item.on{color:var(--cyan);} .lang-item.on span{font-weight:700;}
+  @media (max-width:880px){ .tv-cta,.tv-ctas{font-size:13px;} .atm-lang,.lang-btn{height:42px;} }
 </style>
 <script>
 /* ============================================================
@@ -866,14 +879,23 @@ $('#customInput').addEventListener('keydown',e=>{if(e.key==='Enter'){state.query
   function buildLangSwitcher(){
     var controls = document.querySelector('header .controls');
     if(!controls || $('#atmLang')) return;
-    var sel = document.createElement('select');
-    sel.id = 'atmLang'; sel.className = 'atm-lang'; sel.title = 'Language';
-    (BOOT.availableLocales||['en']).forEach(function(l){
-      var o = document.createElement('option'); o.value=l; o.textContent=l.toUpperCase();
-      if(l===LOCALE) o.selected=true; sel.appendChild(o);
-    });
-    sel.onchange = function(){ setCookie('locale', sel.value); location.reload(); };
-    controls.insertBefore(sel, controls.firstChild);
+    var FLAG = { en:'gb', uk:'ua', ru:'ru', pl:'pl', fr:'fr', de:'de', ja:'jp', it:'it', pt:'pt', es:'es' };
+    var NAME = { en:'English', uk:'Українська', ru:'Русский', pl:'Polski', fr:'Français', de:'Deutsch', ja:'日本語', it:'Italiano', pt:'Português', es:'Español' };
+    var locales = BOOT.availableLocales || ['en'];
+    function flag(l){ return '<span class="fi fi-'+(FLAG[l]||'xx')+'"></span>'; }
+
+    var wrap = document.createElement('div'); wrap.id='atmLang'; wrap.className='lang-switch';
+    var btn = document.createElement('button'); btn.type='button'; btn.className='lang-btn'; btn.title='Language';
+    btn.innerHTML = flag(LOCALE)+'<span class="lang-code">'+String(LOCALE).toUpperCase()+'</span><span class="lang-car">\u25BE</span>';
+    var menu = document.createElement('div'); menu.className='lang-menu'; menu.hidden=true;
+    menu.innerHTML = locales.map(function(l){
+      return '<button type="button" class="lang-item'+(l===LOCALE?' on':'')+'" data-l="'+l+'">'+flag(l)+'<span>'+(NAME[l]||l.toUpperCase())+'</span></button>';
+    }).join('');
+    btn.onclick = function(e){ e.stopPropagation(); menu.hidden = !menu.hidden; };
+    menu.addEventListener('click', function(e){ var b=e.target.closest('.lang-item'); if(!b) return; setCookie('locale', b.getAttribute('data-l')); location.reload(); });
+    document.addEventListener('click', function(){ menu.hidden = true; });
+    wrap.appendChild(btn); wrap.appendChild(menu);
+    controls.insertBefore(wrap, controls.firstChild);
   }
 
   function injectPanels(){
@@ -996,7 +1018,11 @@ $('#customInput').addEventListener('keydown',e=>{if(e.key==='Enter'){state.query
       if(esims.length){
         var chips = esims.map(function(e){
           var ini = (e.brand||'?').charAt(0).toUpperCase();
-          return '<a class="esim-brand esim-'+e.brand+'" target="_blank" rel="nofollow sponsored noopener" href="'+e.url+'"><span class="eb-ico">'+ini+'</span>'+e.label+'</a>';
+          // real brand logo from public/brands/<brand>.svg; falls back to the colored initial if missing
+          var ico = '<span class="eb-ico"><img src="/brands/'+e.brand+'.svg" alt="'+e.brand+'" '+
+            'onerror="this.style.display=\'none\';this.parentNode.classList.add(\'eb-fallback\');this.parentNode.textContent=\''+ini+'\';">'+
+            '</span>';
+          return '<a class="esim-brand esim-'+e.brand+'" target="_blank" rel="nofollow sponsored noopener" href="'+e.url+'">'+ico+e.label+'</a>';
         }).join('');
         esWrap.innerHTML = '<span class="tv-esim-lbl">'+t('esim.title','eSIM')+'</span>'+chips;
         esWrap.style.display='';
