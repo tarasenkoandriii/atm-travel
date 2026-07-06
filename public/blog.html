@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Блог о путешествиях · ATM-travel</title>
+<meta name="description" content="Тревел-гайды, советы, обзоры и истории о направлениях — оригинальные статьи ATM-travel.">
+<link rel="canonical" href="/blog">
+<link rel="alternate" type="application/rss+xml" title="Блог ATM-travel (RSS)" href="/blog/rss.xml">
+<style>
+  :root{color-scheme:light}
+  *{box-sizing:border-box}
+  body{margin:0;background:#f6f8fa;color:#111;font:16px/1.6 system-ui,-apple-system,'Segoe UI',sans-serif}
+  header{background:#0b131c;color:#fff;padding:14px 18px}
+  header .in{max-width:1000px;margin:0 auto;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  header a{color:#cfe6ea;text-decoration:none;font-size:14px}
+  header .brand{font-weight:800;color:#fff;font-size:18px}
+  header .brand b{color:#37b0c0}
+  .wrap{max-width:1000px;margin:0 auto;padding:22px 18px 60px}
+  h1{font-size:26px;margin:.2em 0}
+  .sub{color:#667;font-size:14px;margin-bottom:18px}
+  .filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}
+  .filters button{border:1px solid #d4dbe2;background:#fff;color:#334;border-radius:999px;padding:6px 14px;font-size:13px;cursor:pointer}
+  .filters button.on{background:#0e7c86;color:#fff;border-color:#0e7c86}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:18px}
+  .card{background:#fff;border:1px solid #e6e9ee;border-radius:14px;overflow:hidden;text-decoration:none;color:inherit;display:flex;flex-direction:column;transition:box-shadow .15s}
+  .card:hover{box-shadow:0 8px 24px rgba(0,0,0,.08)}
+  .card .ph{aspect-ratio:16/10;background:#dfe6ec center/cover no-repeat}
+  .card .b{padding:12px 14px 16px}
+  .card .tag{font-size:11px;letter-spacing:.4px;text-transform:uppercase;color:#0e7c86;font-weight:700}
+  .card h3{font-size:17px;margin:6px 0 6px;line-height:1.25}
+  .card p{margin:0;color:#5c6b7a;font-size:13px}
+  .empty{color:#889;padding:40px 0;text-align:center}
+  footer{color:#8a97a3;font-size:12px;text-align:center;padding:24px}
+</style>
+</head>
+<body>
+<header><div class="in">
+  <a class="brand" href="/">ATM<b>·</b>travel</a>
+  <a href="/blog">Блог</a>
+  <a href="/hot-tours">🔥 Горящие туры</a>
+</div></header>
+<div class="wrap">
+  <h1>Блог о путешествиях</h1>
+  <div class="sub">Тревел-гайды, советы, обзоры и истории о направлениях.</div>
+  <div class="filters" id="filters"></div>
+  <div class="grid" id="grid"><div class="empty">Загрузка…</div></div>
+</div>
+<footer>© ATM-travel · оригинальные тревел-статьи · <a href="/blog/rss.xml" style="color:#0e7c86">RSS</a></footer>
+<script>
+(function(){
+  var THEMES=[['','Все'],['guide','Гайды'],['tips','Советы'],['review','Обзоры'],['story','Истории']];
+  var all=[], active='';
+  function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  function dm(d){ if(!d) return ''; try{return new Date(d).toLocaleDateString('ru-RU',{day:'2-digit',month:'long',year:'numeric'});}catch(e){return '';} }
+  function renderFilters(){
+    document.getElementById('filters').innerHTML=THEMES.map(function(t){
+      return '<button data-t="'+t[0]+'" class="'+(active===t[0]?'on':'')+'">'+t[1]+'</button>';
+    }).join('');
+  }
+  function render(){
+    var box=document.getElementById('grid');
+    var list=active?all.filter(function(a){return a.theme===active;}):all;
+    if(!list.length){ box.innerHTML='<div class="empty">Пока нет статей. Загляните позже.</div>'; return; }
+    box.innerHTML=list.map(function(a){
+      var ph=a.image?('style="background-image:url('+esc(a.image)+')"'):'';
+      return '<a class="card" href="/blog/'+encodeURIComponent(a.slug)+'">'+
+        '<div class="ph" '+ph+'></div>'+
+        '<div class="b"><div class="tag">'+esc(a.themeLabel||a.theme)+' · '+esc(a.topic)+'</div>'+
+        '<h3>'+esc(a.h1)+'</h3><p>'+esc(a.meta||'')+'</p>'+
+        '<p style="margin-top:8px;color:#98a4b0;font-size:12px">'+dm(a.publishedAt)+'</p></div></a>';
+    }).join('');
+  }
+  document.getElementById('filters').addEventListener('click',function(e){
+    var b=e.target.closest('button'); if(!b) return; active=b.getAttribute('data-t'); renderFilters(); render();
+  });
+  renderFilters();
+  fetch('/api/blog/list').then(function(r){return r.ok?r.json():{articles:[]};}).then(function(j){
+    all=(j&&j.articles)||[]; render();
+  }).catch(function(){ document.getElementById('grid').innerHTML='<div class="empty">Не удалось загрузить.</div>'; });
+})();
+</script>
+</body>
+</html>

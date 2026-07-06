@@ -60,7 +60,8 @@
       <thead><tr><th>Соцсеть</th><th>Канал / группа</th><th>Действия</th><th>Статус</th></tr></thead>
       <tbody id="rows"></tbody>
     </table>
-    <div class="foot">«Настроить» — задать канал/группу (для Telegram: <b>@канал</b> или numeric <b>chat_id</b>, бот должен быть админом). «Удалить» активна после публикации. Токены сетей берутся из серверного окружения.</div>
+    <div style="margin-top:10px"><button class="mini" id="sendAll">▶ отправить во все настроенные разом</button></div>
+    <div class="foot">«Настроить» — канал/группа (Telegram: <b>@канал</b> или numeric <b>chat_id</b>, бот должен быть админом). «Просмотреть» — открыть готовое видео. «Отправить» — публикация; для Telegram без настройки уходит в <b>собственную группу</b> (серверный <b>TELEGRAM_GROUP_CHAT_ID</b>). «Удалить» активна после отправки.</div>
   </div>
 </div>
 
@@ -68,6 +69,8 @@
 const $ = s => document.querySelector(s);
 const qs = new URLSearchParams(location.search);
 const PKG = qs.get('pkg') || '';
+const VIDEO_PARAM = qs.get('video') || '';   // forward a saved reel by direct url
+const TITLE_PARAM = qs.get('title') || '';
 const esc = s => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
 const NETS = [
@@ -78,6 +81,8 @@ const NETS = [
   { key:'tiktok',    name:'TikTok',    ic:'🎵' },
   { key:'instagram', name:'Instagram', ic:'📸' },
   { key:'facebook',  name:'Facebook',  ic:'📘' },
+  { key:'vk',        name:'ВКонтакте', ic:'🔵' },
+  { key:'ok',        name:'Одноклассники', ic:'🟠' },
 ];
 
 // per-network config persists locally; post state (message id) is per package+network
@@ -90,6 +95,8 @@ const setPost = (k,v) => v ? localStorage.setItem(postKey(k), v) : localStorage.
 
 // runtime status per network: { cls, text }
 const state = {};
+let CONF = { telegramReady:false, telegramGroup:false };   // filled from /api/publish/config
+let PKG_VIDEO = '';                                        // best video url of the package (for «просмотреть»)
 NETS.forEach(n => state[n.key] = getPost(n.key) ? { cls:'s-ok', text:'опубликовано' } : { cls:'s-idle', text:'—' });
 
 function channelUrl(key, cfg) {
@@ -103,7 +110,11 @@ function render() {
   $('#rows').innerHTML = NETS.map(n => {
     const cfg = getCfg(n.key);
     const url = channelUrl(n.key, cfg);
-    const label = cfg.channel || cfg.target || '';
+    let label = cfg.channel || cfg.target || '';
+    if (!label) {
+      if (n.key === 'telegram' && CONF.telegramGroup) label = 'собственная группа';   // own-group default
+      else if (CONF[n.key]) label = 'сервер настроен';
+    }
     const chan = label
       ? (url ? `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(label)}</a>` : `<span>${esc(label)}</span>`)
       : `<span class="none">не задан</span>`;
@@ -114,7 +125,8 @@ function render() {
       <td class="chan">${chan}</td>
       <td class="act">
         <button class="mini" data-cfg="${n.key}">настроить</button>
-        <button class="mini pub" data-pub="${n.key}">опубликовать</button>
+        <button class="mini" data-view="${n.key}">просмотреть</button>
+        <button class="mini pub" data-pub="${n.key}">отправить</button>
         <button class="mini" data-del="${n.key}" ${published ? '' : 'disabled'}>удалить</button>
       </td>
       <td class="st"><span class="badge ${st.cls}" id="st-${n.key}">${esc(st.text)}</span></td>
@@ -126,16 +138,30 @@ function setStat(key, cls, text) { state[key] = { cls, text }; const el = $('#st
 
 async function publish(key) {
   const cfg = getCfg(key);
-  setStat(key, 's-pending', 'публикую…');
+  setStat(key, 's-pending', 'отправляю…');
   try {
     const r = await fetch('/api/publish', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ pkg: PKG, network: key, target: cfg.target || '', caption: cfg.caption || '' }),
+      body: JSON.stringify({ pkg: PKG, videoUrl: VIDEO_PARAM || '', title: TITLE_PARAM || '', network: key, target: cfg.target || '', caption: cfg.caption || '' }),
     }).then(res => res.json());
+    if (r.jobId) { setStat(key, 's-pending', r.message || 'в очереди…'); pollJob(key, r.jobId); return; }   // background (IG/YouTube)
     const cls = r.status === 'ok' ? 's-ok' : r.status === 'todo' ? 's-todo' : 's-error';
     setStat(key, cls, r.message || (r.ok ? 'ок' : 'ошибка'));
     if (r.ok && r.postId) { setPost(key, String(r.postId)); render(); }
   } catch (e) { setStat(key, 's-error', String(e.message || e)); }
+}
+
+// Poll a background publish job until it finishes (each step is a short server request).
+async function pollJob(key, id) {
+  for (let i = 0; i < 40; i++) {   // ~2 min
+    await new Promise(r => setTimeout(r, 3000));
+    let j; try { j = await fetch('/api/publish/job', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ id }) }).then(r => r.json()); } catch (e) { continue; }
+    if (!j) continue;
+    if (j.status === 'done') { setStat(key, 's-ok', j.message || 'готово'); if (j.postId) { setPost(key, String(j.postId)); render(); } return; }
+    if (j.status === 'error') { setStat(key, 's-error', j.message || 'ошибка'); return; }
+    setStat(key, 's-pending', j.message || 'в очереди…');
+  }
+  setStat(key, 's-pending', 'ещё обрабатывается — обновите позже');
 }
 
 async function remove(key) {
@@ -165,23 +191,55 @@ function configure(key) {
   render();
 }
 
+function preview(key) {
+  if (!PKG_VIDEO) { setStat(key, 's-error', 'нет видео в пакете'); return; }
+  window.open(PKG_VIDEO, '_blank', 'noopener');
+}
+
+// A network counts as "configured" if it has a local target, or the server has its creds ready.
+function isConfigured(key) {
+  const cfg = getCfg(key);
+  if (cfg.target) return true;
+  if (key === 'telegram') return !!(CONF.telegramReady && CONF.telegramGroup);
+  return !!CONF[key];   // facebook / instagram / youtube server-ready
+}
+
+async function sendAll() {
+  const ready = NETS.filter(n => isConfigured(n.key));
+  const btn = $('#sendAll');
+  if (!ready.length) { if (btn) { btn.textContent = 'нет настроенных сетей'; setTimeout(() => btn.textContent = '▶ отправить во все настроенные разом', 2000); } return; }
+  if (btn) { btn.disabled = true; btn.textContent = 'отправка… (0/' + ready.length + ')'; }
+  let i = 0;
+  for (const n of ready) { await publish(n.key); i++; if (btn) btn.textContent = 'отправка… (' + i + '/' + ready.length + ')'; }
+  if (btn) { btn.disabled = false; btn.textContent = '▶ отправить во все настроенные разом'; }
+}
+$('#sendAll').onclick = sendAll;
+
 $('#rows').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
   if (b.dataset.cfg) configure(b.dataset.cfg);
+  else if (b.dataset.view) preview(b.dataset.view);
   else if (b.dataset.pub) publish(b.dataset.pub);
   else if (b.dataset.del) remove(b.dataset.del);
 });
 
 // header + package summary
-$('#pkg').innerHTML = 'Пакет: <b>' + esc(PKG || '—') + '</b>';
+$('#pkg').innerHTML = 'Пакет: <b>' + esc(PKG || (VIDEO_PARAM ? (TITLE_PARAM || 'сохранённый ролик') : '—')) + '</b>';
 if (PKG) {
   fetch('/api/cine/' + encodeURIComponent(PKG)).then(r => r.ok ? r.json() : null).then(j => {
     if (!j) return;
     const items = (j.items || []);
+    const pick = items.find(it => it.format === '9:16') || items[0];
+    PKG_VIDEO = pick ? pick.url : '';
     const links = items.map(it => `<a class="plain" href="${esc(it.url)}" target="_blank" rel="noopener">${esc(it.format)}</a>`).join(' · ');
     $('#preview').innerHTML = (j.title ? esc(j.title) + ' · ' : '') + (items.length ? 'видео: ' + links : 'пакет пуст');
   }).catch(() => {});
+} else if (VIDEO_PARAM) {
+  PKG_VIDEO = VIDEO_PARAM;
+  $('#preview').innerHTML = (TITLE_PARAM ? esc(TITLE_PARAM) + ' · ' : '') + 'видео: <a class="plain" href="' + esc(VIDEO_PARAM) + '" target="_blank" rel="noopener">открыть</a>';
 }
+// server capabilities (own Telegram group etc.)
+fetch('/api/publish/config').then(r => r.ok ? r.json() : null).then(j => { if (j) { CONF = j; render(); } }).catch(() => {});
 render();
 </script>
 </body>

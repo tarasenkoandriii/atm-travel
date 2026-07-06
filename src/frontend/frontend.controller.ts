@@ -16,6 +16,11 @@ export class FrontendController {
   private readonly cine: string = FrontendController.load('cine.html');
   private readonly reel: string = FrontendController.load('reel.html');
   private readonly publish: string = FrontendController.load('publish.html');
+  private readonly hotTours: string = FrontendController.load('hot-tours.html');
+  private readonly blog: string = FrontendController.load('blog.html');
+  private readonly hotAdmin: string = FrontendController.load('hot-admin.html');
+  private readonly reelsAdmin: string = FrontendController.load('reels-admin.html');
+  private readonly manage: string = FrontendController.load('manage.html');
   private readonly reelManifest: string = FrontendController.load('reel.manifest.mjs');
 
   private static load(file: string): string {
@@ -58,6 +63,31 @@ export class FrontendController {
   @Get('publish')
   publishPage(@Res() res: Response) {
     return this.serve(res, this.publish);
+  }
+
+  @Get('hot-tours')
+  hotToursPage(@Res() res: Response) {
+    return this.serve(res, this.hotTours);
+  }
+
+  @Get('blog')
+  blogPage(@Res() res: Response) {
+    return this.serve(res, this.blog);
+  }
+
+  @Get('hot-admin')
+  hotAdminPage(@Res() res: Response) {
+    return this.serve(res, this.hotAdmin);
+  }
+
+  @Get('reels-admin')
+  reelsAdminPage(@Res() res: Response) {
+    return this.serve(res, this.reelsAdmin);
+  }
+
+  @Get('manage')
+  managePage(@Res() res: Response) {
+    return this.serve(res, this.manage);
   }
 
   // ES module imported by reel.html; must be served with a JS MIME (rewrites send /(.*) to /api).

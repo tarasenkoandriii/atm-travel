@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Мои подписки · ATM-travel</title>
+<style>
+  :root{--bg:#070c12;--panel:#0b131c;--line:#1b2734;--text:#e7eef4;--muted:#7d8b99;--cyan:#4fd7e0;--cyan-dim:#256e74;--pink:#ff8ea3;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,'Segoe UI',sans-serif;}
+  .wrap{max-width:720px;margin:0 auto;padding:26px 16px 70px;}
+  .brand{font-weight:800;color:var(--cyan);} .sub{color:var(--muted);font-size:13px;}
+  a.plain{color:var(--cyan);text-decoration:none;}
+  h1{font-size:20px;margin:16px 0 4px;}
+  .card{border:1px solid var(--line);background:var(--panel);border-radius:13px;padding:14px;margin-top:12px;}
+  .card .q{font-size:15px;font-weight:700;}
+  .card .m{font-family:ui-monospace,'Space Mono',monospace;font-size:12px;color:var(--muted);margin-top:5px;}
+  .chips{margin-top:7px;display:flex;gap:6px;flex-wrap:wrap;}
+  .chip{font-family:ui-monospace,monospace;font-size:11px;color:var(--cyan);border:1px solid var(--cyan-dim);border-radius:999px;padding:2px 9px;}
+  .row{display:flex;gap:8px;align-items:center;margin-top:11px;flex-wrap:wrap;}
+  .btn{border:1px solid var(--cyan-dim);background:#0c1726;color:var(--cyan);border-radius:9px;padding:8px 13px;cursor:pointer;font:inherit;font-size:13px;}
+  .btn:hover{background:#103049;border-color:var(--cyan);}
+  .btn.danger{border-color:#5b2030;color:var(--pink);background:transparent;} .btn.danger:hover{background:#2a1018;}
+  .badge{font-size:11px;font-family:ui-monospace,monospace;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted);}
+  .badge.on{color:#37d67a;border-color:#1f5b3a;} .badge.off{color:var(--muted);}
+  .empty{color:var(--muted);padding:24px 4px;}
+  .foot{margin-top:20px;} 
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div><span class="brand">ATM·travel</span> <span class="sub">· управление подписками</span></div>
+  <h1>Мои подписки на туры</h1>
+  <div class="sub" id="hint">Здесь можно поставить на паузу или отписаться. Ссылка привязана к вашему токену.</div>
+  <div id="list"></div>
+  <div class="foot"><a class="plain" href="/">← на главную</a></div>
+</div>
+
+<script>
+var $ = function(s){ return document.querySelector(s); };
+var esc = function(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); };
+function cookie(n){ var m=document.cookie.match('(?:^|; )'+n+'=([^;]*)'); return m?decodeURIComponent(m[1]):''; }
+var qp=new URLSearchParams(location.search);
+var TOKEN = qp.get('token') || '';
+var LANG = (qp.get('lang')||cookie('locale')||document.documentElement.lang||'ru').slice(0,2).toLowerCase();
+var M18N={
+  ru:{sub:'· управление подписками',h1:'Мои подписки на туры',hint:'Здесь можно поставить на паузу или отписаться. Ссылка привязана к вашему токену.',notFound:'Подписки не найдены (или уже удалены).',active:'активна',paused:'на паузе',pause:'Пауза',resume:'Возобновить',unsub:'Отписаться',noToken:'Нет токена в ссылке.',notFound2:'Подписка не найдена.',errLoad:'Ошибка загрузки.',home:'← на главную',search:'поиск',upTo:'до',mon:'месяц',nights:'ноч.'},
+  uk:{sub:'· керування підписками',h1:'Мої підписки на тури',hint:'Тут можна поставити на паузу або відписатися. Посилання прив’язане до вашого токена.',notFound:'Підписки не знайдено (або вже видалено).',active:'активна',paused:'на паузі',pause:'Пауза',resume:'Відновити',unsub:'Відписатися',noToken:'Немає токена в посиланні.',notFound2:'Підписку не знайдено.',errLoad:'Помилка завантаження.',home:'← на головну',search:'пошук',upTo:'до',mon:'місяць',nights:'ноч.'},
+  en:{sub:'· manage subscriptions',h1:'My tour subscriptions',hint:'Here you can pause or unsubscribe. The link is tied to your token.',notFound:'No subscriptions found (or already deleted).',active:'active',paused:'paused',pause:'Pause',resume:'Resume',unsub:'Unsubscribe',noToken:'No token in the link.',notFound2:'Subscription not found.',errLoad:'Loading error.',home:'← home',search:'search',upTo:'up to',mon:'month',nights:'nights'},
+  pl:{sub:'· zarządzanie subskrypcjami',h1:'Moje subskrypcje wycieczek',hint:'Tutaj możesz wstrzymać lub anulować. Link jest powiązany z Twoim tokenem.',notFound:'Nie znaleziono subskrypcji (lub już usunięto).',active:'aktywna',paused:'wstrzymana',pause:'Wstrzymaj',resume:'Wznów',unsub:'Anuluj',noToken:'Brak tokenu w linku.',notFound2:'Nie znaleziono subskrypcji.',errLoad:'Błąd ładowania.',home:'← strona główna',search:'wyszukiwanie',upTo:'do',mon:'miesiąc',nights:'nocy'},
+  fr:{sub:'· gestion des abonnements',h1:'Mes abonnements aux séjours',hint:'Ici vous pouvez mettre en pause ou vous désabonner. Le lien est lié à votre jeton.',notFound:'Aucun abonnement trouvé (ou déjà supprimé).',active:'actif',paused:'en pause',pause:'Pause',resume:'Reprendre',unsub:'Se désabonner',noToken:'Aucun jeton dans le lien.',notFound2:'Abonnement introuvable.',errLoad:'Erreur de chargement.',home:'← accueil',search:'recherche',upTo:'jusqu’à',mon:'mois',nights:'nuits'},
+  de:{sub:'· Abos verwalten',h1:'Meine Reise-Abos',hint:'Hier kannst du pausieren oder abbestellen. Der Link ist an dein Token gebunden.',notFound:'Keine Abos gefunden (oder bereits gelöscht).',active:'aktiv',paused:'pausiert',pause:'Pause',resume:'Fortsetzen',unsub:'Abbestellen',noToken:'Kein Token im Link.',notFound2:'Abo nicht gefunden.',errLoad:'Ladefehler.',home:'← Startseite',search:'Suche',upTo:'bis',mon:'Monat',nights:'Nächte'},
+  ja:{sub:'· 購読の管理',h1:'マイ・ツアー購読',hint:'ここで一時停止や解除ができます。リンクはトークンに紐づいています。',notFound:'購読が見つかりません（または削除済み）。',active:'有効',paused:'一時停止',pause:'一時停止',resume:'再開',unsub:'解除',noToken:'リンクにトークンがありません。',notFound2:'購読が見つかりません。',errLoad:'読み込みエラー。',home:'← ホーム',search:'検索',upTo:'まで',mon:'月',nights:'泊'},
+  it:{sub:'· gestione iscrizioni',h1:'Le mie iscrizioni ai viaggi',hint:'Qui puoi mettere in pausa o annullare. Il link è legato al tuo token.',notFound:'Nessuna iscrizione trovata (o già eliminata).',active:'attiva',paused:'in pausa',pause:'Pausa',resume:'Riprendi',unsub:'Annulla',noToken:'Nessun token nel link.',notFound2:'Iscrizione non trovata.',errLoad:'Errore di caricamento.',home:'← home',search:'ricerca',upTo:'fino a',mon:'mese',nights:'notti'},
+  pt:{sub:'· gerir inscrições',h1:'As minhas inscrições de viagens',hint:'Aqui pode pausar ou cancelar. O link está ligado ao seu token.',notFound:'Nenhuma inscrição encontrada (ou já removida).',active:'ativa',paused:'em pausa',pause:'Pausar',resume:'Retomar',unsub:'Cancelar',noToken:'Sem token no link.',notFound2:'Inscrição não encontrada.',errLoad:'Erro ao carregar.',home:'← início',search:'busca',upTo:'até',mon:'mês',nights:'noites'},
+  es:{sub:'· gestionar suscripciones',h1:'Mis suscripciones de viajes',hint:'Aquí puedes pausar o darte de baja. El enlace está vinculado a tu token.',notFound:'No se encontraron suscripciones (o ya se eliminaron).',active:'activa',paused:'en pausa',pause:'Pausar',resume:'Reanudar',unsub:'Darse de baja',noToken:'No hay token en el enlace.',notFound2:'Suscripción no encontrada.',errLoad:'Error de carga.',home:'← inicio',search:'búsqueda',upTo:'hasta',mon:'mes',nights:'noches'}
+};
+var M=M18N[LANG]||M18N.en;
+document.documentElement.lang=LANG;
+(function localizeStatic(){
+  var h1=$('h1'); if(h1) h1.textContent=M.h1;
+  var hint=$('#hint'); if(hint) hint.textContent=M.hint;
+  var subs=document.querySelectorAll('.sub'); if(subs[0]) subs[0].textContent=M.sub;
+  var home=$('.foot .plain'); if(home) home.textContent=M.home;
+})();
+function money(n){ return Number(n).toLocaleString('uk-UA')+' грн'; }
+function chips(f){
+  if(!f) return ''; var out=[];
+  if(f.country||f.cc) out.push(esc(f.country||f.cc));
+  if(f.city) out.push(esc(f.city));
+  if(f.maxPriceUAH) out.push(M.upTo+' '+money(f.maxPriceUAH));
+  if(f.minStars) out.push(f.minStars+'★+');
+  if(f.month) out.push(M.mon+' '+f.month);
+  if(f.nightsMax) out.push(M.upTo+' '+f.nightsMax+' '+M.nights);
+  return out.map(function(c){return '<span class="chip">'+c+'</span>';}).join('');
+}
+function chLabel(c){ return c==='telegram'?'Telegram':c==='email'?'Email':c==='whatsapp'?'WhatsApp':c; }
+
+function render(subs){
+  var box=$('#list');
+  if(!subs.length){ box.innerHTML='<div class="empty">'+esc(M.notFound)+'</div>'; return; }
+  box.innerHTML=subs.map(function(s){
+    var badge = s.active ? '<span class="badge on">'+esc(M.active)+'</span>' : '<span class="badge off">'+esc(M.paused)+'</span>';
+    return '<div class="card" data-tok="'+esc(s.token)+'">'+
+      '<div class="q">'+esc(s.query||M.search)+' '+badge+'</div>'+
+      '<div class="m">'+chLabel(s.channel)+' → '+esc(s.address)+'</div>'+
+      '<div class="chips">'+chips(s.filter)+'</div>'+
+      '<div class="row">'+
+        '<button class="btn toggle" data-act="'+(s.active?'pause':'resume')+'">'+esc(s.active?M.pause:M.resume)+'</button>'+
+        '<button class="btn danger remove">'+esc(M.unsub)+'</button>'+
+      '</div></div>';
+  }).join('');
+}
+
+function load(){
+  if(!TOKEN){ $('#list').innerHTML='<div class="empty">'+esc(M.noToken)+'</div>'; return; }
+  fetch('/api/search/manage?token='+encodeURIComponent(TOKEN)).then(function(r){return r.ok?r.json():null;})
+    .then(function(j){ if(j&&j.ok) render(j.subscriptions||[]); else $('#list').innerHTML='<div class="empty">'+esc(M.notFound2)+'</div>'; })
+    .catch(function(){ $('#list').innerHTML='<div class="empty">'+esc(M.errLoad)+'</div>'; });
+}
+
+$('#list').addEventListener('click', function(e){
+  var card=e.target.closest('.card'); if(!card) return;
+  var tok=card.getAttribute('data-tok');
+  if(e.target.closest('.remove')){
+    fetch('/api/search/remove',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:tok})}).then(function(){ load(); });
+  } else if(e.target.closest('.toggle')){
+    var act=e.target.closest('.toggle').getAttribute('data-act');
+    fetch('/api/search/toggle',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:tok,active:act==='resume'})}).then(function(){ load(); });
+  }
+});
+load();
+</script>
+</body>
+</html>

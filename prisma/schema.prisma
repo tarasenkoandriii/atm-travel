@@ -143,3 +143,343 @@ model ClipSet {
   items     Json
   createdAt DateTime @default(now())
 }
+
+// ── Hot-tours blog generator (ТЗ) ─────────────────────────────────────────────
+// Facts of a hot tour. dedupeHash excludes price, so a price change updates this
+// row (and the article is NOT regenerated — the page renders the live price).
+model HotTour {
+  id                 String   @id @default(cuid())
+  destinationCountry String
+  destinationCity    String
+  countryCode        String?  // ISO alpha-2 for the flag
+  destIata           String?  // strict destination id from the feed (IATA), for ad targeting
+  destCityId         String?  // Hotellook location id when known
+  originIata         String?  // strict departure id (IATA)
+  hotelName          String
+  hotelStars         Int      @default(0)
+  boardType          String?
+  departureCity      String
+  departureDate      DateTime
+  nights             Int      @default(0)
+  priceUAH           Int
+  oldPriceUAH        Int?
+  discountPct        Int      @default(0)
+  prevPriceUAH       Int?     // previous price before the last drop (for "price dropped" alerts)
+  priceDropAt        DateTime?  // set when a re-ingest brings a lower price
+  operator           String?
+  affiliateDeepLink  String
+  providerId         String
+  dedupeHash         String   @unique
+  active             Boolean  @default(true)   // false = expired / gone from feed (kept in DB)
+  fetchedAt          DateTime @default(now())
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  article            HotTourArticle?
+
+  @@index([destinationCountry, active])
+  @@index([active, departureDate])
+}
+
+model HotTourArticle {
+  id              String    @id @default(cuid())
+  tourId          String    @unique
+  tour            HotTour   @relation(fields: [tourId], references: [id], onDelete: Cascade)
+  slug            String    @unique
+  locale          String    @default("ru")
+  templateId      String
+  h1              String
+  metaDescription String
+  bodyJson        Json
+  contentHash     String
+  minhashSig      String?   // MinHash signature (JSON int[]) for near-duplicate detection
+  ratingPct       Int?      // Grok competitiveness rating (0-100), computed lazily for the admin
+  ratingNote      String?
+  views           Int       @default(0)   // page views of the published article (for admin stats)
+  status          String    @default("draft")  // draft | review | published | archived | needs_manual
+  authorName      String?
+  imageUrl        String?   // hero image hosted in our Vercel Blob (downloaded from Pixabay/Pexels)
+  imageAlt        String?
+  imageSource     String?   // pixabay | pexels
+  imageSourceUrl  String?
+  publishedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([status])
+}
+
+// Sitemaps rendered by the daily cron and served verbatim (Vercel FS is ephemeral, so we
+// cache the XML in the DB instead of writing files).
+model SitemapCache {
+  key       String   @id      // 'sitemap' | 'sitemap-news'
+  xml       String   @db.Text
+  updatedAt DateTime @updatedAt
+}
+
+// Own click tracking for hot-tour affiliate links (/go/hot-tour/:slug → log → 302).
+model HotTourClick {
+  id        String   @id @default(cuid())
+  slug      String
+  articleId String?
+  sub       String?
+  ts        DateTime @default(now())
+  referrer  String?
+  ua        String?
+
+  @@index([slug])
+  @@index([ts])
+}
+
+// Page-view events (time-series for the admin daily chart). The article.views counter stays for cheap totals.
+model HotTourView {
+  id        String   @id @default(cuid())
+  slug      String
+  articleId String?
+  sub       String?
+  ts        DateTime @default(now())
+
+  @@index([ts])
+  @@index([sub])
+}
+
+// Generated promo reels, tied to origin/destination cities and dates for later targeted advertising.
+model Reel {
+  id           String    @id @default(cuid())
+  title        String?
+  originCityId String?   // departure city id/label
+  destCityId   String?   // arrival city id/label (or camera id)
+  originLabel  String?
+  destLabel    String?
+  departDate   DateTime?
+  returnDate   DateTime?
+  tourJson     Json?     // snapshot of the chosen tour/hotel/flight (hotel, stars, price…)
+  clipSetId    String?   // link to the produced package (CineRender id)
+  formats      Json?     // rendered format → url map
+  createdAt    DateTime  @default(now())
+
+  @@index([originCityId, destCityId])
+  @@index([departDate])
+}
+
+// Background publish queue for slow networks (Instagram/YouTube) — advanced step-by-step via polling,
+// so no single request has to outlast the serverless timeout.
+model PublishJob {
+  id        String    @id @default(cuid())
+  network   String
+  videoUrl  String
+  caption   String?
+  target    String?
+  status    String    @default("queued")   // queued | processing | done | error
+  stepData  Json?                            // e.g. IG creationId, title
+  postId    String?
+  error     String?
+  lockedAt  DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([status])
+}
+
+// Saved AI searches + subscriptions: notify on new matching hot tours via email/telegram/whatsapp.
+model SavedSearch {
+  id            String   @id @default(cuid())
+  sub           String?  // client subscriber id (localStorage) — list "my searches"
+  token         String   @unique @default(cuid())   // manage/unsubscribe
+  query         String
+  filterJson    Json
+  channel       String   // email | telegram | whatsapp
+  address       String   // email / telegram chat_id / phone
+  frequency     String   @default("instant")   // instant | daily
+  lang          String?                              // subscriber UI locale (for localized manage/emails)
+  active        Boolean  @default(true)
+  canceledAt    DateTime?   // set on unsubscribe (soft-delete) — powers the retention triangle
+  lastCheckedAt DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  @@index([sub])
+  @@index([active])
+}
+
+// Maps a site subscriber (localStorage id) to a Telegram chat_id captured via the bot's /start deep link.
+model TelegramLink {
+  sub       String   @id           // subscriber id from the client
+  chatId    String
+  username  String?
+  createdAt DateTime @default(now())
+}
+
+// Per-(subscription, tour) send log — debounce so the same offer isn't re-sent within N hours.
+model SearchNotification {
+  id       String   @id @default(cuid())
+  searchId String
+  tourId   String
+  sentAt   DateTime @default(now())
+
+  @@unique([searchId, tourId])
+  @@index([sentAt])
+}
+
+// Clicks on outbound tour links (subscriptions/search/site) via the /go/tour redirect — feeds the CTR dashboard.
+model TourClick {
+  id       String   @id @default(cuid())
+  tourId   String
+  channel  String   // email | telegram | whatsapp | site
+  campaign String?  // utm_campaign (instant | daily | weekly | site-search…)
+  sub      String?  // client subscriber id for cohort stitching
+  ts       DateTime @default(now())
+
+  @@index([ts])
+  @@index([tourId])
+  @@index([sub])
+}
+
+// Email send/open events (for open-rate and A/B by opens). campaign encodes the A/B variant (e.g. daily-B).
+model EmailEvent {
+  id       String   @id @default(cuid())
+  campaign String
+  kind     String   // send | open
+  ts       DateTime @default(now())
+
+  @@index([ts])
+  @@index([campaign])
+}
+
+// Weekly snapshot of each subscriber's state — lets the retention triangle reflect pauses over time,
+// not just cancellations. Taken by the cron/pg_cron; idempotent per (sub, week).
+model SubscriberWeek {
+  id        String   @id @default(cuid())
+  sub       String
+  week      DateTime // Monday 00:00 UTC of the snapshot week
+  state     String   // active | paused | canceled
+  createdAt DateTime @default(now())
+
+  @@unique([sub, week])
+  @@index([week])
+}
+
+// Chat assistant leads (fallback goal): captured criteria + contacts with explicit consent.
+model ChatLead {
+  id        String   @id @default(cuid())
+  sub       String?
+  direction String?
+  budget    Int?
+  whenText  String?
+  contacts  String                 // comma-joined contacts (min 1)
+  note      String?
+  consent   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+// ── ОРБИТА-Гид Part II: RAG sync, dialog state, reminders, booking ──
+
+// Observability of the hourly embed run (§8).
+model SyncRun {
+  id          String    @id @default(cuid())
+  startedAt   DateTime  @default(now())
+  finishedAt  DateTime?
+  status      String    @default("running") // running|ok|partial|failed|skipped
+  candidates  Int       @default(0)
+  embedded    Int       @default(0)
+  embedFailed Int       @default(0)
+  error       String?
+}
+
+// Chat session with goal-state (§7.1) — one per visitor (sub).
+model ChatSession {
+  id        String   @id @default(cuid())
+  sub       String   @unique
+  goalState String   @default("GREETING") // GREETING|DISCOVERY|RECOMMEND|PERSUADE|CLOSE_BUY|CLOSE_REMINDER|CLOSE_LEAD|CAPTURED
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  messages  ChatMessage[]
+}
+
+model ChatMessage {
+  id        String      @id @default(cuid())
+  sessionId String
+  session   ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  role      String      // user|assistant|tool
+  content   String      @db.Text
+  ts        DateTime    @default(now())
+
+  @@index([sessionId, ts])
+}
+
+// Reminder about a liked tour (§10 of Part I).
+model Reminder {
+  id        String   @id @default(cuid())
+  sub       String?
+  tourId    String?
+  remindAt  DateTime
+  channel   String   // telegram|email
+  target    String
+  message   String?
+  lang      String?
+  status    String   @default("scheduled") // scheduled|sent|failed|canceled
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([status, remindAt])
+}
+
+// Booking intent / hot-lead handoff.
+model BookingIntent {
+  id        String   @id @default(cuid())
+  sub       String?
+  tourId    String?
+  contact   String
+  note      String?
+  status    String   @default("new") // new|contacted|closed
+  createdAt DateTime @default(now())
+}
+
+// First-party CTR for contextual camera offers (eSIM/hotels/flights/experiences).
+// Aggregate counters keyed by day+kind+brand (bounded rows).
+model OfferStat {
+  id          String @id @default(cuid())
+  day         String // YYYY-MM-DD (UTC)
+  kind        String // esim|hotels|flights|experience
+  brand       String @default("")
+  impressions Int    @default(0)
+  clicks      Int    @default(0)
+
+  @@unique([day, kind, brand])
+  @@index([kind])
+}
+
+// Original travel blog (guides/tips/reviews/stories) — same workflow as hot-tours articles.
+model BlogArticle {
+  id               String    @id @default(cuid())
+  slug             String    @unique
+  locale           String    @default("ru")
+  theme            String    // guide | tips | review | story
+  topic            String    // destination/subject the article is about
+  h1               String
+  metaDescription  String
+  bodyJson         Json
+  contentHash      String
+  minhashSig       String?   // MinHash signature (JSON int[]) for near-duplicate detection
+  articleScore     Int?      // Grok text-quality/originality score (0-100), lazy
+  articleScoreNote String?
+  photoScore       Int?      // Grok/heuristic illustration score (0-100), lazy
+  photoScoreNote   String?
+  views            Int       @default(0)
+  status           String    @default("draft") // draft | needs_manual | published | archived
+  authorName       String?
+  imageUrl         String?   // hero image in our Vercel Blob (from Pixabay/Pexels)
+  imageAlt         String?
+  imageSource      String?
+  imageSourceUrl   String?
+  imagesJson       Json?     // all slide photos [{url,alt,source,sourceUrl}] (>=3)
+  audioUrl         String?   // ElevenLabs narration (Vercel Blob)
+  audioVoiceId     String?
+  videoUrl         String?   // rendered slideshow reel (Vercel Blob)
+  publishedAt      DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([status])
+  @@index([theme, topic])
+}

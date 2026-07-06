@@ -29,6 +29,57 @@
   .brand .mark b{color:var(--cyan);}
   .brand .sub{font-family:'Space Mono',monospace;font-size:11px;color:var(--muted-2);letter-spacing:.05em;}
   .controls{display:flex;align-items:center;gap:8px;}
+  .navlink{display:inline-flex;align-items:center;height:38px;padding:0 12px;border:1px solid var(--cyan-dim);border-radius:9px;
+    background:#0c1726;color:var(--cyan);text-decoration:none;font-family:'Space Mono',monospace;font-size:12px;white-space:nowrap;}
+  .navlink:hover{background:#103049;border-color:var(--cyan);}
+  @media (max-width:880px){ .navlink{font-size:13px;height:42px;} }
+  #aiSearch{max-width:1180px;margin:10px auto 0;padding:0 6px;}
+  .ai-in{display:flex;gap:8px;flex-wrap:wrap;}
+  .ai-in input{flex:1;min-width:220px;background:#0b131c;border:1px solid var(--line);color:var(--text);border-radius:10px;padding:11px 14px;font-size:14px;}
+  #aiChips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
+  #aiChips .chip{font-family:'Space Mono',monospace;font-size:11px;color:var(--cyan);border:1px solid var(--cyan-dim);border-radius:999px;padding:3px 10px;}
+  .ai-results{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px;margin-top:10px;}
+  .ai-card{position:relative;border:1px solid var(--line);background:#0b131c;border-radius:11px;padding:11px 12px;text-decoration:none;color:var(--text);}
+  .ai-card:hover{border-color:var(--cyan-dim);}
+  .ai-card .t{font-size:13px;font-weight:600;} .ai-card .m{font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);margin-top:4px;}
+  .ai-card .p{font-size:15px;font-weight:800;color:var(--cyan);margin-top:6px;} .ai-card .p s{color:var(--muted);font-weight:500;font-size:12px;margin-right:5px;}
+  .ai-card .disc{position:absolute;top:9px;right:9px;background:#3a1420;color:#ff8ea3;border:1px solid #5b2030;border-radius:999px;font-size:11px;font-weight:700;padding:2px 8px;}
+  .ai-save{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px;padding:11px;border:1px dashed var(--line);border-radius:10px;background:#0a121c;}
+  .ai-save .ai-lbl{font-size:13px;color:var(--muted);}
+  .ai-save select,.ai-save input{background:#0c1420;border:1px solid var(--line);color:var(--text);border-radius:9px;padding:9px 11px;font:inherit;font-size:13px;}
+  .ai-msg{font-size:12px;color:var(--muted);} .ai-empty{color:var(--muted);font-size:13px;padding:10px 2px;}
+  .ai-list{margin-top:10px;display:flex;flex-direction:column;gap:6px;}
+  .ai-row{display:flex;align-items:center;justify-content:space-between;gap:10px;border:1px solid var(--line);background:#0b131c;border-radius:9px;padding:8px 11px;font-size:13px;}
+  .ai-row .q{color:var(--text);} .ai-row .c{font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);}
+  .ai-row button{background:transparent;border:1px solid #5b2030;color:#ff8ea3;border-radius:8px;padding:5px 10px;cursor:pointer;font-size:12px;}
+  /* chat widget */
+  #orbBot{position:fixed;right:18px;bottom:18px;z-index:9999;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;}
+  #orbBubble{width:56px;height:56px;border-radius:50%;border:1px solid var(--cyan-dim);background:#0c1726;color:var(--cyan);font-size:24px;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,.4);}
+  #orbBubble:hover{background:#103049;border-color:var(--cyan);}
+  #orbBubble .dot{position:absolute;top:-2px;right:-2px;width:14px;height:14px;background:#ff5b7a;border-radius:50%;border:2px solid #070c12;}
+  #orbPanel{position:absolute;right:0;bottom:70px;width:360px;max-width:calc(100vw - 24px);height:520px;max-height:calc(100vh - 110px);background:#0b131c;border:1px solid var(--line);border-radius:16px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 16px 44px rgba(0,0,0,.5);}
+  .orb-head{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;background:#0c1726;border-bottom:1px solid var(--line);}
+  .orb-head b{color:var(--cyan);font-size:14px;} .orb-head .s{color:var(--muted);font-size:11px;}
+  .orb-head button{background:transparent;border:0;color:var(--muted);font-size:16px;cursor:pointer;}
+  #orbMsgs{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px;}
+  .orb-m{max-width:86%;padding:9px 12px;border-radius:12px;font-size:13px;line-height:1.45;white-space:pre-wrap;}
+  .orb-m.u{align-self:flex-end;background:#12324a;color:#e7eef4;border-bottom-right-radius:4px;}
+  .orb-m.a{align-self:flex-start;background:#0f1a24;color:#d7e2ea;border:1px solid var(--line);border-bottom-left-radius:4px;}
+  .orb-card{align-self:flex-start;max-width:100%;border:1px solid var(--line);background:#0f1a24;border-radius:11px;padding:9px 11px;font-size:12px;text-decoration:none;color:#e7eef4;display:block;}
+  .orb-card:hover{border-color:var(--cyan-dim);} .orb-card .p{color:var(--cyan);font-weight:800;margin-top:3px;} .orb-card .p s{color:var(--muted);font-weight:500;margin-right:5px;}
+  #orbChips{display:flex;gap:6px;flex-wrap:wrap;padding:0 12px 6px;}
+  #orbChips button{background:#0c1726;border:1px solid var(--cyan-dim);color:var(--cyan);border-radius:999px;padding:5px 10px;font-size:12px;cursor:pointer;}
+  .orb-in{display:flex;gap:6px;padding:10px;border-top:1px solid var(--line);}
+  .orb-in input{flex:1;background:#0c1420;border:1px solid var(--line);color:var(--text);border-radius:10px;padding:9px 11px;font:inherit;font-size:13px;}
+  .orb-in button{background:#0c1726;border:1px solid var(--cyan-dim);color:var(--cyan);border-radius:10px;padding:0 14px;font-size:16px;cursor:pointer;}
+  .orb-leadbtn{margin:0 10px 10px;background:transparent;border:1px dashed var(--line);color:var(--muted);border-radius:9px;padding:7px;font-size:12px;cursor:pointer;}
+  #orbLead{padding:10px 12px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:7px;}
+  #orbLead input,#orbLead select{background:#0c1420;border:1px solid var(--line);color:var(--text);border-radius:9px;padding:8px 10px;font:inherit;font-size:13px;}
+  #orbLead .cs{display:flex;gap:7px;align-items:flex-start;font-size:11px;color:var(--muted);}
+  #orbLead .hp{position:absolute;left:-9999px;width:1px;height:1px;opacity:0;}
+  #orbLead .send{background:#0c1726;border:1px solid var(--cyan-dim);color:var(--cyan);border-radius:9px;padding:9px;font-size:13px;cursor:pointer;}
+  .orb-msg{font-size:11px;color:var(--muted);}
+  @media(max-width:640px){ #orbPanel{width:100vw;height:100vh;max-height:100vh;right:-18px;bottom:-18px;border-radius:0;} }
   .btn{appearance:none;border:1px solid var(--line);background:var(--panel);color:var(--text);
     height:38px;min-width:38px;padding:0 12px;border-radius:10px;display:inline-flex;align-items:center;gap:7px;
     cursor:pointer;font-family:'Space Mono',monospace;font-size:12px;letter-spacing:.04em;
@@ -176,6 +227,9 @@
       <div class="sub">atm-travel.org · живые камеры планеты</div>
     </div>
     <div class="controls">
+      <a class="navlink" id="navBlog" href="/blog" title="Блог о путешествиях">📝 Блог</a>
+      <a class="navlink" id="navHot" href="/hot-tours" title="Горящие туры">🔥 Горящие туры</a>
+      <button class="navlink" type="button" id="navSearch" title="AI-поиск туров">🔎 AI-поиск</button>
       <span class="count" id="poolCount">—</span>
       <button class="btn" id="btnPlay" title="Авто-перебор">
         <svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg>
@@ -191,6 +245,27 @@
       </button>
     </div>
   </header>
+
+  <section id="aiSearch" hidden>
+    <div class="ai-in">
+      <input id="aiQ" placeholder="AI-поиск: «Турция до 30 000 грн, 5★, октябрь» или «море в ноябре бюджет 25к»">
+      <button class="btn" id="aiGo">Найти</button>
+      <button class="navlink" type="button" id="aiMy">Мои подписки</button>
+    </div>
+    <div id="aiChips" class="ai-chips"></div>
+    <div id="aiResults" class="ai-results"></div>
+    <div id="aiSave" class="ai-save" hidden>
+      <span class="ai-lbl">Сохранить поиск и получать новые/подешевевшие туры:</span>
+      <select id="aiCh"><option value="telegram">Telegram</option><option value="email">Email</option><option value="whatsapp">WhatsApp</option></select>
+      <select id="aiFreq"><option value="instant">Мгновенно</option><option value="daily">Раз в день</option><option value="weekly">Лучшее за неделю</option></select>
+      <input id="aiAddr" placeholder="email / телефон" hidden>
+      <button class="navlink" type="button" id="aiTgConnect">Подключить Telegram</button>
+      <span id="aiTgState" class="ai-msg"></span>
+      <button class="btn" id="aiSub">Подписаться</button>
+      <span id="aiMsg" class="ai-msg"></span>
+    </div>
+    <div id="aiList" class="ai-list"></div>
+  </section>
 
   <div class="stage">
     <div class="col left">
@@ -239,6 +314,12 @@
       </div>
     </div>
   </div>
+  <section id="atmShowcase" class="showcase" hidden>
+    <div class="sc-inner">
+      <div class="sc-head"><span id="scTitle">Здесь и рядом</span><a class="sc-all" href="/hot-tours">все горящие туры →</a></div>
+      <div class="sc-groups" id="scGroups"></div>
+    </div>
+  </section>
   <footer id="siteFooter">
     <div class="ft-inner">
       <div class="ft-legal">
@@ -769,6 +850,28 @@ $('#customInput').addEventListener('keydown',e=>{if(e.key==='Enter'){state.query
     font-family:'Space Mono',monospace;font-size:11px;font-weight:700;color:#0b0f14;flex:0 0 auto;}
   .esim-airalo{border-color:#7a3b46;} .esim-airalo:hover{border-color:#e0637a;} .esim-airalo .eb-ico{background:linear-gradient(135deg,#f2a94c,#e0637a);}
   .esim-yesim{border-color:#7a5a2a;} .esim-yesim:hover{border-color:#e0a63a;} .esim-yesim .eb-ico{background:linear-gradient(135deg,#f2c14c,#e08a2a);}
+  .showcase{border-top:1px solid var(--line);background:#080e16;}
+  .sc-inner{max-width:1180px;margin:0 auto;padding:18px 16px;}
+  .sc-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:12px;}
+  .sc-head span{font-family:'Space Mono',monospace;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--text);}
+  .sc-all{color:var(--cyan);text-decoration:none;font-size:12px;white-space:nowrap;}
+  .sc-groups{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px;}
+  .sc-col h4{margin:0 0 8px;font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.05em;}
+  .sc-card{display:block;position:relative;border:1px solid var(--line);background:#0b131c;border-radius:11px;padding:11px 12px;
+    text-decoration:none;color:var(--text);margin-bottom:8px;transition:border-color .15s,transform .15s;}
+  .sc-card:hover{border-color:var(--cyan-dim);transform:translateY(-1px);}
+  .sc-card .t{font-size:13px;font-weight:600;line-height:1.3;}
+  .sc-card .m{font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);margin-top:4px;}
+  .sc-card .p{font-size:14px;font-weight:800;color:var(--cyan);margin-top:6px;}
+  .sc-card .p s{color:var(--muted);font-weight:500;font-size:12px;margin-right:5px;}
+  .sc-card .p .usd{color:var(--muted);font-weight:600;font-size:11px;margin-left:5px;}
+  .sc-card .sc-thumb{width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:8px;margin-bottom:8px;display:block;}
+  .sc-disc{position:absolute;top:9px;right:9px;background:#3a1420;color:#ff8ea3;border:1px solid #5b2030;border-radius:999px;
+    font-family:'Space Mono',monospace;font-size:11px;font-weight:700;padding:2px 8px;}
+  .sc-cta{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--cyan-dim);background:#0c1726;color:var(--cyan);
+    border-radius:9px;padding:8px 11px;text-decoration:none;font-family:'Space Mono',monospace;font-size:12px;margin:0 6px 6px 0;}
+  .sc-cta:hover{background:#103049;border-color:var(--cyan);}
+  @media (max-width:880px){ .sc-groups{grid-template-columns:1fr;} }
   .atm-lang{appearance:none;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:9px;
     height:38px;padding:0 8px;font-family:'Space Mono',monospace;font-size:12px;cursor:pointer;}
   .lang-switch{position:relative;}
@@ -1030,6 +1133,55 @@ $('#customInput').addEventListener('keydown',e=>{if(e.key==='Enter'){state.query
     }
   }
 
+  // ── Showcase above the footer: tours/hotels/tickets tied to the active camera's destination ──
+  var HOT_TOURS = null, HT_FX = { USD:41.5, EUR:45.0 };
+  function loadHotTours(cb){
+    if(HOT_TOURS){ cb(HOT_TOURS); return; }
+    fetch(API+'/api/hot-tours').then(function(r){return r.ok?r.json():null;}).then(function(j){
+      HOT_TOURS=(j&&j.countries)||[]; if(j&&j.fx){ if(j.fx.USD)HT_FX.USD=j.fx.USD; if(j.fx.EUR)HT_FX.EUR=j.fx.EUR; } cb(HOT_TOURS);
+    }).catch(function(){ HOT_TOURS=[]; cb(HOT_TOURS); });
+  }
+  function scMoney(n){ return Number(n).toLocaleString('uk-UA')+' грн'; }
+  function scUsd(n){ return '≈ $'+Math.round(Number(n)/HT_FX.USD).toLocaleString('en-US'); }
+  function scDate(d){ if(!d) return ''; return new Date(d).toLocaleDateString('uk-UA',{day:'2-digit',month:'2-digit'}); }
+
+  function renderShowcase(o, cam){
+    var wrap=$('#atmShowcase'), groups=$('#scGroups'); if(!wrap||!groups) return;
+    var cc=(cam&&cam.cc?cam.cc:'').toLowerCase();
+    loadHotTours(function(list){
+      var cols=[], country=null;
+      for(var i=0;i<list.length;i++){ if(list[i].cc===cc){ country=list[i]; break; } }
+      if(country && country.articles && country.articles.length){
+        var cards=country.articles.slice(0,4).map(function(a){
+          var disc=a.discountPct>0?'<span class="sc-disc">−'+a.discountPct+'%</span>':'';
+          var thumb=a.image?'<img class="sc-thumb" src="'+esc(a.image)+'" alt="'+esc(a.imageAlt||a.city)+'" loading="lazy">':'';
+          var oldp=a.oldPriceUAH?'<s>'+scMoney(a.oldPriceUAH)+'</s>':'';
+          return '<a class="sc-card" href="/hot-tours/'+encodeURIComponent(a.slug)+'">'+disc+thumb+
+            '<div class="t">'+esc(a.hotel||a.city)+' · '+(a.stars||0)+'★</div>'+
+            '<div class="m">'+esc(a.city)+' · '+(a.nights||'')+' ноч. · вылет '+scDate(a.departureDate)+'</div>'+
+            '<div class="p">'+oldp+' '+scMoney(a.priceUAH)+'<span class="usd">'+scUsd(a.priceUAH)+'</span></div></a>';
+        }).join('');
+        cols.push('<div class="sc-col"><h4>Горящие туры</h4>'+cards+'</div>');
+      }
+      var exp='';
+      (o.experiences||[]).forEach(function(e){ exp+='<a class="sc-cta" target="_blank" rel="nofollow sponsored noopener" href="'+e.url+'">'+esc(e.label)+'</a>'; });
+      if(o.hotels) exp+='<a class="sc-cta" target="_blank" rel="nofollow sponsored noopener" href="'+o.hotels.url+'">'+esc(o.hotels.label)+'</a>';
+      if(exp) cols.push('<div class="sc-col"><h4>Впечатления и отели</h4>'+exp+'</div>');
+      var fl='';
+      if(o.flights) fl+='<a class="sc-cta" target="_blank" rel="nofollow sponsored noopener" href="'+o.flights.url+'">'+esc(o.flights.label)+'</a>';
+      ((o.flights&&o.flights.hotPrices)||[]).slice(0,3).forEach(function(p){ if(p&&p.value) fl+='<span class="sc-cta" style="cursor:default">'+esc(p.origin||'')+'→'+esc(p.destination||'')+' · '+Math.round(p.value)+' '+esc(o.currency||'')+'</span>'; });
+      if(fl) cols.push('<div class="sc-col"><h4>Билеты</h4>'+fl+'</div>');
+      if(o.esim && o.esim.length && !(BOOT.esim&&BOOT.esim.enabled)){
+        var es=o.esim.map(function(e){ return '<a class="sc-cta" target="_blank" rel="nofollow sponsored noopener" href="'+e.url+'">\uD83D\uDCF6 '+esc(e.label)+'</a>'; }).join('');
+        cols.push('<div class="sc-col"><h4>eSIM</h4>'+es+'</div>');
+      }
+      if(!cols.length){ wrap.hidden=true; return; }
+      $('#scTitle').textContent='Туры, отели и билеты — '+((cam&&(cam.country||cam.city))||'это направление');
+      groups.innerHTML=cols.join('');
+      wrap.hidden=false;
+    });
+  }
+
   function onCameraChange(cam){
     if(!cam) return;
     // weather (debounced)
@@ -1043,7 +1195,7 @@ $('#customInput').addEventListener('keydown',e=>{if(e.key==='Enter'){state.query
     tvTimer = setTimeout(function(){
       var q = cam.id ? ('cameraId='+encodeURIComponent(cam.id)) : ('lat='+cam.lat+'&lng='+cam.lng);
       fetch(API+'/api/travel/offers?'+q+'&lat='+cam.lat+'&lng='+cam.lng, {credentials:'include'})
-        .then(function(r){return r.ok?r.json():null;}).then(function(o){ if(o) renderTravel(o); }).catch(function(){});
+        .then(function(r){return r.ok?r.json():null;}).then(function(o){ if(o){ renderTravel(o); renderShowcase(o, cam); } }).catch(function(){});
     }, 500);
     // eSIM (contextual by the camera's country)
     clearTimeout(esTimer);
@@ -1103,5 +1255,242 @@ $('#customInput').addEventListener('keydown',e=>{if(e.key==='Enter'){state.query
 })();
 </script>
 
+<script>
+(function(){
+  var $ = function(s){ return document.querySelector(s); };
+  var esc = function(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); };
+  var SUB = localStorage.getItem('atmSub') || (function(){ var v='s'+Date.now().toString(36)+Math.random().toString(36).slice(2,8); localStorage.setItem('atmSub',v); return v; })();
+  var LAST_Q='', LAST_FILTER=null;
+  function scookie(n){ var m=document.cookie.match('(?:^|; )'+n+'=([^;]*)'); return m?decodeURIComponent(m[1]):''; }
+  var SLANG=(scookie('locale')||document.documentElement.lang||'ru').slice(0,2).toLowerCase();
+  var SI18N={
+    ru:{navBlog:'📝 Блог',navHot:'🔥 Горящие туры',navSearch:'🔎 AI-поиск',ph:'AI-поиск: «Турция до 30 000 грн, 5★, октябрь»',find:'Найти',mysubs:'Мои подписки',saveLbl:'Сохранить поиск и получать новые/подешевевшие туры:',instant:'Мгновенно',daily:'Раз в день',weekly:'Лучшее за неделю',subscribe:'Подписаться',tgConnect:'Подключить Telegram',addr:'email / телефон',searching:'Ищем…',errSearch:'Ошибка поиска.',saved:'Подписка сохранена ✓',saveFail:'Не удалось сохранить.',needAddr:'Укажите адрес доставки.',listEmpty:'У вас пока нет сохранённых поисков.',unsub:'отписаться',empty:'Ничего не нашли под этот запрос. Попробуйте иначе — или сохраните поиск, и мы сообщим, когда появится.',tgOK:'✓ Telegram подключён',tgOpen:'Откройте бота и нажмите Start…',tgNotSet:'Telegram-бот не настроен на сервере.',tgNA:'Ссылка недоступна.',nights:'ноч.',depart:'вылет',upTo:'до',mon:'месяц'},
+    uk:{navBlog:'📝 Блог',navHot:'🔥 Гарячі тури',navSearch:'🔎 AI-пошук',ph:'AI-пошук: «Туреччина до 30 000 грн, 5★, жовтень»',find:'Знайти',mysubs:'Мої підписки',saveLbl:'Зберегти пошук і отримувати нові/дешевші тури:',instant:'Миттєво',daily:'Раз на день',weekly:'Найкраще за тиждень',subscribe:'Підписатися',tgConnect:'Підключити Telegram',addr:'email / телефон',searching:'Шукаємо…',errSearch:'Помилка пошуку.',saved:'Підписку збережено ✓',saveFail:'Не вдалося зберегти.',needAddr:'Вкажіть адресу доставки.',listEmpty:'У вас поки немає збережених пошуків.',unsub:'відписатися',empty:'Нічого не знайшли за запитом. Спробуйте інакше — або збережіть пошук, і ми повідомимо.',tgOK:'✓ Telegram підключено',tgOpen:'Відкрийте бота й натисніть Start…',tgNotSet:'Telegram-бот не налаштований на сервері.',tgNA:'Посилання недоступне.',nights:'ноч.',depart:'виліт',upTo:'до',mon:'місяць'},
+    en:{navBlog:'📝 Blog',navHot:'🔥 Hot tours',navSearch:'🔎 AI search',ph:'AI search: “Turkey under 30,000 UAH, 5★, October”',find:'Search',mysubs:'My alerts',saveLbl:'Save this search and get new/cheaper tours:',instant:'Instant',daily:'Daily',weekly:'Best of week',subscribe:'Subscribe',tgConnect:'Connect Telegram',addr:'email / phone',searching:'Searching…',errSearch:'Search error.',saved:'Subscription saved ✓',saveFail:'Could not save.',needAddr:'Enter a delivery address.',listEmpty:'You have no saved searches yet.',unsub:'unsubscribe',empty:'Nothing matched this query. Try another — or save the search and we’ll notify you.',tgOK:'✓ Telegram connected',tgOpen:'Open the bot and press Start…',tgNotSet:'Telegram bot is not configured on the server.',tgNA:'Link unavailable.',nights:'nights',depart:'departs',upTo:'up to',mon:'month'},
+    pl:{navBlog:'📝 Blog',navHot:'🔥 Gorące oferty',navSearch:'🔎 Wyszukiwarka AI',ph:'Wyszukiwarka AI: „Turcja do 30 000 UAH, 5★, październik”',find:'Szukaj',mysubs:'Moje subskrypcje',saveLbl:'Zapisz wyszukiwanie i otrzymuj nowe/tańsze oferty:',instant:'Natychmiast',daily:'Codziennie',weekly:'Najlepsze w tygodniu',subscribe:'Subskrybuj',tgConnect:'Połącz Telegram',addr:'email / telefon',searching:'Szukam…',errSearch:'Błąd wyszukiwania.',saved:'Subskrypcja zapisana ✓',saveFail:'Nie udało się zapisać.',needAddr:'Podaj adres dostarczania.',listEmpty:'Nie masz jeszcze zapisanych wyszukiwań.',unsub:'wypisz się',empty:'Nic nie znaleziono. Spróbuj inaczej — lub zapisz wyszukiwanie, a powiadomimy.',tgOK:'✓ Telegram połączony',tgOpen:'Otwórz bota i naciśnij Start…',tgNotSet:'Bot Telegram nie jest skonfigurowany na serwerze.',tgNA:'Link niedostępny.',nights:'nocy',depart:'wylot',upTo:'do',mon:'miesiąc'},
+    fr:{navBlog:'📝 Blog',navHot:'🔥 Dernière minute',navSearch:'🔎 Recherche IA',ph:'Recherche IA : « Turquie moins de 30 000 UAH, 5★, octobre »',find:'Rechercher',mysubs:'Mes alertes',saveLbl:'Enregistrer la recherche et recevoir nouveautés/baisses :',instant:'Instantané',daily:'Quotidien',weekly:'Meilleur de la semaine',subscribe:'S’abonner',tgConnect:'Connecter Telegram',addr:'email / téléphone',searching:'Recherche…',errSearch:'Erreur de recherche.',saved:'Abonnement enregistré ✓',saveFail:'Échec de l’enregistrement.',needAddr:'Indiquez une adresse de réception.',listEmpty:'Vous n’avez pas encore de recherches enregistrées.',unsub:'se désabonner',empty:'Aucun résultat. Essayez autrement — ou enregistrez la recherche, nous vous préviendrons.',tgOK:'✓ Telegram connecté',tgOpen:'Ouvrez le bot et appuyez sur Start…',tgNotSet:'Le bot Telegram n’est pas configuré sur le serveur.',tgNA:'Lien indisponible.',nights:'nuits',depart:'départ',upTo:'jusqu’à',mon:'mois'},
+    de:{navBlog:'📝 Blog',navHot:'🔥 Last-Minute',navSearch:'🔎 KI-Suche',ph:'KI-Suche: „Türkei unter 30.000 UAH, 5★, Oktober“',find:'Suchen',mysubs:'Meine Benachrichtigungen',saveLbl:'Suche speichern und neue/günstigere Angebote erhalten:',instant:'Sofort',daily:'Täglich',weekly:'Wochenbeste',subscribe:'Abonnieren',tgConnect:'Telegram verbinden',addr:'E-Mail / Telefon',searching:'Suche…',errSearch:'Suchfehler.',saved:'Abo gespeichert ✓',saveFail:'Konnte nicht speichern.',needAddr:'Zustelladresse angeben.',listEmpty:'Noch keine gespeicherten Suchen.',unsub:'abbestellen',empty:'Nichts gefunden. Anders versuchen — oder Suche speichern, wir benachrichtigen dich.',tgOK:'✓ Telegram verbunden',tgOpen:'Bot öffnen und Start drücken…',tgNotSet:'Telegram-Bot ist auf dem Server nicht konfiguriert.',tgNA:'Link nicht verfügbar.',nights:'Nächte',depart:'Abflug',upTo:'bis',mon:'Monat'},
+    ja:{navBlog:'📝 ブログ',navHot:'🔥 お得なツアー',navSearch:'🔎 AI検索',ph:'AI検索：「トルコ 3万UAH以下、5★、10月」',find:'検索',mysubs:'マイ通知',saveLbl:'検索を保存して新着・値下げを受け取る：',instant:'即時',daily:'毎日',weekly:'今週のベスト',subscribe:'登録',tgConnect:'Telegramを連携',addr:'メール / 電話',searching:'検索中…',errSearch:'検索エラー。',saved:'登録しました ✓',saveFail:'保存できませんでした。',needAddr:'配信先を入力してください。',listEmpty:'保存した検索はまだありません。',unsub:'解除',empty:'該当なし。条件を変えるか、検索を保存すると入荷時にお知らせします。',tgOK:'✓ Telegram連携済み',tgOpen:'ボットを開いてStartを押してください…',tgNotSet:'サーバーでTelegramボットが未設定です。',tgNA:'リンクを利用できません。',nights:'泊',depart:'出発',upTo:'まで',mon:'月'},
+    it:{navBlog:'📝 Blog',navHot:'🔥 Last minute',navSearch:'🔎 Ricerca IA',ph:'Ricerca IA: «Turchia sotto 30.000 UAH, 5★, ottobre»',find:'Cerca',mysubs:'I miei avvisi',saveLbl:'Salva la ricerca e ricevi novità/ribassi:',instant:'Istantaneo',daily:'Giornaliero',weekly:'Meglio della settimana',subscribe:'Iscriviti',tgConnect:'Collega Telegram',addr:'email / telefono',searching:'Ricerca…',errSearch:'Errore di ricerca.',saved:'Iscrizione salvata ✓',saveFail:'Impossibile salvare.',needAddr:'Indica un recapito.',listEmpty:'Non hai ancora ricerche salvate.',unsub:'annulla',empty:'Nessun risultato. Prova diversamente — o salva la ricerca, ti avviseremo.',tgOK:'✓ Telegram collegato',tgOpen:'Apri il bot e premi Start…',tgNotSet:'Il bot Telegram non è configurato sul server.',tgNA:'Link non disponibile.',nights:'notti',depart:'partenza',upTo:'fino a',mon:'mese'},
+    pt:{navBlog:'📝 Blog',navHot:'🔥 Promoções',navSearch:'🔎 Busca IA',ph:'Busca IA: «Turquia até 30.000 UAH, 5★, outubro»',find:'Buscar',mysubs:'Meus alertas',saveLbl:'Salvar a busca e receber novidades/quedas de preço:',instant:'Instantâneo',daily:'Diário',weekly:'Melhor da semana',subscribe:'Assinar',tgConnect:'Conectar Telegram',addr:'email / telefone',searching:'Buscando…',errSearch:'Erro na busca.',saved:'Assinatura salva ✓',saveFail:'Não foi possível salvar.',needAddr:'Informe um contato de entrega.',listEmpty:'Você ainda não tem buscas salvas.',unsub:'cancelar',empty:'Nada encontrado. Tente outra — ou salve a busca e avisaremos.',tgOK:'✓ Telegram conectado',tgOpen:'Abra o bot e toque em Start…',tgNotSet:'O bot do Telegram não está configurado no servidor.',tgNA:'Link indisponível.',nights:'noites',depart:'partida',upTo:'até',mon:'mês'},
+    es:{navBlog:'📝 Blog',navHot:'🔥 Ofertas',navSearch:'🔎 Búsqueda IA',ph:'Búsqueda IA: «Turquía hasta 30.000 UAH, 5★, octubre»',find:'Buscar',mysubs:'Mis alertas',saveLbl:'Guarda la búsqueda y recibe novedades/bajadas:',instant:'Instantáneo',daily:'Diario',weekly:'Lo mejor de la semana',subscribe:'Suscribirse',tgConnect:'Conectar Telegram',addr:'email / teléfono',searching:'Buscando…',errSearch:'Error de búsqueda.',saved:'Suscripción guardada ✓',saveFail:'No se pudo guardar.',needAddr:'Indica un contacto de entrega.',listEmpty:'Aún no tienes búsquedas guardadas.',unsub:'darse de baja',empty:'Sin resultados. Prueba otra — o guarda la búsqueda y te avisaremos.',tgOK:'✓ Telegram conectado',tgOpen:'Abre el bot y pulsa Start…',tgNotSet:'El bot de Telegram no está configurado en el servidor.',tgNA:'Enlace no disponible.',nights:'noches',depart:'salida',upTo:'hasta',mon:'mes'}
+  };
+  var S=SI18N[SLANG]||SI18N.en;
+  function localizeSearch(){
+    var set=function(sel,v){ var e=$(sel); if(e) e.textContent=v; };
+    var nb=$('#navBlog'); if(nb) nb.textContent=S.navBlog;
+    var nh=$('#navHot'); if(nh) nh.textContent=S.navHot;
+    var ns=$('#navSearch'); if(ns) ns.textContent=S.navSearch;
+    var q=$('#aiQ'); if(q) q.placeholder=S.ph;
+    set('#aiGo',S.find); set('#aiMy',S.mysubs); set('#aiSub',S.subscribe); set('#aiTgConnect',S.tgConnect);
+    var lbl=$('#aiSave .ai-lbl'); if(lbl) lbl.textContent=S.saveLbl;
+    var fr=$('#aiFreq'); if(fr&&fr.options.length>=3){ fr.options[0].text=S.instant; fr.options[1].text=S.daily; fr.options[2].text=S.weekly; }
+  }
+  function money(n){ return Number(n).toLocaleString('uk-UA')+' грн'; }
+  function dm(d){ return d? new Date(d).toLocaleDateString('uk-UA',{day:'2-digit',month:'2-digit'}) : ''; }
+  function chips(f){
+    if(!f) return ''; var out=[];
+    if(f.country||f.cc) out.push(esc(f.country||f.cc));
+    if(f.city) out.push(esc(f.city));
+    if(f.maxPriceUAH) out.push(S.upTo+' '+money(f.maxPriceUAH));
+    if(f.minStars) out.push(f.minStars+'★+');
+    if(f.month) out.push(S.mon+' '+f.month);
+    if(f.nightsMax) out.push(S.upTo+' '+f.nightsMax+' '+S.nights);
+    return out.map(function(c){return '<span class="chip">'+c+'</span>';}).join('');
+  }
+  function renderResults(tours){
+    var box=$('#aiResults');
+    if(!tours.length){ box.innerHTML='<div class="ai-empty">'+esc(S.empty)+'</div>'; return; }
+    box.innerHTML=tours.map(function(t){
+      var disc=t.discountPct>0?'<span class="disc">−'+t.discountPct+'%</span>':'';
+      var oldp=t.oldPriceUAH?'<s>'+money(t.oldPriceUAH)+'</s>':'';
+      var href=t.link||'/hot-tours';
+      return '<a class="ai-card" href="'+esc(href)+'" target="_blank" rel="nofollow sponsored noopener">'+disc+
+        '<div class="t">'+esc(t.hotel||t.city)+' · '+(t.stars||0)+'★</div>'+
+        '<div class="m">'+esc(t.city)+', '+esc(t.country||'')+' · '+(t.nights||'')+' '+S.nights+' · '+S.depart+' '+dm(t.departureDate)+'</div>'+
+        '<div class="p">'+oldp+' '+money(t.priceUAH)+'</div></a>';
+    }).join('');
+  }
+  function go(){
+    var q=$('#aiQ').value.trim(); if(!q) return;
+    LAST_Q=q; $('#aiResults').innerHTML='<div class="ai-empty">'+esc(S.searching)+'</div>'; $('#aiChips').innerHTML='';
+    fetch('/api/search',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({q:q,sub:SUB})})
+      .then(function(r){return r.ok?r.json():null;}).then(function(j){
+        if(!j){ $('#aiResults').innerHTML='<div class="ai-empty">'+esc(S.errSearch)+'</div>'; return; }
+        LAST_FILTER=j.filter||null; $('#aiChips').innerHTML=chips(LAST_FILTER);
+        renderResults(j.tours||[]); $('#aiSave').hidden=false;
+      }).catch(function(){ $('#aiResults').innerHTML='<div class="ai-empty">'+esc(S.errSearch)+'</div>'; });
+  }
+  var TG_LINK='', tgPoll=null;
+  function tgStatus(cb){
+    fetch('/api/telegram/status?sub='+encodeURIComponent(SUB)).then(function(r){return r.ok?r.json():null;}).then(function(j){ cb(j||{}); }).catch(function(){ cb({}); });
+  }
+  function updateChannelUI(){
+    var ch=$('#aiCh').value, isTg=ch==='telegram';
+    $('#aiAddr').hidden=isTg; $('#aiAddr').placeholder = S.addr;
+    $('#aiTgConnect').hidden=!isTg; $('#aiTgState').hidden=!isTg;
+    if(isTg){ tgStatus(function(s){
+      TG_LINK=s.deepLink||'';
+      if(s.linked){ $('#aiTgState').textContent=S.tgOK; $('#aiTgConnect').hidden=true; }
+      else if(!s.botUsername){ $('#aiTgState').textContent=S.tgNotSet; $('#aiTgConnect').hidden=true; }
+      else { $('#aiTgState').textContent=''; }
+    }); }
+  }
+  function connectTg(){
+    if(!TG_LINK){ $('#aiTgState').textContent=S.tgNA; return; }
+    window.open(TG_LINK,'_blank','noopener'); $('#aiTgState').textContent=S.tgOpen;
+    var tries=0; if(tgPoll) clearInterval(tgPoll);
+    tgPoll=setInterval(function(){ tries++; tgStatus(function(s){ if(s.linked){ clearInterval(tgPoll); $('#aiTgState').textContent=S.tgOK; $('#aiTgConnect').hidden=true; } }); if(tries>40) clearInterval(tgPoll); },3000);
+  }
+  function subscribe(){
+    var ch=$('#aiCh').value, freq=$('#aiFreq')?$('#aiFreq').value:'instant', addr = ch==='telegram' ? '' : $('#aiAddr').value.trim();
+    if(ch!=='telegram' && !addr){ $('#aiMsg').textContent=S.needAddr; return; }
+    $('#aiMsg').textContent='Сохраняю…';
+    fetch('/api/search/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query:LAST_Q,filter:LAST_FILTER,channel:ch,address:addr,sub:SUB,frequency:freq,lang:SLANG})})
+      .then(function(r){return r.ok?r.json():null;}).then(function(j){
+        if(j&&j.ok){ $('#aiMsg').textContent=S.saved; $('#aiAddr').value=''; loadList(); }
+        else { $('#aiMsg').textContent=(j&&j.message)||S.saveFail; }
+      }).catch(function(){ $('#aiMsg').textContent=S.saveFail; });
+  }
+  function toggleSearch(){
+    var s=$('#aiSearch'); var show=s.hidden; s.hidden=!show;
+    if(show){ try{ s.scrollIntoView({behavior:'smooth',block:'start'}); }catch(e){} $('#aiQ').focus(); updateChannelUI(); }
+  }
+  function loadList(){
+    fetch('/api/search/list?sub='+encodeURIComponent(SUB)).then(function(r){return r.ok?r.json():null;}).then(function(j){
+      var box=$('#aiList'); var arr=(j&&j.searches)||[];
+      if(!arr.length){ box.innerHTML='<div class="ai-empty">'+esc(S.listEmpty)+'</div>'; return; }
+      box.innerHTML=arr.map(function(s){
+        return '<div class="ai-row"><span class="q">'+esc(s.query||'поиск')+' <span class="c">· '+esc(s.channel)+' → '+esc(s.address)+'</span></span>'+
+          '<button data-tok="'+esc(s.token)+'">'+esc(S.unsub)+'</button></div>';
+      }).join('');
+    }).catch(function(){});
+  }
+  var goBtn=$('#aiGo'); if(goBtn){
+    localizeSearch();
+    goBtn.onclick=go;
+    $('#aiQ').addEventListener('keydown',function(e){ if(e.key==='Enter') go(); });
+    $('#aiSub').onclick=subscribe;
+    $('#aiCh').addEventListener('change',updateChannelUI);
+    $('#aiTgConnect').onclick=connectTg;
+    var ns=$('#navSearch'); if(ns) ns.onclick=toggleSearch;
+    $('#aiMy').onclick=function(){ var b=$('#aiList'); if(b.innerHTML){ b.innerHTML=''; } else loadList(); };
+    $('#aiList').addEventListener('click',function(e){ var b=e.target.closest('button[data-tok]'); if(!b) return;
+      fetch('/api/search/remove',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:b.getAttribute('data-tok')})}).then(function(){ loadList(); }); });
+  }
+})();
+</script>
+<div id="orbBot">
+  <button id="orbBubble" aria-label="Чат-ассистент подбора туров">💬<span class="dot" id="orbDot" hidden></span></button>
+  <div id="orbPanel" hidden>
+    <div class="orb-head"><div><b>ОРБИТА-Гид</b> <span class="s">· подбор туров</span></div><button id="orbClose" aria-label="Закрыть">✕</button></div>
+    <div id="orbMsgs"></div>
+    <div id="orbChips"></div>
+    <div class="orb-in"><input id="orbInput" placeholder="Куда и на какой бюджет?"><button id="orbSend" aria-label="Отправить">→</button></div>
+    <button class="orb-leadbtn" id="orbLeadToggle">Оставить контакт — менеджер свяжется</button>
+    <div id="orbLead" hidden>
+      <input id="lDir" placeholder="Направление (напр. Турция)">
+      <input id="lBud" placeholder="Бюджет, грн (напр. 30000)" inputmode="numeric">
+      <input id="lWhen" placeholder="Когда интересно (напр. октябрь)">
+      <input id="lC1" placeholder="Контакт 1: телефон / email / Telegram">
+      <input id="lC2" placeholder="Контакт 2: ещё способ связи (обязательно)">
+      <input id="lHp" class="hp" tabindex="-1" autocomplete="off" placeholder="">
+      <label class="cs"><input type="checkbox" id="lConsent"> Согласен(на) на обработку контактов для связи по подбору тура. Отозвать можно в любой момент.</label>
+      <button class="send" id="lSend">Отправить</button>
+      <div class="orb-msg" id="lMsg"></div>
+      <button class="orb-leadbtn" id="orbForget" style="margin:2px 0 0">Удалить мои данные</button>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  var $=function(s){return document.querySelector(s);};
+  var esc=function(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});};
+  var SUB=localStorage.getItem('atmSub')||(function(){var v='s'+Date.now().toString(36)+Math.random().toString(36).slice(2,8);localStorage.setItem('atmSub',v);return v;})();
+  function cookie(n){ var m=document.cookie.match('(?:^|; )'+n+'=([^;]*)'); return m?decodeURIComponent(m[1]):''; }
+  var LANG=(cookie('locale')||document.documentElement.lang||'ru').slice(0,2).toLowerCase();  // site-wide language selector
+  var I18N={
+    ru:{sub:'· подбор туров',greet:'Привет! Помогу подобрать тур. Напишите направление и бюджет — или спросите, как работает поиск и подписки.',ph:'Куда и на какой бюджет?',lead:'Оставить контакт — менеджер свяжется',dir:'Направление (напр. Турция)',bud:'Бюджет, грн (напр. 30000)',when:'Когда интересно (напр. октябрь)',c1:'Контакт 1: телефон / email / Telegram',c2:'Контакт 2: ещё способ связи (обязательно)',consent:'Согласен(на) на обработку контактов для связи по подбору тура. Отозвать можно в любой момент.',send:'Отправить',forget:'Удалить мои данные',fConfirm:'Удалить ваши данные (контакты, историю чата, напоминания)?',fDone:'Удалено: ',fDoneEnd:'. Данные стёрты.',fFail:'Не удалось удалить.',need2:'Оставьте два способа связи — так надёжнее с вами связаться.',needConsent:'Отметьте согласие на обработку контактов.',sending:'Отправляю…',thanks:'Спасибо! Свяжемся с вами.',ack:'Контакт получен — подберём варианты и напишем. Спасибо!',failSend:'Не удалось отправить.',errSend:'Ошибка отправки.',errAns:'Не получилось ответить. Попробуйте ещё раз.',errNet:'Ошибка сети. Попробуйте позже.',chips:['Турция до 30к','Египет всё включено','Море в октябре','Как подписаться на туры?']},
+    uk:{sub:'· підбір турів',greet:'Привіт! Допоможу підібрати тур. Напишіть напрямок і бюджет — або спитайте, як працює пошук і підписки.',ph:'Куди та на який бюджет?',lead:'Залишити контакт — менеджер зв’яжеться',dir:'Напрямок (напр. Туреччина)',bud:'Бюджет, грн (напр. 30000)',when:'Коли цікаво (напр. жовтень)',c1:'Контакт 1: телефон / email / Telegram',c2:'Контакт 2: ще спосіб зв’язку (обов’язково)',consent:'Погоджуюсь на обробку контактів для зв’язку щодо підбору туру. Відкликати можна будь-коли.',send:'Надіслати',forget:'Видалити мої дані',fConfirm:'Видалити ваші дані (контакти, історію чату, нагадування)?',fDone:'Видалено: ',fDoneEnd:'. Дані стерто.',fFail:'Не вдалося видалити.',need2:'Залиште два способи зв’язку — так надійніше.',needConsent:'Позначте згоду на обробку контактів.',sending:'Надсилаю…',thanks:'Дякуємо! Зв’яжемося з вами.',ack:'Контакт отримано — підберемо варіанти й напишемо. Дякуємо!',failSend:'Не вдалося надіслати.',errSend:'Помилка надсилання.',errAns:'Не вдалося відповісти. Спробуйте ще раз.',errNet:'Помилка мережі. Спробуйте пізніше.',chips:['Туреччина до 30к','Єгипет все включено','Море в жовтні','Як підписатися на тури?']},
+    en:{sub:'· tour picker',greet:'Hi! I can help you find a tour. Tell me a destination and budget — or ask how search and subscriptions work.',ph:'Where to and what budget?',lead:'Leave a contact — we’ll reach out',dir:'Destination (e.g. Turkey)',bud:'Budget, UAH (e.g. 30000)',when:'When interested (e.g. October)',c1:'Contact 1: phone / email / Telegram',c2:'Contact 2: another way to reach you (required)',consent:'I consent to processing my contacts to be reached about tour options. Revocable anytime.',send:'Send',forget:'Delete my data',fConfirm:'Delete your data (contacts, chat history, reminders)?',fDone:'Deleted: ',fDoneEnd:'. Your data is erased.',fFail:'Could not delete.',need2:'Please leave two contact methods so we can reliably reach you.',needConsent:'Please tick the consent box.',sending:'Sending…',thanks:'Thanks! We’ll be in touch.',ack:'Got your contact — we’ll pick options and write to you. Thanks!',failSend:'Could not send.',errSend:'Send error.',errAns:'Could not answer. Please try again.',errNet:'Network error. Try again later.',chips:['Turkey under 30k','Egypt all-inclusive','Sea in October','How do subscriptions work?']},
+    pl:{sub:'· dobór wycieczek',greet:'Cześć! Pomogę dobrać wycieczkę. Podaj kierunek i budżet — albo zapytaj, jak działa wyszukiwarka i subskrypcje.',ph:'Dokąd i jaki budżet?',lead:'Zostaw kontakt — odezwiemy się',dir:'Kierunek (np. Turcja)',bud:'Budżet, UAH (np. 30000)',when:'Kiedy interesuje (np. październik)',c1:'Kontakt 1: telefon / email / Telegram',c2:'Kontakt 2: inny sposób kontaktu (wymagane)',consent:'Wyrażam zgodę na przetwarzanie kontaktów, aby skontaktowano się ze mną ws. wycieczek. Można cofnąć w każdej chwili.',send:'Wyślij',forget:'Usuń moje dane',fConfirm:'Usunąć Twoje dane (kontakty, historię czatu, przypomnienia)?',fDone:'Usunięto: ',fDoneEnd:'. Dane skasowane.',fFail:'Nie udało się usunąć.',need2:'Zostaw dwa sposoby kontaktu — tak pewniej się skontaktujemy.',needConsent:'Zaznacz zgodę na przetwarzanie kontaktów.',sending:'Wysyłanie…',thanks:'Dziękujemy! Odezwiemy się.',ack:'Mamy Twój kontakt — dobierzemy opcje i napiszemy. Dziękujemy!',failSend:'Nie udało się wysłać.',errSend:'Błąd wysyłania.',errAns:'Nie udało się odpowiedzieć. Spróbuj ponownie.',errNet:'Błąd sieci. Spróbuj później.',chips:['Turcja do 30k','Egipt all inclusive','Morze w październiku','Jak działają subskrypcje?']},
+    fr:{sub:'· sélection de séjours',greet:'Bonjour ! Je peux vous aider à trouver un séjour. Indiquez une destination et un budget — ou demandez comment fonctionnent la recherche et les abonnements.',ph:'Où et quel budget ?',lead:'Laissez un contact — on vous rappelle',dir:'Destination (ex. Turquie)',bud:'Budget, UAH (ex. 30000)',when:'Quand cela vous intéresse (ex. octobre)',c1:'Contact 1 : téléphone / email / Telegram',c2:'Contact 2 : autre moyen de vous joindre (obligatoire)',consent:'J’accepte le traitement de mes contacts pour être recontacté au sujet des séjours. Révocable à tout moment.',send:'Envoyer',forget:'Supprimer mes données',fConfirm:'Supprimer vos données (contacts, historique du chat, rappels) ?',fDone:'Supprimé : ',fDoneEnd:'. Vos données sont effacées.',fFail:'Échec de la suppression.',need2:'Laissez deux moyens de contact pour vous joindre plus sûrement.',needConsent:'Cochez le consentement au traitement des contacts.',sending:'Envoi…',thanks:'Merci ! Nous vous recontacterons.',ack:'Contact reçu — nous choisirons des options et vous écrirons. Merci !',failSend:'Échec de l’envoi.',errSend:'Erreur d’envoi.',errAns:'Impossible de répondre. Réessayez.',errNet:'Erreur réseau. Réessayez plus tard.',chips:['Turquie moins de 30k','Égypte tout compris','Mer en octobre','Comment marchent les abonnements ?']},
+    de:{sub:'· Reise-Auswahl',greet:'Hallo! Ich helfe dir, eine Reise zu finden. Nenne Ziel und Budget — oder frage, wie Suche und Abos funktionieren.',ph:'Wohin und welches Budget?',lead:'Kontakt hinterlassen — wir melden uns',dir:'Ziel (z. B. Türkei)',bud:'Budget, UAH (z. B. 30000)',when:'Wann interessant (z. B. Oktober)',c1:'Kontakt 1: Telefon / E-Mail / Telegram',c2:'Kontakt 2: weitere Kontaktmöglichkeit (erforderlich)',consent:'Ich stimme der Verarbeitung meiner Kontakte zu, um zu Reiseangeboten kontaktiert zu werden. Jederzeit widerrufbar.',send:'Senden',forget:'Meine Daten löschen',fConfirm:'Ihre Daten löschen (Kontakte, Chatverlauf, Erinnerungen)?',fDone:'Gelöscht: ',fDoneEnd:'. Ihre Daten wurden entfernt.',fFail:'Löschen fehlgeschlagen.',need2:'Bitte zwei Kontaktwege angeben, damit wir Sie sicher erreichen.',needConsent:'Bitte die Einwilligung ankreuzen.',sending:'Senden…',thanks:'Danke! Wir melden uns.',ack:'Kontakt erhalten — wir wählen Optionen und schreiben dir. Danke!',failSend:'Senden fehlgeschlagen.',errSend:'Sendefehler.',errAns:'Konnte nicht antworten. Bitte erneut versuchen.',errNet:'Netzwerkfehler. Später erneut versuchen.',chips:['Türkei unter 30k','Ägypten All-inclusive','Meer im Oktober','Wie funktionieren Abos?']},
+    ja:{sub:'· ツアー提案',greet:'こんにちは！ツアー選びをお手伝いします。行き先と予算を教えてください。検索や通知の使い方も聞けます。',ph:'行き先と予算は？',lead:'連絡先を残す — 担当者から連絡します',dir:'行き先（例：トルコ）',bud:'予算 UAH（例：30000）',when:'希望時期（例：10月）',c1:'連絡先1：電話 / メール / Telegram',c2:'連絡先2：別の連絡方法（必須）',consent:'ツアーのご案内のため連絡先の処理に同意します。いつでも撤回できます。',send:'送信',forget:'データを削除',fConfirm:'データ（連絡先・チャット履歴・リマインダー）を削除しますか？',fDone:'削除しました：',fDoneEnd:'。データは消去されました。',fFail:'削除できませんでした。',need2:'確実に連絡できるよう、連絡方法を2つ残してください。',needConsent:'連絡先処理への同意にチェックしてください。',sending:'送信中…',thanks:'ありがとうございます！ご連絡します。',ack:'連絡先を受け取りました。候補を選んでご連絡します。ありがとうございます！',failSend:'送信できませんでした。',errSend:'送信エラー。',errAns:'回答できませんでした。もう一度お試しください。',errNet:'ネットワークエラー。後でお試しください。',chips:['トルコ 3万以下','エジプト オールインクルーシブ','10月の海','通知の使い方は？']},
+    it:{sub:'· selezione viaggi',greet:'Ciao! Ti aiuto a trovare un viaggio. Dimmi destinazione e budget — o chiedi come funzionano ricerca e iscrizioni.',ph:'Dove e con che budget?',lead:'Lascia un contatto — ti ricontattiamo',dir:'Destinazione (es. Turchia)',bud:'Budget, UAH (es. 30000)',when:'Quando ti interessa (es. ottobre)',c1:'Contatto 1: telefono / email / Telegram',c2:'Contatto 2: altro modo per contattarti (obbligatorio)',consent:'Acconsento al trattamento dei contatti per essere ricontattato sui viaggi. Revocabile in qualsiasi momento.',send:'Invia',forget:'Elimina i miei dati',fConfirm:'Eliminare i tuoi dati (contatti, cronologia chat, promemoria)?',fDone:'Eliminati: ',fDoneEnd:'. I tuoi dati sono stati cancellati.',fFail:'Impossibile eliminare.',need2:'Lascia due modi di contatto così ti raggiungiamo con certezza.',needConsent:'Spunta il consenso al trattamento dei contatti.',sending:'Invio…',thanks:'Grazie! Ti ricontatteremo.',ack:'Contatto ricevuto — sceglieremo le opzioni e ti scriveremo. Grazie!',failSend:'Invio non riuscito.',errSend:'Errore di invio.',errAns:'Non sono riuscito a rispondere. Riprova.',errNet:'Errore di rete. Riprova più tardi.',chips:['Turchia sotto 30k','Egitto all inclusive','Mare a ottobre','Come funzionano le iscrizioni?']},
+    pt:{sub:'· seleção de viagens',greet:'Olá! Posso ajudar a encontrar uma viagem. Diga destino e orçamento — ou pergunte como funcionam a busca e as inscrições.',ph:'Para onde e qual orçamento?',lead:'Deixe um contato — entraremos em contato',dir:'Destino (ex. Turquia)',bud:'Orçamento, UAH (ex. 30000)',when:'Quando tem interesse (ex. outubro)',c1:'Contato 1: telefone / email / Telegram',c2:'Contato 2: outra forma de contato (obrigatório)',consent:'Concordo com o tratamento dos meus contatos para ser contatado sobre viagens. Revogável a qualquer momento.',send:'Enviar',forget:'Excluir meus dados',fConfirm:'Excluir seus dados (contatos, histórico do chat, lembretes)?',fDone:'Excluídos: ',fDoneEnd:'. Seus dados foram apagados.',fFail:'Não foi possível excluir.',need2:'Deixe duas formas de contato para falarmos com você com segurança.',needConsent:'Marque o consentimento para tratamento dos contatos.',sending:'Enviando…',thanks:'Obrigado! Entraremos em contato.',ack:'Contato recebido — vamos escolher opções e escrever para você. Obrigado!',failSend:'Não foi possível enviar.',errSend:'Erro ao enviar.',errAns:'Não consegui responder. Tente novamente.',errNet:'Erro de rede. Tente mais tarde.',chips:['Turquia até 30k','Egito tudo incluído','Mar em outubro','Como funcionam as inscrições?']},
+    es:{sub:'· selección de viajes',greet:'¡Hola! Puedo ayudarte a encontrar un viaje. Dime destino y presupuesto — o pregunta cómo funcionan la búsqueda y las suscripciones.',ph:'¿A dónde y con qué presupuesto?',lead:'Deja un contacto — te contactamos',dir:'Destino (ej. Turquía)',bud:'Presupuesto, UAH (ej. 30000)',when:'Cuándo te interesa (ej. octubre)',c1:'Contacto 1: teléfono / email / Telegram',c2:'Contacto 2: otra forma de contacto (obligatorio)',consent:'Acepto el tratamiento de mis contactos para que me contacten sobre viajes. Revocable en cualquier momento.',send:'Enviar',forget:'Eliminar mis datos',fConfirm:'¿Eliminar tus datos (contactos, historial del chat, recordatorios)?',fDone:'Eliminados: ',fDoneEnd:'. Tus datos fueron borrados.',fFail:'No se pudo eliminar.',need2:'Deja dos formas de contacto para localizarte con seguridad.',needConsent:'Marca el consentimiento para el tratamiento de contactos.',sending:'Enviando…',thanks:'¡Gracias! Te contactaremos.',ack:'Contacto recibido — elegiremos opciones y te escribiremos. ¡Gracias!',failSend:'No se pudo enviar.',errSend:'Error al enviar.',errAns:'No pude responder. Inténtalo de nuevo.',errNet:'Error de red. Inténtalo más tarde.',chips:['Turquía hasta 30k','Egipto todo incluido','Mar en octubre','¿Cómo funcionan las suscripciones?']}
+  };
+  var CT=I18N[LANG]||I18N.en;
+  var history=[]; var opened=false; var greeted=false;
+  var CHIPS=CT.chips;
+  function money(n){return Number(n).toLocaleString('uk-UA')+' грн';}
+  function addMsg(role,text){ var d=document.createElement('div'); d.className='orb-m '+(role==='user'?'u':'a'); d.textContent=text; $('#orbMsgs').appendChild(d); $('#orbMsgs').scrollTop=1e9; }
+  function addTours(tours){ (tours||[]).forEach(function(t){ var a=document.createElement('a'); a.className='orb-card'; a.href=t.link||'/hot-tours'; a.target='_blank'; a.rel='nofollow sponsored noopener';
+    var oldp=t.oldPriceUAH?'<s>'+money(t.oldPriceUAH)+'</s>':''; var disc=t.discountPct>0?(' · −'+t.discountPct+'%'):'';
+    a.innerHTML='<div>'+esc(t.hotel||t.city)+' · '+(t.stars||0)+'★ — '+esc(t.city)+', '+esc(t.country||'')+'</div><div class="p">'+oldp+money(t.priceUAH)+disc+'</div>';
+    $('#orbMsgs').appendChild(a); }); $('#orbMsgs').scrollTop=1e9; }
+  function chips(){ $('#orbChips').innerHTML=CHIPS.map(function(c){return '<button>'+esc(c)+'</button>';}).join(''); }
+  function greetMsg(){ history.push({role:'assistant',content:CT.greet}); addMsg('assistant',CT.greet); }
+  function restore(){
+    fetch('/api/chat/history?sub='+encodeURIComponent(SUB)).then(function(r){return r.ok?r.json():null;}).then(function(j){
+      var msgs=(j&&j.messages)||[];
+      if(msgs.length){ msgs.forEach(function(m){ if(m.role==='user'||m.role==='assistant'){ history.push({role:m.role,content:m.content}); addMsg(m.role,m.content); } }); }
+      else { greetMsg(); }
+      chips();
+    }).catch(function(){ greetMsg(); chips(); });
+  }
+  function open(){ $('#orbPanel').hidden=false; opened=true; $('#orbDot').hidden=true; if(!greeted){ greeted=true; restore(); } $('#orbInput').focus(); }
+  function close(){ $('#orbPanel').hidden=true; }
+  function send(text){ text=(text||$('#orbInput').value).trim(); if(!text)return; $('#orbInput').value='';
+    history.push({role:'user',content:text}); addMsg('user',text); $('#orbChips').innerHTML='';
+    var typing=document.createElement('div'); typing.className='orb-m a'; typing.textContent='…'; $('#orbMsgs').appendChild(typing);
+    fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({messages:history.slice(-10),sub:SUB,lang:LANG})})
+      .then(function(r){return r.ok?r.json():null;}).then(function(j){ typing.remove();
+        if(!j){ addMsg('assistant',CT.errAns); return; }
+        history.push({role:'assistant',content:j.reply||''}); addMsg('assistant',j.reply||''); addTours(j.tours); chips();
+      }).catch(function(){ typing.remove(); addMsg('assistant',CT.errNet); }); }
+  function sendLead(){
+    var contacts=[$('#lC1').value, $('#lC2').value].map(function(x){return x.trim();}).filter(Boolean);
+    if(!$('#lConsent').checked){ $('#lMsg').textContent=CT.needConsent; return; }
+    if(contacts.length<2){ $('#lMsg').textContent=CT.need2; return; }
+    $('#lMsg').textContent=CT.sending;
+    fetch('/api/chat/lead',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+      sub:SUB, direction:$('#lDir').value.trim(), budget:$('#lBud').value.trim(), when:$('#lWhen').value.trim(),
+      contacts:contacts, consent:true, hp:$('#lHp').value })})
+      .then(function(r){return r.ok?r.json():null;}).then(function(j){
+        if(j&&j.ok){ $('#lMsg').textContent=CT.thanks; $('#orbLead').hidden=true; addMsg('assistant',CT.ack); }
+        else { $('#lMsg').textContent=(j&&j.message)||CT.failSend; }
+      }).catch(function(){ $('#lMsg').textContent=CT.errSend; });
+  }
+  function localizeStatic(){
+    var q=function(s){return $(s);};
+    var subEl=q('#orbPanel .orb-head .s'); if(subEl) subEl.textContent=CT.sub;
+    var inp=q('#orbInput'); if(inp) inp.placeholder=CT.ph;
+    var lt=q('#orbLeadToggle'); if(lt) lt.textContent=CT.lead;
+    var m={ '#lDir':CT.dir,'#lBud':CT.bud,'#lWhen':CT.when,'#lC1':CT.c1,'#lC2':CT.c2 };
+    Object.keys(m).forEach(function(k){ var e=q(k); if(e) e.placeholder=m[k]; });
+    var lc=q('#lConsent'); if(lc&&lc.parentNode&&lc.parentNode.lastChild) lc.parentNode.lastChild.nodeValue=' '+CT.consent;
+    var ls=q('#lSend'); if(ls) ls.textContent=CT.send;
+    var fg=q('#orbForget'); if(fg) fg.textContent=CT.forget;
+  }
+  var bub=$('#orbBubble'); if(bub){
+    localizeStatic();
+    bub.onclick=function(){ $('#orbPanel').hidden?open():close(); };
+    $('#orbClose').onclick=close;
+    $('#orbSend').onclick=function(){ send(); };
+    $('#orbInput').addEventListener('keydown',function(e){ if(e.key==='Enter') send(); });
+    $('#orbChips').addEventListener('click',function(e){ var b=e.target.closest('button'); if(b) send(b.textContent); });
+    $('#orbLeadToggle').onclick=function(){ var l=$('#orbLead'); l.hidden=!l.hidden; };
+    $('#lSend').onclick=sendLead;
+    var fg=$('#orbForget'); if(fg) fg.onclick=function(){
+      if(!confirm(CT.fConfirm)) return;
+      fetch('/api/chat/forget',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({sub:SUB})})
+        .then(function(r){return r.ok?r.json():null;}).then(function(j){ $('#lMsg').textContent=(j&&j.ok)?(CT.fDone+j.deleted+CT.fDoneEnd):CT.fFail; });
+    };
+    setTimeout(function(){ if(!opened) $('#orbDot').hidden=false; },12000);   // proactive unread badge
+  }
+})();
+</script>
 </body>
 </html>

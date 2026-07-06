@@ -14,6 +14,12 @@ import { DealsModule } from './deals/deals.module';
 import { EsimModule } from './esim/esim.module';
 import { AudioModule } from './audio/audio.module';
 import { PublishModule } from './publish/publish.module';
+import { HotToursModule } from './hottours/hottours.module';
+import { SearchModule } from './search/search.module';
+import { TelegramModule } from './telegram/telegram.module';
+import { ChatModule } from './chat/chat.module';
+import { EmbeddingsModule } from './embeddings/embeddings.module';
+import { BlogModule } from './blog/blog.module';
 import { LegalModule } from './legal/legal.module';
 import { CineModule } from './cine/cine.module';
 import { ReelModule } from './reel/reel.module';
@@ -37,6 +43,12 @@ import { FrontendModule } from './frontend/frontend.module';
     EsimModule,
     AudioModule,
     PublishModule,
+    HotToursModule,
+    SearchModule,
+    TelegramModule,
+    ChatModule,
+    EmbeddingsModule,
+    BlogModule,
     LegalModule,
     CineModule,
     ReelModule,

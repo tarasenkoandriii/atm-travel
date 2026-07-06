@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Сохранённые ролики · ATM-travel</title>
+<style>
+  :root{--bg:#070c12;--panel:#0b131c;--line:#1b2734;--text:#e7eef4;--muted:#7d8b99;--cyan:#4fd7e0;--cyan-dim:#256e74;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,'Segoe UI',sans-serif;}
+  .wrap{max-width:1000px;margin:0 auto;padding:22px 16px 70px;}
+  .top{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+  .brand{font-weight:800;color:var(--cyan);} .sub{color:var(--muted);font-size:13px;}
+  a.plain{color:var(--cyan);text-decoration:none;}
+  h1{font-size:19px;margin:16px 0 4px;}
+  label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;}
+  input{background:#0c1420;color:var(--text);border:1px solid var(--line);border-radius:9px;padding:9px 11px;font:inherit;width:100%;}
+  .btn{border:1px solid var(--cyan-dim);background:#0c1726;color:var(--cyan);border-radius:9px;padding:9px 14px;cursor:pointer;font:inherit;font-size:13px;text-decoration:none;display:inline-flex;align-items:center;gap:6px;}
+  .btn:hover{background:#103049;border-color:var(--cyan);}
+  .filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:16px;align-items:end;}
+  .filters .act{display:flex;gap:8px;}
+  .card{border:1px solid var(--line);background:var(--panel);border-radius:14px;padding:14px;margin-top:14px;}
+  .card .h{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap;}
+  .card .h b{font-size:16px;}
+  .route{font-family:ui-monospace,'Space Mono',monospace;font-size:13px;color:var(--cyan);}
+  .meta{font-family:ui-monospace,'Space Mono',monospace;font-size:12px;color:var(--muted);margin-top:5px;}
+  .fmts{margin-top:9px;display:flex;gap:8px;flex-wrap:wrap;}
+  .fmts a{border:1px solid var(--cyan-dim);border-radius:8px;padding:5px 10px;font-size:12px;color:var(--cyan);text-decoration:none;font-family:ui-monospace,monospace;}
+  .fmts a:hover{background:#103049;}
+  .empty{color:var(--muted);padding:26px 4px;}
+  .gate{margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;align-items:end;}
+  .gate>div{min-width:220px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div><span class="brand">ATM·travel</span> <span class="sub">· сохранённые ролики</span></div>
+    <a class="plain" href="/hot-admin">← админка</a>
+  </div>
+  <h1>Ролики для адресной рекламы</h1>
+  <div class="sub">Привязка к строгим id городов (IATA / Hotellook) вылета и прибытия и датам тура.</div>
+
+  <div class="gate">
+    <div><label>admin-токен</label><input id="key" type="password" placeholder="токен"></div>
+    <button class="btn" id="enter">Войти</button>
+  </div>
+
+  <div class="filters" id="filters" style="display:none">
+    <div><label>Откуда (IATA/город)</label><input id="fOrigin" placeholder="IEV / Київ"></div>
+    <div><label>Куда (IATA/город)</label><input id="fDest" placeholder="AYT / Анталья"></div>
+    <div><label>Вылет с</label><input id="fFrom" type="date"></div>
+    <div><label>Вылет по</label><input id="fTo" type="date"></div>
+    <div class="act"><button class="btn" id="apply">Фильтр</button><button class="btn" id="reset">Сброс</button></div>
+  </div>
+
+  <div id="list"></div>
+</div>
+
+<script>
+var $ = function(s){ return document.querySelector(s); };
+var esc = function(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); };
+function dfmt(d){ if(!d) return '—'; return new Date(d).toLocaleDateString('uk-UA'); }
+var KEY = localStorage.getItem('htAdminKey') || '';
+if(KEY) $('#key').value = KEY;
+
+function render(reels){
+  var box = $('#list');
+  if(!reels.length){ box.innerHTML = '<div class="empty">Ролики не найдены.</div>'; return; }
+  box.innerHTML = reels.map(function(r){
+    var fmts = r.formats && typeof r.formats==='object' ? Object.keys(r.formats) : [];
+    var links = fmts.map(function(k){ return '<a href="'+esc(r.formats[k])+'" target="_blank" rel="noopener">'+esc(k)+' ↗</a>'; }).join('');
+    var tour = r.tour || {};
+    var tourLine = tour.hotel ? (esc(tour.hotel)+' · '+(tour.stars||0)+'★ · '+(tour.priceUAH?Number(tour.priceUAH).toLocaleString('uk-UA')+' грн':'')+(tour.discountPct?(' · −'+tour.discountPct+'%'):'')) : '';
+    var vurl = r.formats && typeof r.formats==='object' ? (r.formats['9:16'] || r.formats[fmts[0]]) : '';
+    var href = r.clipSetId ? ('/publish?pkg='+encodeURIComponent(r.clipSetId)) : (vurl ? ('/publish?video='+encodeURIComponent(vurl)+'&title='+encodeURIComponent(r.title||'')) : '');
+    var fwd = href ? '<a class="btn fwd" href="'+href+'" target="_blank" rel="noopener">↗ переслать в сети</a>' : '';
+    return '<div class="card"><div class="h"><b>'+esc(r.title||'Ролик')+'</b>'+
+      '<span class="route">'+esc(r.originCityId||r.originLabel||'—')+' → '+esc(r.destCityId||r.destLabel||'—')+'</span></div>'+
+      '<div class="meta">'+esc(r.originLabel||'')+' → '+esc(r.destLabel||'')+' · вылет '+dfmt(r.departDate)+(r.returnDate?(' – '+dfmt(r.returnDate)):'')+' · создан '+dfmt(r.createdAt)+'</div>'+
+      (tourLine?'<div class="meta">'+tourLine+'</div>':'')+
+      (links?'<div class="fmts">'+links+'</div>':'')+
+      (fwd?'<div style="margin-top:9px">'+fwd+'</div>':'')+'</div>';
+  }).join('');
+}
+
+function load(){
+  KEY = $('#key').value.trim(); if(!KEY) return;
+  localStorage.setItem('htAdminKey', KEY);
+  $('#filters').style.display='grid';
+  var q = 'key='+encodeURIComponent(KEY);
+  var o=$('#fOrigin').value.trim(), d=$('#fDest').value.trim(), f=$('#fFrom').value, t=$('#fTo').value;
+  if(o) q+='&origin='+encodeURIComponent(o);
+  if(d) q+='&dest='+encodeURIComponent(d);
+  if(f) q+='&from='+encodeURIComponent(f);
+  if(t) q+='&to='+encodeURIComponent(t);
+  $('#list').innerHTML='<div class="empty">Загрузка…</div>';
+  fetch('/api/reels/list?'+q).then(function(r){
+    if(r.status===401){ $('#list').innerHTML='<div class="empty">Неверный токен.</div>'; return null; }
+    return r.ok?r.json():null;
+  }).then(function(j){ if(j) render(j.reels||[]); }).catch(function(){ $('#list').innerHTML='<div class="empty">Ошибка загрузки.</div>'; });
+}
+
+$('#enter').onclick = load;
+$('#key').addEventListener('keydown', function(e){ if(e.key==='Enter') load(); });
+$('#apply').onclick = load;
+$('#reset').onclick = function(){ $('#fOrigin').value=''; $('#fDest').value=''; $('#fFrom').value=''; $('#fTo').value=''; load(); };
+if(KEY) load();
+</script>
+</body>
+</html>

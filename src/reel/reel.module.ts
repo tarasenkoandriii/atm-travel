@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ReelController } from './reel.controller';
 import { AudioModule } from '../audio/audio.module';
+import { HotToursModule } from '../hottours/hottours.module';
 
-@Module({ imports: [AudioModule], controllers: [ReelController] })
+@Module({ imports: [AudioModule, HotToursModule], controllers: [ReelController] })
 export class ReelModule {}

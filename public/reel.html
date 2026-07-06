@@ -100,6 +100,22 @@
       <div style="margin-top:12px"><label>Рекомендации по улучшению</label><textarea id="recs" rows="7"></textarea></div>
       <div style="margin-top:10px"><label>Статья для блога</label><textarea id="article" rows="9"></textarea></div>
     </div>
+
+    <div id="tourBox" style="margin-top:18px;border-top:1px solid #1b2734;padding-top:14px">
+      <label>Тур / отель / перелёт по направлению (опционально — слайды с ценой)</label>
+      <div class="grid" style="margin-top:8px">
+        <div><label>Откуда (город вылета)</label><input id="rOrigin" placeholder="Київ"></div>
+        <div><label>Куда (город прибытия)</label><input id="rDest" placeholder="Хургада"></div>
+        <div><label>Вылет</label><input id="rDepart" type="date"></div>
+        <div><label>Возврат</label><input id="rReturn" type="date"></div>
+      </div>
+      <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <button type="button" class="mini" id="loadTours">🔎 загрузить предложения</button>
+        <select id="tourSel" style="flex:1;min-width:200px;background:#0c1420;color:#e7eef4;border:1px solid #1b2734;border-radius:8px;padding:8px"></select>
+        <button type="button" class="mini" id="addTourSlides">＋ слайды тура</button>
+      </div>
+      <div class="muted" id="tourMsg" style="margin-top:6px"></div>
+    </div>
   </div>
 
   <p class="muted" style="margin-top:12px">Порядок: <b>intro (глобус)</b> → нарезка сток-клипов по битам → <b>live-камера</b>, поверх — overlay (погода/оффер) и музыка. ffmpeg.wasm жмёт в x264/mp4, результат — в Vercel Blob.</p>
@@ -203,17 +219,31 @@ const gc = () => host.querySelector('canvas');
 const easeInOut = t => t * t * t * (t * (t * 6 - 15) + 10);
 
 // Record a globe fly-to as a WebM blob at a given size/duration — this is the manifest's `intro`.
-function recordIntro(w, h, seconds, lat, lng, fps) {
+function recordIntro(w, h, seconds, lat, lng, fps, geoLabel) {
   return new Promise(resolve => {
     G.width(w); G.height(h); host.style.width = w + 'px'; host.style.height = h + 'px';
     G.ringsData([{ lat, lng }]).pointsData([{ lat, lng }]).pointColor(() => '#f2b64c').pointAltitude(0.01).pointRadius(0.5);
-    const stream = gc().captureStream(fps || 30);
+    // Composite the globe onto a 2D canvas so we can burn in a geo plate (name label). No weather widget.
+    const cc = document.createElement('canvas'); cc.width = w; cc.height = h; const cx = cc.getContext('2d');
+    const stream = cc.captureStream(fps || 30);
     const rec = new MediaRecorder(stream, { mimeType: MIME, videoBitsPerSecond: 10_000_000 });
     const chunks = []; rec.ondataavailable = e => e.data.size && chunks.push(e.data);
     rec.onstop = () => resolve(new Blob(chunks, { type: 'video/webm' }));
     const start = { lat: lat - 6, lng: lng - 26, altitude: 2.5 }, end = { lat, lng, altitude: 0.62 };
     const driftDeg = 14;   // gentle continuous longitude glide, ramped in so it's a slow cinematic drift near the end
     const t0 = performance.now(), dur = seconds * 1000;
+    function plate(alpha) {
+      if (!geoLabel) return;
+      const fs = Math.round(h * 0.032);
+      cx.font = "600 " + fs + "px 'Space Grotesk', system-ui, sans-serif";
+      const tw = cx.measureText(geoLabel).width, padX = h * 0.024, bw = tw + padX * 2 + h * 0.02, bh = h * 0.062;
+      const bx = (w - bw) / 2, by = h - bh - h * 0.07, r = bh / 2;
+      cx.globalAlpha = alpha; cx.fillStyle = 'rgba(9,16,24,.72)';
+      cx.beginPath(); cx.moveTo(bx + r, by); cx.arcTo(bx + bw, by, bx + bw, by + bh, r); cx.arcTo(bx + bw, by + bh, bx, by + bh, r); cx.arcTo(bx, by + bh, bx, by, r); cx.arcTo(bx, by, bx + bw, by, r); cx.closePath(); cx.fill();
+      cx.fillStyle = '#f2b64c'; cx.beginPath(); cx.arc(bx + padX, by + bh / 2, h * 0.008, 0, 7); cx.fill();
+      cx.fillStyle = '#eef4f8'; cx.textBaseline = 'middle'; cx.fillText(geoLabel, bx + padX + h * 0.02, by + bh / 2);
+      cx.globalAlpha = 1;
+    }
     G.pointOfView(start, 0); rec.start();
     (function loop() {
       const t = Math.min(1, (performance.now() - t0) / dur), e = easeInOut(t);
@@ -223,6 +253,9 @@ function recordIntro(w, h, seconds, lat, lng, fps) {
         lng: start.lng + (end.lng - start.lng) * e + drift,
         altitude: start.altitude + (end.altitude - start.altitude) * e,
       }, 0);
+      cx.fillStyle = '#05080c'; cx.fillRect(0, 0, w, h);
+      try { cx.drawImage(gc(), 0, 0, w, h); } catch (err) {}
+      plate(Math.min(1, t * 2.5));   // fade the geo plate in
       if (t < 1) requestAnimationFrame(loop); else setTimeout(() => rec.stop(), 120);
     })();
   });
@@ -292,8 +325,9 @@ async function newFF() {
 async function getManifest(introSecOverride) {
   const url = $('#manifestUrl').value.trim();
   if (url) { const m = await fetch(url).then(r => r.json()); return m; }
+  const wantIntro = qs.get('intro') !== '0';   // blog can disable the globe intro; reels keep it on by default
   const lat = num($('#lat').value, NaN), lng = num($('#lng').value, NaN);
-  if (isNaN(lat) || isNaN(lng)) throw new Error('нужны Lat/Lng или Manifest URL');
+  if (wantIntro && (isNaN(lat) || isNaN(lng))) throw new Error('нужны Lat/Lng или Manifest URL');
   let clips = liveVideo().map(t => ({ url: t.url, provider: t.provider, id: t.id, attribution: t.attribution, tags: t.tags }));
   // Auto-source B-roll if the table has no live clips and a provider key is configured.
   if (!clips.length) {
@@ -314,7 +348,8 @@ async function getManifest(introSecOverride) {
   const baseFps = num($('#fps').value, 30);
   const fps = previewMode ? Math.max(4, Math.round(baseFps / 6)) : baseFps;   // preview = ÷6 fps (fast, rough)
   return buildDefaultManifest({
-    destination: { id: (qs.get('cam') || 'geo'), name: $('#title').value.trim() || 'Destination', coords: { lat, lng } },
+    destination: { id: (qs.get('cam') || 'geo'), name: $('#title').value.trim() || 'Destination', coords: { lat: isNaN(lat) ? 0 : lat, lng: isNaN(lng) ? 0 : lng } },
+    intro: wantIntro,
     formats: FORMATS, fps, bpm: num($('#bpm').value, 120),
     music, overlay, clips,
     introSec: introSecOverride || undefined,
@@ -495,9 +530,9 @@ async function run() {
           catch (e) { log('cine-интро ' + fmt.name + ': ' + (e.message || e)); }
         } else log('нет cine-клипа для ' + fmt.name + ' — запишу глобус');
       }
-      if (!introBlob) {
+      if (!introBlob && intro) {
         setStatus('Формат ' + fmt.name + ' — intro (глобус)…');
-        introBlob = await recordIntro(fmt.w, fmt.h, introSec, lat, lng, m.render.fps);
+        introBlob = await recordIntro(fmt.w, fmt.h, introSec, lat, lng, m.render.fps, qs.get('geo') || m.destination.name);
         introExt = 'webm';
       }
 
@@ -530,6 +565,7 @@ async function run() {
       try {
         const rec = await fetch('/api/cine', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lat, lng, dur: m.timeline[m.timeline.length - 1].outEnd, title: m.destination.name, items: up.map(i => ({ format: i.fmt, url: i.url })) }) }).then(r => r.json());
         if (rec.id) { lastSetId = rec.id; $('#publish').disabled = false; }
+        saveReel(rec.id, m, up);   // persist reel with origin/dest + dates (targeted ads)
         setStatus((up.length === n ? 'Готово · ' : 'Загружено ' + up.length + '/' + n + ' · ') + (rec.id ? 'набор: /api/cine/' + rec.id : ''));
       } catch (e) {}
     } else setStatus('Не удалось загрузить: ' + (lastErr || 'ошибка сервера') + ' — файлы можно скачать ниже.');
@@ -567,6 +603,161 @@ $('#publish').onclick = () => {
   try { window.close(); } catch (e) {}   // close current tab (browsers may block if it wasn't script-opened)
 };
 $('#preview').onclick = () => { previewMode = true; run(); };
+
+// ── Tour / hotel / flight slides + reel persistence ──
+let TOURS = [], SELECTED_TOUR = null;
+$('#loadTours').onclick = () => {
+  const cc = (qs.get('cc') || '').trim();
+  $('#tourMsg').textContent = 'Загрузка предложений…';
+  fetch('/api/reels/tours' + (cc ? ('?cc=' + encodeURIComponent(cc)) : '')).then(r => r.ok ? r.json() : null).then(j => {
+    TOURS = (j && j.tours) || []; const sel = $('#tourSel');
+    if (!TOURS.length) { sel.innerHTML = '<option value="">нет предложений</option>'; $('#tourMsg').textContent = 'По направлению нет активных туров.'; return; }
+    sel.innerHTML = TOURS.map((t, i) => { const d = t.discountPct > 0 ? (' −' + t.discountPct + '%') : ''; return '<option value="' + i + '">' + (t.hotel || t.city) + ' · ' + (t.stars || 0) + '★ · ' + Number(t.priceUAH).toLocaleString('uk-UA') + ' грн' + d + ' · ' + (t.city || '') + '</option>'; }).join('');
+    $('#tourMsg').textContent = 'Найдено предложений: ' + TOURS.length;
+  }).catch(() => { $('#tourMsg').textContent = 'Ошибка загрузки предложений.'; });
+};
+
+// Render a text price-card on a canvas and capture it to a short WebM clip (same path as the globe intro).
+function makeCardClip(lines, opts) {
+  opts = opts || {}; const seconds = opts.seconds || 3.0, accent = '#4fd7e0';
+  return new Promise(resolve => {
+    const w = 1280, h = 720, cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+    const cx = cv.getContext('2d');
+    const rec = new MediaRecorder(cv.captureStream(30), { mimeType: MIME, videoBitsPerSecond: 8_000_000 });
+    const chunks = []; rec.ondataavailable = e => e.data.size && chunks.push(e.data);
+    rec.onstop = () => resolve(URL.createObjectURL(new Blob(chunks, { type: 'video/webm' })));
+    const t0 = performance.now(), dur = seconds * 1000;
+    rec.start();
+    (function loop() {
+      const t = Math.min(1, (performance.now() - t0) / dur);
+      const g = cx.createLinearGradient(0, 0, w, h); g.addColorStop(0, '#070c12'); g.addColorStop(1, '#0b1a24');
+      cx.fillStyle = g; cx.fillRect(0, 0, w, h);
+      cx.fillStyle = accent; cx.fillRect(90, 150, 6, 300);
+      cx.textBaseline = 'alphabetic'; let y = 300;
+      lines.forEach((ln, i) => {
+        cx.fillStyle = ln.accent ? accent : (i === 0 ? '#e7eef4' : '#c8d3dd');
+        cx.font = (ln.size || (i === 0 ? 64 : 44)) + "px 'Space Grotesk', system-ui, sans-serif";
+        cx.fillText(String(ln.text != null ? ln.text : ln), 120, y); y += (ln.size || (i === 0 ? 64 : 44)) + 26;
+      });
+      cx.fillStyle = accent; cx.fillRect(120, h - 90, (w - 240) * t, 5);   // animating underline → guarantees frame diffs
+      if (performance.now() - t0 < dur) requestAnimationFrame(loop); else setTimeout(() => rec.stop(), 100);
+    })();
+  });
+}
+
+$('#addTourSlides').onclick = async () => {
+  const t = TOURS[+$('#tourSel').value]; if (!t) { $('#tourMsg').textContent = 'Выберите предложение.'; return; }
+  SELECTED_TOUR = t;
+  $('#rOrigin').value = t.departureCity || $('#rOrigin').value;
+  $('#rDest').value = t.city || $('#rDest').value;
+  if (t.departureDate) { const d = new Date(t.departureDate); $('#rDepart').value = d.toISOString().slice(0, 10); if (t.nights) $('#rReturn').value = new Date(d.getTime() + t.nights * 864e5).toISOString().slice(0, 10); }
+  const price = Number(t.priceUAH).toLocaleString('uk-UA');
+  const oldp = t.oldPriceUAH ? Number(t.oldPriceUAH).toLocaleString('uk-UA') : null;
+  const dt = t.departureDate ? new Date(t.departureDate).toLocaleDateString('uk-UA') : '';
+  const cards = [
+    [{ text: (t.city || 'Тур') + ', ' + (t.country || ''), size: 62 }, { text: (t.hotel || 'Отель') + ' · ' + (t.stars || 0) + '★', size: 44 }],
+    [{ text: 'Цена тура', size: 44 }, { text: price + ' грн', size: 84, accent: true }].concat(oldp ? [{ text: 'вместо ' + oldp + ' грн' + (t.discountPct ? (' · −' + t.discountPct + '%') : ''), size: 36 }] : []),
+    [{ text: 'Вылет из ' + (t.departureCity || '—'), size: 44 }, { text: dt + (t.nights ? (' · ' + t.nights + ' ноч.') : ''), size: 54, accent: true }],
+  ];
+  $('#addTourSlides').disabled = true; $('#tourMsg').textContent = 'Рендер слайдов…';
+  try {
+    for (let c = 0; c < cards.length; c++) { const url = await makeCardClip(cards[c]); videoTracks.push({ url, provider: 'tour-card', id: 'card-' + Date.now() + '-' + c, attribution: '', tags: ['tour'], deleted: false }); }
+    renderTracks(); $('#tourMsg').textContent = 'Добавлено слайдов: ' + cards.length + ' · id направления: ' + (t.destIata || t.destCityId || '—') + (t.originIata ? (' ← ' + t.originIata) : '');
+  } catch (e) { $('#tourMsg').textContent = 'Не удалось создать слайды: ' + (e.message || e); }
+  $('#addTourSlides').disabled = false;
+};
+
+// ── Blog mode: build a title card + photo slides with subtitles from a blog article (?blog=<id>&key=&music=) ──
+// Reuses the same canvas→MediaRecorder montage path as the tour slides; the ElevenLabs track comes in via ?music.
+function makeImageSlideClip(imgUrl, subtitle, seconds) {
+  return new Promise(resolve => {
+    const w = 1280, h = 720, cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+    const cx = cv.getContext('2d');
+    const rec = new MediaRecorder(cv.captureStream(30), { mimeType: MIME, videoBitsPerSecond: 8_000_000 });
+    const chunks = []; rec.ondataavailable = e => e.data.size && chunks.push(e.data);
+    rec.onstop = () => resolve(URL.createObjectURL(new Blob(chunks, { type: 'video/webm' })));
+    const img = new Image(); img.crossOrigin = 'anonymous';
+    const dur = (seconds || 3) * 1000;
+    function wrap(text, maxW) { const words = String(text).split(/\s+/); const lines = []; let ln = '';
+      cx.font = "36px 'Space Grotesk', system-ui, sans-serif";
+      words.forEach(wd => { const t = ln ? ln + ' ' + wd : wd; if (cx.measureText(t).width > maxW && ln) { lines.push(ln); ln = wd; } else ln = t; });
+      if (ln) lines.push(ln); return lines.slice(0, 4); }
+    function start() {
+      const t0 = performance.now(); rec.start();
+      (function loop() {
+        const t = Math.min(1, (performance.now() - t0) / dur);
+        cx.fillStyle = '#070c12'; cx.fillRect(0, 0, w, h);
+        if (img.complete && img.naturalWidth) { const s = Math.max(w / img.naturalWidth, h / img.naturalHeight); const iw = img.naturalWidth * s, ih = img.naturalHeight * s; cx.drawImage(img, (w - iw) / 2, (h - ih) / 2, iw, ih); }
+        const g = cx.createLinearGradient(0, h * 0.45, 0, h); g.addColorStop(0, 'rgba(7,12,18,0)'); g.addColorStop(1, 'rgba(7,12,18,.92)'); cx.fillStyle = g; cx.fillRect(0, h * 0.45, w, h * 0.55);
+        const lines = wrap(subtitle || '', w - 160); let y = h - 60 - (lines.length - 1) * 46;
+        cx.textBaseline = 'alphabetic'; cx.font = "36px 'Space Grotesk', system-ui, sans-serif";
+        lines.forEach(ln => { cx.fillStyle = '#eef4f8'; cx.fillText(ln, 80, y); y += 46; });
+        cx.fillStyle = '#4fd7e0'; cx.fillRect(80, h - 30, (w - 160) * t, 4);
+        if (performance.now() - t0 < dur) requestAnimationFrame(loop); else setTimeout(() => rec.stop(), 100);
+      })();
+    }
+    img.onload = start; img.onerror = start;
+    img.src = '/api/reels/proxy?url=' + encodeURIComponent(imgUrl);
+  });
+}
+
+async function initBlogMode() {
+  const blogId = qs.get('blog'); if (!blogId) return;
+  const key = qs.get('key') || '';
+  setStatus && setStatus('Загрузка статьи для монтажа…');
+  let m; try { m = await fetch('/api/blog/media?key=' + encodeURIComponent(key) + '&id=' + encodeURIComponent(blogId)).then(r => r.ok ? r.json() : null); } catch (e) { m = null; }
+  if (!m || !m.ok || !m.media) { setStatus && setStatus('Не удалось загрузить статью блога.'); return; }
+  const a = m.media;
+  try { $('#title') && ($('#title').value = a.h1 || ''); $('#rDest') && (a.topic) && ($('#rDest').value = a.topic); } catch (e) {}
+  // total duration follows the narration track if present, else a default
+  let total = 24;
+  if (a.audioUrl) { try { total = await new Promise((res) => { const au = new Audio(); au.preload = 'metadata'; au.onloadedmetadata = () => res(isFinite(au.duration) && au.duration ? au.duration : 24); au.onerror = () => res(24); au.src = a.audioUrl; setTimeout(() => res(24), 8000); }); } catch (e) {} }
+  const subs = (a.subtitles && a.subtitles.length) ? a.subtitles : [a.h1];
+  const imgs = (a.images && a.images.length) ? a.images : [];
+  const titleSec = Math.min(4, Math.max(2.5, total * 0.12));
+  const per = Math.max(2.4, (total - titleSec) / subs.length);
+  $('#addTourSlides') && ($('#addTourSlides').disabled = true);
+  setStatus && setStatus('Рендер слайдов статьи…');
+  try {
+    // 1) title card — large headline
+    const titleUrl = await makeCardClip([{ text: a.h1 || 'Статья', size: 62 }, { text: a.topic || '', size: 40 }], { seconds: titleSec });
+    videoTracks.push({ url: titleUrl, provider: 'blog-title', id: 'blogt-' + Date.now(), attribution: '', tags: ['blog'], deleted: false });
+    // 2) one slide per subtitle over the article photo(s)
+    for (let i = 0; i < subs.length; i++) {
+      const img = imgs.length ? imgs[i % imgs.length] : null;
+      const url = img ? await makeImageSlideClip(img, subs[i], per) : await makeCardClip([{ text: subs[i], size: 38 }], { seconds: per });
+      videoTracks.push({ url, provider: 'blog-slide', id: 'blogs-' + Date.now() + '-' + i, attribution: '', tags: ['blog'], deleted: false });
+    }
+    renderTracks && renderTracks();
+    // 3) make sure the narration track is the selected soundtrack (music was pushed from ?music)
+    if (a.audioUrl && typeof audioTracks !== 'undefined') { audioTracks.forEach(t => t.selected = (t.url === a.audioUrl)); if (!audioTracks.some(t => t.selected)) { audioTracks.push({ url: a.audioUrl, previewUrl: a.audioUrl, title: 'Озвучка', selected: true }); } renderTracks && renderTracks(); }
+    setStatus && setStatus('Слайды готовы (' + subs.length + '). Нажмите «Собрать ролик» — озвучка идёт параллельно. После — «Постить».');
+    window.__BLOG_ID = blogId; window.__BLOG_KEY = key;
+  } catch (e) { setStatus && setStatus('Ошибка монтажа блога: ' + (e && e.message || e)); }
+  $('#addTourSlides') && ($('#addTourSlides').disabled = false);
+}
+try { initBlogMode(); } catch (e) {}
+
+// Persist the produced reel with origin/destination + dates for later targeted ads.
+function saveReel(clipSetId, m, up) {
+  try {
+    const fmts = {}; (up || []).forEach(i => { if (i.url) fmts[i.fmt] = i.url; });
+    // Blog montage: also persist the produced video back onto the article so it becomes postable to all channels.
+    if (window.__BLOG_ID) {
+      const keys = Object.keys(fmts);
+      const vurl = fmts['9x16'] || fmts['vertical'] || (keys.find(k => /9/.test(k)) && fmts[keys.find(k => /9/.test(k))]) || fmts[keys[0]];
+      if (vurl) fetch('/api/blog/video', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: window.__BLOG_KEY || '', id: window.__BLOG_ID, videoUrl: vurl }) }).then(() => log && log('видео сохранено в статью блога')).catch(() => {});
+    }
+    fetch('/api/reels/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+      title: (m && m.destination && m.destination.name) || $('#title').value || null,
+      originCityId: (SELECTED_TOUR && SELECTED_TOUR.originIata) || $('#rOrigin').value.trim() || null,
+      destCityId: (SELECTED_TOUR && (SELECTED_TOUR.destIata || SELECTED_TOUR.destCityId)) || qs.get('cam') || $('#rDest').value.trim() || null,
+      originLabel: $('#rOrigin').value.trim() || null, destLabel: $('#rDest').value.trim() || (m && m.destination && m.destination.name) || null,
+      departDate: $('#rDepart').value || null, returnDate: $('#rReturn').value || null,
+      tour: SELECTED_TOUR || null, clipSetId: clipSetId || null, formats: fmts,
+    }) }).then(r => r.ok ? r.json() : null).then(j => { if (j && j.id) log('reel сохранён в БД: ' + j.id); }).catch(() => {});
+  } catch (e) {}
+}
 
 // ── Grok analysis: pull a few frames from the rendered video, send to the server, show score/recs/article ──
 async function grabFrames(blob, count) {

@@ -99,7 +99,7 @@ export function buildFilterComplex(m, formatName, opts = {}) {
 // ── Auto-build a manifest from simple inputs (for "everything automatic") ──
 // clips: [{url, shot?, tags?, attribution?}], beats derived from bpm. Segments snap to the beat grid.
 export function buildDefaultManifest({ destination, formats, fps = 30, bpm = 120, music = '', overlay = '',
-  introSec = 2.5, clipSec = 2.0, liveSec = 2.0, clips = [], livecam = null, lut = '' }) {
+  introSec = 2.5, clipSec = 2.0, liveSec = 2.0, clips = [], livecam = null, lut = '', intro = true }) {
   const beatDur = 60 / bpm;
   // build a dense beat grid up to a safe length
   const totalGuess = introSec + clips.length * clipSec + (livecam ? liveSec : 0) + 4;
@@ -118,7 +118,7 @@ export function buildDefaultManifest({ destination, formats, fps = 30, bpm = 120
     timeline.push(seg); cursor = end;
   };
 
-  push({ kind: 'intro', source: { provider: 'mediarecorder', id: 'globe-' + (destination.id || 'geo') }, srcIn: 0, transition: 'cut' }, introSec);
+  if (intro) push({ kind: 'intro', source: { provider: 'mediarecorder', id: 'globe-' + (destination.id || 'geo') }, srcIn: 0, transition: 'cut' }, introSec);
   const shots = ['establishing', 'hero', 'human_detail', 'emotional_peak'];
   clips.forEach((c, i) => push({
     kind: 'clip', shot: c.shot || shots[i % shots.length],
@@ -138,6 +138,6 @@ export function buildDefaultManifest({ destination, formats, fps = 30, bpm = 120
     render: { fps, lut, pixelFormat: 'yuv420p', crf: 20, formats },
     audio: { track: music, bpm, offset: 0, gainDb: -3, beats },
     timeline,
-    overlay: overlay ? { source: overlay, startAt: timeline[1]?.outStart ?? introSec, endAt: cursor } : { source: '', startAt: 0 },
+    overlay: overlay ? { source: overlay, startAt: (intro ? (timeline[1]?.outStart ?? introSec) : (timeline[0]?.outStart ?? 0)), endAt: cursor } : { source: '', startAt: 0 },
   };
 }

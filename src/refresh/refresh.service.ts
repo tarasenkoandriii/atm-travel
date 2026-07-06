@@ -8,6 +8,12 @@ import { DealsService } from '../deals/deals.service';
 import { CheckoutService } from '../esim/checkout/checkout.service';
 import { SnapshotService } from '../cameras/snapshot.service';
 import { LivenessService } from './liveness.service';
+import { HotToursService } from '../hottours/hottours.service';
+import { PublishJobsService } from '../publish/publish-jobs.service';
+import { SearchService } from '../search/search.service';
+import { EmbeddingService } from '../embeddings/embeddings.service';
+import { ChatService } from '../chat/chat.service';
+import { BlogService } from '../blog/blog.service';
 
 
 @Injectable()
@@ -23,6 +29,12 @@ export class RefreshService {
     private readonly snapshot: SnapshotService,
     private readonly deals: DealsService,
     private readonly checkout: CheckoutService,
+    private readonly hotTours: HotToursService,
+    private readonly publishJobs: PublishJobsService,
+    private readonly search: SearchService,
+    private readonly embeddings: EmbeddingService,
+    private readonly chat: ChatService,
+    private readonly blog: BlogService,
   ) {}
 
   async run(trigger: RefreshTrigger) {
@@ -72,6 +84,40 @@ export class RefreshService {
       await this.prisma.clipSet
         .deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 2 * 86400 * 1000) } } })
         .catch((e) => this.logger.warn(`ClipSet prune skipped: ${String(e)}`));
+
+      // Hot-tours: ingest feeds → expire stale → generate up to N articles → sitemaps.
+      // Isolated so a feed/Grok hiccup never fails the main camera refresh.
+      try {
+        const ht = await this.hotTours.runCron();
+        this.logger.log(`hot-tours: providers=${ht.providers} ingested=${ht.ingested} expired=${ht.expired} generated=${ht.generated}`);
+      } catch (e) { this.logger.warn(`hot-tours cron skipped: ${String(e)}`); }
+
+      // Publish queue: nudge pending IG/YouTube jobs forward and fail ones stuck too long.
+      try {
+        const stuck = await this.publishJobs.cleanupStuck(60);
+        const advanced = await this.publishJobs.processPending(10, 6);
+        if (stuck || advanced) this.logger.log(`publish-jobs: advanced=${advanced} stuck-cleared=${stuck}`);
+      } catch (e) { this.logger.warn(`publish-jobs cron skipped: ${String(e)}`); }
+
+      // Notify saved-search subscribers about new matching tours.
+      try { const n = await this.search.notify(); if (n.sent) this.logger.log(`search-notify: checked=${n.checked} sent=${n.sent}`); }
+      catch (e) { this.logger.warn(`search-notify skipped: ${String(e)}`); }
+      // Daily digest for frequency=daily subscriptions (daily cron = once a day).
+      try { const d = await this.search.digest(); if (d.sent) this.logger.log(`search-digest: checked=${d.checked} sent=${d.sent}`); }
+      catch (e) { this.logger.warn(`search-digest skipped: ${String(e)}`); }
+
+      // ОРБИТА-Гид fallback (real drivers are hourly pg_cron): re-embed changed tours + dispatch due reminders.
+      try { const em = await this.embeddings.embedChanged(); if (em.embedded) this.logger.log(`embed: cand=${em.candidates} done=${em.embedded} fail=${em.failed}`); }
+      catch (e) { this.logger.warn(`embed skipped: ${String(e)}`); }
+      try { const rm = await this.chat.dispatchReminders(); if (rm.sent) this.logger.log(`reminders: due=${rm.due} sent=${rm.sent}`); }
+      catch (e) { this.logger.warn(`reminders skipped: ${String(e)}`); }
+
+      // Blog: one original travel article per daily run (guides/tips/reviews/stories).
+      try { const made = await this.blog.generateOne(); if (made) this.logger.log('blog: +1 article (draft)'); }
+      catch (e) { this.logger.warn(`blog gen skipped: ${String(e)}`); }
+      // Weekly-idempotent subscriber-state snapshot (active/paused/canceled) for the retention triangle.
+      try { const sn = await this.hotTours.snapshotSubscribers(); if (sn.subs) this.logger.log(`subscriber-snapshot: ${sn.subs}`); }
+      catch (e) { this.logger.warn(`subscriber-snapshot skipped: ${String(e)}`); }
 
       await this.prisma.refreshRun.update({
         where: { id: run.id },

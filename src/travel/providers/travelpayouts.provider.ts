@@ -72,7 +72,8 @@ export class TravelpayoutsProvider implements TravelOfferProvider {
       case 'flights': {
         const dst = dest.iata || '';
         const org = opts.originIata || '';
-        return dst ? `https://www.aviasales.com/search/${org}${dst}1` : `https://www.aviasales.com/`;
+        const mk = this.marker ? `?marker=${encodeURIComponent(this.marker)}` : '';   // direct Aviasales attribution even if the API is unavailable
+        return dst ? `https://www.aviasales.com/search/${org}${dst}1${mk}` : `https://www.aviasales.com/${mk}`;
       }
     }
   }
@@ -117,18 +118,42 @@ export class TravelpayoutsProvider implements TravelOfferProvider {
     return this.convertBatch(urls, subId);
   }
 
+  /** SubID rules (Travelpayouts): only [A-Za-z0-9_]; other chars → '_'. Keep it short. */
+  sanitizeSub(sub?: string): string {
+    return (sub || '').replace(/[^A-Za-z0-9_]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '').slice(0, 60);
+  }
+
+  /** Add a SubID to a link that already carries a marker: marker=<id>.<sub> (leaves an existing .sub intact). */
+  withSubId(url: string, sub?: string): string {
+    const s = this.sanitizeSub(sub);
+    if (!s || !/[?&]marker=/i.test(url)) return url;
+    return url.replace(/([?&]marker=)([^&#.]+)(\.[^&#]*)?/i, (m, p1, id, existing) => (existing ? m : `${p1}${id}.${s}`));
+  }
+
+  /** Best-effort affiliate link for an arbitrary tour URL + click SubID:
+   *  already has a marker → tag SubID (direct TP-brand link); no marker → Partner Links API (plain fallback). */
+  async affiliateLink(url: string, sub?: string): Promise<string> {
+    if (!url) return url;
+    if (/[?&]marker=/i.test(url) || /\.tp\.st\//i.test(url)) return this.withSubId(url, sub);
+    if (!this.configured) return url;
+    const [wrapped] = await this.convertBatch([url], sub || 'click');
+    return wrapped || url;
+  }
+
   /**
    * Convert brand URLs -> affiliate URLs. Returns an array aligned with input.
    * Any per-link failure / missing config / API error falls back to the plain URL (links always work).
    */
   private async convertBatch(urls: string[], subId: string): Promise<string[]> {
-    if (!this.configured) return urls; // review mode — plain working links, no keys required
+    if (!this.configured) return urls.map((u) => this.withSubId(u, subId)); // review mode — plain links, but still tag SubID on pre-marked
+    subId = this.sanitizeSub(subId); // SubID must be [A-Za-z0-9_]
     const now = Date.now();
     const out: (string | null)[] = new Array(urls.length).fill(null);
     const miss: { idx: number; url: string }[] = [];
 
-    // 1) cache (L1 then DB)
+    // 1) links that already carry a marker are direct affiliate links — tag SubID, skip the API; else cache (L1 then DB)
     for (let i = 0; i < urls.length; i++) {
+      if (/[?&]marker=/i.test(urls[i]) || /\.tp\.st\//i.test(urls[i])) { out[i] = this.withSubId(urls[i], subId); continue; }
       const ck = this.cacheKey(urls[i], subId);
       const hot = this.l1.get(ck);
       if (hot && hot.exp > now) { out[i] = hot.url; continue; }

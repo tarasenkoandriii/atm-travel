@@ -1,9 +1,10 @@
-import { Body, Controller, Get, Param, Post, Query, Res } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Res, UnauthorizedException } from '@nestjs/common';
 import type { Response } from 'express';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { AudioService } from '../audio/audio.service';
 import type { AudioProviderId, AudioRequest } from '../audio/audio.types';
+import { HotToursService } from '../hottours/hottours.service';
 
 type Clip = { provider: string; id: string; url: string; attribution: string; tags: string[]; w?: number; h?: number };
 
@@ -17,7 +18,48 @@ export class ReelController {
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
     private readonly audio: AudioService,
+    private readonly hotTours: HotToursService,
   ) {}
+
+  // Available tours/hotels/flights for a destination (by country code) — reel slide source.
+  @Get('tours')
+  async tours(@Query('cc') cc?: string) {
+    return { tours: await this.hotTours.toursForDestination((cc || '').trim()) };
+  }
+
+  // Saved reels with optional origin/destination/date filters (admin-gated). For targeted-ad planning.
+  @Get('list')
+  async listReels(@Query('key') key?: string, @Query('origin') origin?: string, @Query('dest') dest?: string, @Query('from') from?: string, @Query('to') to?: string) {
+    if (!this.hotTours.adminAllowed(key)) throw new UnauthorizedException();
+    const and: any[] = [];
+    if (origin) and.push({ OR: [{ originCityId: origin.toUpperCase() }, { originLabel: { contains: origin, mode: 'insensitive' } }] });
+    if (dest) and.push({ OR: [{ destCityId: dest.toUpperCase() }, { destLabel: { contains: dest, mode: 'insensitive' } }] });
+    if (from || to) { const dd: any = {}; if (from) dd.gte = new Date(from); if (to) dd.lte = new Date(to); and.push({ departDate: dd }); }
+    const rows = await this.prisma.reel.findMany({ where: and.length ? { AND: and } : {}, orderBy: { createdAt: 'desc' }, take: 200 });
+    return {
+      reels: rows.map((r) => ({
+        id: r.id, title: r.title, originCityId: r.originCityId, destCityId: r.destCityId,
+        originLabel: r.originLabel, destLabel: r.destLabel, departDate: r.departDate, returnDate: r.returnDate,
+        createdAt: r.createdAt, formats: r.formats, tour: r.tourJson, clipSetId: r.clipSetId,
+      })),
+    };
+  }
+
+  // Persist a generated reel with origin/destination cities + dates (for later targeted ads).
+  @Post('save')
+  async save(@Body() b: any) {
+    const r = await this.prisma.reel.create({
+      data: {
+        title: b?.title || null,
+        originCityId: b?.originCityId || null, destCityId: b?.destCityId || null,
+        originLabel: b?.originLabel || null, destLabel: b?.destLabel || null,
+        departDate: b?.departDate ? new Date(b.departDate) : null,
+        returnDate: b?.returnDate ? new Date(b.returnDate) : null,
+        tourJson: b?.tour ?? undefined, clipSetId: b?.clipSetId || null, formats: b?.formats ?? undefined,
+      },
+    });
+    return { id: r.id };
+  }
 
   // Short-lived clip selection: /cine POSTs the chosen clips, gets an id, and passes ?clipset=<id>
   // to /reels instead of a long base64 ?clips URL.
