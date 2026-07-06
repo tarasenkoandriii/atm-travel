@@ -3,50 +3,55 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Блог о путешествиях · ATM-travel</title>
+<title>Блог о путешествиях · ATM-travel.org</title>
 <meta name="description" content="Тревел-гайды, советы, обзоры и истории о направлениях — оригинальные статьи ATM-travel.">
 <link rel="canonical" href="/blog">
 <link rel="alternate" type="application/rss+xml" title="Блог ATM-travel (RSS)" href="/blog/rss.xml">
 <style>
-  :root{color-scheme:light}
+  :root{--bg:#070c12;--panel:#0b131c;--line:#1b2734;--text:#e7eef4;--muted:#7d8b99;--cyan:#4fd7e0;--cyan-dim:#256e74;}
   *{box-sizing:border-box}
-  body{margin:0;background:#f6f8fa;color:#111;font:16px/1.6 system-ui,-apple-system,'Segoe UI',sans-serif}
-  header{background:#0b131c;color:#fff;padding:14px 18px}
-  header .in{max-width:1000px;margin:0 auto;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
-  header a{color:#cfe6ea;text-decoration:none;font-size:14px}
-  header .brand{font-weight:800;color:#fff;font-size:18px}
-  header .brand b{color:#37b0c0}
-  .wrap{max-width:1000px;margin:0 auto;padding:22px 18px 60px}
-  h1{font-size:26px;margin:.2em 0}
-  .sub{color:#667;font-size:14px;margin-bottom:18px}
-  .filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}
-  .filters button{border:1px solid #d4dbe2;background:#fff;color:#334;border-radius:999px;padding:6px 14px;font-size:13px;cursor:pointer}
-  .filters button.on{background:#0e7c86;color:#fff;border-color:#0e7c86}
-  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:18px}
-  .card{background:#fff;border:1px solid #e6e9ee;border-radius:14px;overflow:hidden;text-decoration:none;color:inherit;display:flex;flex-direction:column;transition:box-shadow .15s}
-  .card:hover{box-shadow:0 8px 24px rgba(0,0,0,.08)}
-  .card .ph{aspect-ratio:16/10;background:#dfe6ec center/cover no-repeat}
-  .card .b{padding:12px 14px 16px}
-  .card .tag{font-size:11px;letter-spacing:.4px;text-transform:uppercase;color:#0e7c86;font-weight:700}
-  .card h3{font-size:17px;margin:6px 0 6px;line-height:1.25}
-  .card p{margin:0;color:#5c6b7a;font-size:13px}
-  .empty{color:#889;padding:40px 0;text-align:center}
-  footer{color:#8a97a3;font-size:12px;text-align:center;padding:24px}
+  body{margin:0;background:var(--bg);color:var(--text);font:16px/1.55 system-ui,-apple-system,'Segoe UI',sans-serif;}
+  .wrap{max-width:960px;margin:0 auto;padding:22px 16px 70px;}
+  .top{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+  .brand{font-weight:800;color:var(--cyan);letter-spacing:.3px;} .sub{color:var(--muted);font-size:13px;}
+  a.plain{color:var(--cyan);text-decoration:none;} a.plain:hover{text-decoration:underline;}
+  .nav{display:flex;gap:16px;flex-wrap:wrap;}
+  h1{font-size:22px;margin:18px 0 4px;}
+  .filters{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 4px;}
+  .filters button{border:1px solid var(--line);background:var(--panel);color:var(--muted);border-radius:999px;
+    padding:6px 14px;font:inherit;font-size:13px;cursor:pointer;font-family:ui-monospace,'Space Mono',monospace;transition:all .15s;}
+  .filters button:hover{border-color:var(--cyan-dim);color:var(--text);}
+  .filters button.on{background:#0c1726;border-color:var(--cyan);color:var(--cyan);}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;margin-top:16px;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden;text-decoration:none;
+    color:inherit;display:flex;flex-direction:column;transition:border-color .15s,transform .15s;}
+  .card:hover{border-color:var(--cyan-dim);transform:translateY(-2px);}
+  .card .ph{aspect-ratio:16/10;background:#0a0f1c center/cover no-repeat;border-bottom:1px solid var(--line);}
+  .card .b{padding:12px 14px 16px;}
+  .card .tag{font-family:ui-monospace,'Space Mono',monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--cyan);}
+  .card h3{font-size:16px;margin:7px 0 6px;line-height:1.3;}
+  .card p{margin:0;color:var(--muted);font-size:13px;}
+  .card .dt{margin-top:9px;font-family:ui-monospace,'Space Mono',monospace;font-size:11px;color:#5c6b7a;}
+  .empty{color:var(--muted);padding:30px 4px;}
+  .foot{color:var(--muted);font-size:12px;margin-top:26px;border-top:1px solid var(--line);padding-top:12px;}
+  .foot a{color:var(--cyan);text-decoration:none;}
 </style>
 </head>
 <body>
-<header><div class="in">
-  <a class="brand" href="/">ATM<b>·</b>travel</a>
-  <a href="/blog">Блог</a>
-  <a href="/hot-tours">🔥 Горящие туры</a>
-</div></header>
 <div class="wrap">
+  <div class="top">
+    <div><span class="brand">ATM·travel</span> <span class="sub">· блог о путешествиях</span></div>
+    <nav class="nav">
+      <a class="plain" href="/hot-tours">🔥 Горящие туры</a>
+      <a class="plain" href="/">← на главную</a>
+    </nav>
+  </div>
   <h1>Блог о путешествиях</h1>
   <div class="sub">Тревел-гайды, советы, обзоры и истории о направлениях.</div>
   <div class="filters" id="filters"></div>
   <div class="grid" id="grid"><div class="empty">Загрузка…</div></div>
+  <div class="foot">© ATM-travel · оригинальные тревел-статьи · <a href="/blog/rss.xml">RSS</a></div>
 </div>
-<footer>© ATM-travel · оригинальные тревел-статьи · <a href="/blog/rss.xml" style="color:#0e7c86">RSS</a></footer>
 <script>
 (function(){
   var THEMES=[['','Все'],['guide','Гайды'],['tips','Советы'],['review','Обзоры'],['story','Истории']];
@@ -66,9 +71,9 @@
       var ph=a.image?('style="background-image:url('+esc(a.image)+')"'):'';
       return '<a class="card" href="/blog/'+encodeURIComponent(a.slug)+'">'+
         '<div class="ph" '+ph+'></div>'+
-        '<div class="b"><div class="tag">'+esc(a.themeLabel||a.theme)+' · '+esc(a.topic)+'</div>'+
+        '<div class="b"><div class="tag">'+esc(a.themeLabel||a.theme)+' \u00B7 '+esc(a.topic)+'</div>'+
         '<h3>'+esc(a.h1)+'</h3><p>'+esc(a.meta||'')+'</p>'+
-        '<p style="margin-top:8px;color:#98a4b0;font-size:12px">'+dm(a.publishedAt)+'</p></div></a>';
+        '<div class="dt">'+dm(a.publishedAt)+'</div></div></a>';
     }).join('');
   }
   document.getElementById('filters').addEventListener('click',function(e){
