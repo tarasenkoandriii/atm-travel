@@ -168,7 +168,9 @@
     cursor:pointer;pointer-events:auto;transform:translate(-50%,-50%);transition:all .15s;user-select:none;}
   .cluster:hover{background:rgba(95,211,224,0.22);border-color:#aef3fc;}
   .globe-credit{position:absolute;bottom:10px;right:12px;font-family:'Space Mono',monospace;font-size:9px;color:var(--muted-2);z-index:3;}
-  .globe-load{position:absolute;top:12px;right:14px;font-family:'Space Mono',monospace;font-size:10px;color:var(--cyan);z-index:3;}
+  .globe-cams{position:absolute;top:12px;right:14px;max-width:58%;text-align:right;font-family:'Space Mono',monospace;font-size:10px;color:var(--muted-2);letter-spacing:.1em;text-transform:uppercase;z-index:3;line-height:1.3;}
+  .globe-cams b{color:var(--cyan);}
+  .globe-load{position:absolute;bottom:10px;left:12px;font-family:'Space Mono',monospace;font-size:10px;color:var(--cyan);z-index:3;}
 
   /* категории */
   #cats{padding:12px;display:flex;flex-direction:column;gap:10px;}
@@ -202,13 +204,13 @@
   }
   @media (prefers-reduced-motion:reduce){ .layer{transition:opacity .25s ease;} .veil .pulse{animation:none;} }
   #siteFooter{border-top:1px solid var(--line);margin:0;padding:8px 6px 4px;color:var(--muted);font-size:12px;line-height:1.4;}
-  #siteFooter .ft-inner{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;align-items:flex-start;max-width:1400px;margin:0 auto;}
+  #siteFooter .ft-inner{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap;align-items:stretch;max-width:1400px;margin:0 auto;}
   #siteFooter .ft-name{color:var(--text);} #siteFooter .ft-mono{font-family:'Space Mono',monospace;color:var(--muted);}
   #siteFooter .ft-addr,#siteFooter .ft-contact{margin-top:4px;}
   #siteFooter a{color:var(--muted);text-decoration:none;} #siteFooter a:hover{color:var(--cyan);}
   #siteFooter .ft-contact a{color:var(--cyan);}
-  #siteFooter .ft-links{display:flex;flex-direction:row;flex-wrap:wrap;gap:8px 16px;justify-content:flex-end;text-align:right;font-family:'Space Mono',monospace;}
-  @media (max-width:880px){ #siteFooter .ft-inner{flex-direction:column;} #siteFooter .ft-links{text-align:left;justify-content:flex-start;} }
+  #siteFooter .ft-links{display:flex;flex-direction:row;flex-wrap:wrap;gap:10px 44px;justify-content:flex-end;align-items:flex-end;align-self:flex-end;text-align:right;font-family:'Space Mono',monospace;}
+  @media (max-width:880px){ #siteFooter .ft-inner{flex-direction:column;align-items:flex-start;} #siteFooter .ft-links{text-align:left;justify-content:flex-start;align-self:flex-start;gap:10px 28px;margin-top:6px;} }
 </style>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flag-icons@7.5.0/css/flag-icons.min.css">
   <script nowprocket data-noptimize="1" data-cfasync="false" data-wpfc-render="false" seraph-accel-crit="1" data-no-defer="1">
@@ -301,6 +303,7 @@
     <div class="col right">
       <div class="card" id="globe">
         <div class="globe-tag">вид из космоса · ночная сторона</div>
+        <div class="globe-cams" id="note"></div>
         <div class="globe-load" id="globeLoad"></div>
         <div class="globe-credit" id="globeCredit"></div>
       </div>
@@ -311,7 +314,6 @@
           <input id="customInput" placeholder="Свой фильтр: «набережные», «горы», «traffic»…" />
           <button id="customGo">Найти</button>
         </div>
-        <div class="note" id="note"></div>
       </div>
     </div>
   </div>
