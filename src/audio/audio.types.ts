@@ -192,7 +192,7 @@ export async function resolveAudio(
   providers: AudioProvider[],
   prefer?: AudioProviderId[],
 ): Promise<AudioResolution> {
-  const byId = new Map(providers.map((p) => [p.id, p]));
+  const byId = new Map(providers.map((p) => [p.id, p] as [typeof p.id, typeof p]));
   const order = prefer ?? providers.map((p) => p.id);
 
   for (const id of order) {

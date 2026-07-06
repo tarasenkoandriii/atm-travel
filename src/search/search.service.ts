@@ -211,7 +211,7 @@ export class SearchService {
   }
   private async imagesFor(tourIds: string[]): Promise<Map<string, string>> {
     const arts = await this.prisma.hotTourArticle.findMany({ where: { tourId: { in: tourIds }, imageUrl: { not: null } }, select: { tourId: true, imageUrl: true } }).catch(() => [] as any[]);
-    return new Map(arts.map((a: any) => [a.tourId, a.imageUrl]));
+    return new Map<string, string>((arts as any[]).map((a: any) => [a.tourId, a.imageUrl] as [string, string]));
   }
 
   // Notification chrome localized by the subscriber's chosen language (s.lang). en fallback.

@@ -58,7 +58,7 @@ export class BlogService {
     const pool = (this.config.get<string>('BLOG_TOPICS') || '').split('|').map((s) => s.trim()).filter(Boolean);
     const topics = pool.length ? pool : TOPICS;
     const grouped = await this.prisma.blogArticle.groupBy({ by: ['topic'], _count: { _all: true } }).catch(() => [] as any[]);
-    const counts = new Map<string, number>(grouped.map((g: any) => [g.topic, g._count._all]));
+    const counts = new Map<string, number>((grouped as any[]).map((g: any) => [g.topic, g._count._all] as [string, number]));
     let best = topics[0]; let bestN = Infinity;
     for (const t of topics) { const n = counts.get(t) ?? 0; if (n < bestN) { bestN = n; best = t; } }
     return { theme, topic: best, locale };

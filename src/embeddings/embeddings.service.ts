@@ -93,8 +93,8 @@ export class EmbeddingService {
         select: { id: true, destinationCity: true, destinationCountry: true, countryCode: true, hotelName: true, boardType: true, nights: true, departureDate: true, priceUAH: true },
         orderBy: { fetchedAt: 'desc' }, take: 2000,
       });
-      const existing: any[] = await this.prisma.$queryRawUnsafe('select tour_id, embed_hash from tour_embeddings').catch(() => []);
-      const have = new Map(existing.map((r) => [r.tour_id, r.embed_hash]));
+      const existing = (await this.prisma.$queryRawUnsafe('select tour_id, embed_hash from tour_embeddings').catch(() => [])) as any[];
+      const have = new Map<string, string>((existing as any[]).map((r) => [r.tour_id, r.embed_hash] as [string, string]));
       const pending = tours.map((t) => ({ t, text: this.buildEmbeddingText(t), isNew: !have.has(t.id) }))
         .map((x) => ({ ...x, hash: this.embedHash(x.text) }))
         .filter((x) => x.isNew || have.get(x.t.id) !== x.hash)
@@ -170,7 +170,7 @@ export class EmbeddingService {
       const ids = rows.map((r) => r.tour_id);
       if (!ids.length) return [];
       const tours = await this.prisma.hotTour.findMany({ where: { id: { in: ids } } });
-      const order = new Map(ids.map((id, i) => [id, i]));
+      const order = new Map<string, number>(ids.map((id, i) => [id, i] as [string, number]));
       return tours.sort((a, b) => (order.get(a.id)! - order.get(b.id)!)).map((t) => ({
         id: t.id, city: t.destinationCity, country: t.destinationCountry, cc: (t.countryCode || '').toLowerCase(),
         hotel: t.hotelName, stars: t.hotelStars, priceUAH: t.priceUAH, oldPriceUAH: t.oldPriceUAH, discountPct: t.discountPct,

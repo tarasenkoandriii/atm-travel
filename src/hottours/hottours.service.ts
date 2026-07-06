@@ -428,8 +428,6 @@ export class HotToursService {
     return !!s && (auth === `Bearer ${s}` || xsec === s);
   }
 
-  private get baseUrl() { return (this.config.get<string>('PUBLIC_BASE_URL') || 'https://atm-travel.org').replace(/\/$/, ''); }
-
   /** Log an outbound tour-link click (channel + campaign + sub) and return the affiliate URL + UTM. */
   async trackTourClick(tourId: string, channel: string, campaign?: string, sub?: string): Promise<string> {
     const ch = ['email', 'telegram', 'whatsapp', 'site'].includes(channel) ? channel : 'site';
@@ -624,7 +622,7 @@ ${tops}
   /** Visits + clicks stats for the admin dashboard (+ daily series and top directions by CTR). */
   async stats(days = 30): Promise<any> {
     const clickRows: any[] = await this.prisma.hotTourClick.groupBy({ by: ['slug'], _count: { _all: true } }).catch(() => []);
-    const clickMap = new Map(clickRows.map((r) => [r.slug, r._count._all]));
+    const clickMap = new Map<string, number>((clickRows as any[]).map((r) => [r.slug, r._count._all] as [string, number]));
     const since7 = new Date(Date.now() - 7 * 864e5);
     const clicks7 = await this.prisma.hotTourClick.count({ where: { ts: { gte: since7 } } }).catch(() => 0);
     const arts = await this.prisma.hotTourArticle.findMany({

@@ -308,7 +308,7 @@ export class ChatService {
       this.prisma.reminder.count().catch(() => 0),
       this.prisma.bookingIntent.count().catch(() => 0),
     ]);
-    const counts = new Map<string, number>(byState.map((r: any) => [r.goalState, r._count._all]));
+    const counts = new Map<string, number>((byState as any[]).map((r: any) => [r.goalState, r._count._all] as [string, number]));
     const captured = counts.get('CAPTURED') || 0;
     return {
       sessions, leads, reminders, bookings, captured,

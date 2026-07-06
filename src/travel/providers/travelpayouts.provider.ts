@@ -102,7 +102,7 @@ export class TravelpayoutsProvider implements TravelOfferProvider {
     for (const b of esimBrands) items.push({ key: `esim:${b}`, url: this.esimUrl(b, dest) });
 
     const converted = await this.convertBatch(items.map((i) => i.url), opts.subId);
-    const byKey = new Map(items.map((it, i) => [it.key, converted[i] ?? it.url]));
+    const byKey = new Map<string, string>(items.map((it, i) => [it.key, converted[i] ?? it.url] as [string, string]));
 
     return {
       experiences: opts.brands.map((brand) => ({ brand, url: byKey.get(`exp:${brand}`)! })),

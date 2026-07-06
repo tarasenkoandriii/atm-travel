@@ -21,7 +21,7 @@ export class PublishController {
 
   /** Which networks are ready (server creds present) — for the UI + "send to all". */
   @Get('config')
-  config() {
+  configStatus() {
     const has = (k: string) => !!this.config.get<string>(k);
     return {
       telegramReady: has('TELEGRAM_BOT_TOKEN'), telegramGroup: has('TELEGRAM_GROUP_CHAT_ID'),
