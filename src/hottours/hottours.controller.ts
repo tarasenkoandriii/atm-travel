@@ -54,13 +54,13 @@ export class HotToursController {
   // Generate a small batch of draft articles on demand (hourly pg_cron tick). CRON_SECRET-guarded.
   // ?ingest=1 also refreshes the feed (ingest + expiry) before generating.
   @Post('api/hot-tours/generate')
-  async generatePost(@Query('ingest') ingest?: string, @Headers('authorization') auth?: string, @Headers('x-cron-secret') xsec?: string) {
-    if (!this.svc.cronAllowed(auth, xsec)) throw new UnauthorizedException('Invalid cron secret');
+  async generatePost(@Query('ingest') ingest?: string, @Query('key') key?: string, @Headers('authorization') auth?: string, @Headers('x-cron-secret') xsec?: string) {
+    if (!this.svc.cronAllowed(auth, xsec) && !this.svc.adminAllowed(key)) throw new UnauthorizedException('Invalid cron secret / admin token');
     return { ok: true, ...(await this.svc.generateTick(ingest === '1' || ingest === 'true')) };
   }
   @Get('api/hot-tours/generate')
-  async generateGet(@Query('ingest') ingest?: string, @Headers('authorization') auth?: string, @Headers('x-cron-secret') xsec?: string) {
-    if (!this.svc.cronAllowed(auth, xsec)) throw new UnauthorizedException('Invalid cron secret');
+  async generateGet(@Query('ingest') ingest?: string, @Query('key') key?: string, @Headers('authorization') auth?: string, @Headers('x-cron-secret') xsec?: string) {
+    if (!this.svc.cronAllowed(auth, xsec) && !this.svc.adminAllowed(key)) throw new UnauthorizedException('Invalid cron secret / admin token');
     return { ok: true, ...(await this.svc.generateTick(ingest === '1' || ingest === 'true')) };
   }
 

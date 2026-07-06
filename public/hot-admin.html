@@ -124,6 +124,8 @@
   .vm-play{background:#152231;border:1px solid #24384a;color:#cfe0ee;border-radius:7px;width:30px;height:30px;cursor:pointer;flex:0 0 auto}
   .vm-foot{display:flex;gap:8px;justify-content:flex-end}
 
+  .vhead{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+  .vhead h1{margin:0;}
 </style>
 </head>
 <body>
@@ -148,7 +150,7 @@
   </nav>
 
   <section class="view" id="view-moderation">
-    <h1>Черновики на публикацию</h1>
+    <div class="vhead"><h1>Черновики на публикацию</h1><button class="btn pub" id="modCreate" title="Сгенерировать статью на модерацию (как крон)">＋ Создать</button></div>
     <div class="sub">Ни одна статья не публикуется без ручного одобрения. Рейтинг конкурентности — оценка Grok.</div>
     <div id="modList"></div>
   </section>
@@ -240,6 +242,20 @@ function renderModeration(drafts){
       '<button class="btn pub" data-id="'+esc(a.id)+'">✓ Опубликовать</button></div></div></div>';
   }).join('');
 }
+(function(){ var b=document.getElementById('modCreate'); if(!b) return;
+  b.addEventListener('click', function(){
+    if(!KEY){ alert('Сначала введите admin-токен.'); return; }
+    var old=b.textContent; b.disabled=true; b.textContent='Генерирую…';
+    fetch('/api/hot-tours/generate?ingest=0&key='+encodeURIComponent(KEY), {method:'POST'})
+      .then(function(r){ if(r.status===401){ throw new Error('Неверный токен'); } return r.ok?r.json():null; })
+      .then(function(j){
+        b.disabled=false; b.textContent=old;
+        if(j&&j.ok){ b.textContent='Готово ✓'; setTimeout(function(){ b.textContent=old; },1500); loaded.moderation=false; loadModeration(); }
+        else { alert('Не удалось создать статью'+(j&&j.message?': '+j.message:'')); }
+      })
+      .catch(function(e){ b.disabled=false; b.textContent=old; alert('Ошибка: '+(e&&e.message||e)); });
+  });
+})();
 function loadModeration(){
   $('#modList').innerHTML = '<div class="empty">Загрузка…</div>';
   fetch('/api/hot-tours/drafts?key='+encodeURIComponent(KEY)).then(function(r){
