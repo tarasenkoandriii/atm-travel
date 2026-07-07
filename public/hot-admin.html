@@ -291,7 +291,8 @@ function loadModeration(){
   $('#modList').innerHTML = '<div class="empty">Загрузка…</div>';
   fetch('/api/hot-tours/drafts?key='+encodeURIComponent(KEY)).then(function(r){
     if(r.status===401){ $('#modList').innerHTML='<div class="empty">Неверный токен.</div>'; return null; }
-    return r.ok?r.json():null;
+    if(!r.ok){ $('#modList').innerHTML='<div class="empty">Ошибка сервера (HTTP '+r.status+'). Проверьте логи Vercel / что prisma db push выполнен.</div>'; return null; }
+    return r.json();
   }).then(function(j){ if(j){ loaded.moderation=true; renderModeration(j.drafts||[]); } })
     .catch(function(){ $('#modList').innerHTML='<div class="empty">Ошибка загрузки.</div>'; });
 }
@@ -355,7 +356,8 @@ function loadBlogMod(){
   $('#blogList').innerHTML='<div class="empty">Загрузка…</div>';
   fetch('/api/blog/drafts?key='+encodeURIComponent(KEY)).then(function(r){
     if(r.status===401){ $('#blogList').innerHTML='<div class="empty">Неверный токен.</div>'; return null; }
-    return r.ok?r.json():null;
+    if(!r.ok){ $('#blogList').innerHTML='<div class="empty">Ошибка сервера (HTTP '+r.status+'). Проверьте логи Vercel / что prisma db push выполнен.</div>'; return null; }
+    return r.json();
   }).then(function(j){ if(j){ loaded.blogmod=true; renderBlogMod(j.drafts||[]); } })
     .catch(function(){ $('#blogList').innerHTML='<div class="empty">Ошибка загрузки.</div>'; });
 }
@@ -644,7 +646,8 @@ function loadRetention(){
   $('#retBox').innerHTML='<div class="empty">Загрузка…</div>';
   fetch('/api/hot-tours/retention?key='+encodeURIComponent(KEY)).then(function(r){
     if(r.status===401){ $('#retBox').innerHTML='<div class="empty">Неверный токен.</div>'; return null; }
-    return r.ok?r.json():null;
+    if(!r.ok){ $('#retBox').innerHTML='<div class="empty">Ошибка сервера (HTTP '+r.status+'). Проверьте логи Vercel / что prisma db push выполнен.</div>'; return null; }
+    return r.json();
   }).then(function(j){ if(j){ loaded.retention=true; renderRetention(j); } })
     .catch(function(){ $('#retBox').innerHTML='<div class="empty">Ошибка загрузки.</div>'; });
 }
@@ -671,7 +674,8 @@ function loadOfferCtr(){
   $('#ocBox').innerHTML='<div class="empty">Загрузка…</div>';
   fetch('/api/travel/offer-stats?key='+encodeURIComponent(KEY)).then(function(r){
     if(r.status===401){ $('#ocBox').innerHTML='<div class="empty">Неверный токен.</div>'; return null; }
-    return r.ok?r.json():null;
+    if(!r.ok){ $('#ocBox').innerHTML='<div class="empty">Ошибка сервера (HTTP '+r.status+'). Проверьте логи Vercel / что prisma db push выполнен.</div>'; return null; }
+    return r.json();
   }).then(function(j){ if(j){ loaded.offerctr=true; renderOfferCtr(j); } })
     .catch(function(){ $('#ocBox').innerHTML='<div class="empty">Ошибка загрузки.</div>'; });
 }
@@ -695,7 +699,8 @@ function loadChatFunnel(){
   $('#cfBox').innerHTML='<div class="empty">Загрузка…</div>';
   fetch('/api/chat/funnel?key='+encodeURIComponent(KEY)).then(function(r){
     if(r.status===401){ $('#cfBox').innerHTML='<div class="empty">Неверный токен.</div>'; return null; }
-    return r.ok?r.json():null;
+    if(!r.ok){ $('#cfBox').innerHTML='<div class="empty">Ошибка сервера (HTTP '+r.status+'). Проверьте логи Vercel / что prisma db push выполнен.</div>'; return null; }
+    return r.json();
   }).then(function(j){ if(j){ loaded.chatfunnel=true; renderChatFunnel(j); } })
     .catch(function(){ $('#cfBox').innerHTML='<div class="empty">Ошибка загрузки.</div>'; });
 }
@@ -704,7 +709,8 @@ function loadStats(){
   $('#statsBox').innerHTML = '<div class="empty">Загрузка…</div>';
   fetch('/api/hot-tours/stats?key='+encodeURIComponent(KEY)).then(function(r){
     if(r.status===401){ $('#statsBox').innerHTML='<div class="empty">Неверный токен.</div>'; return null; }
-    return r.ok?r.json():null;
+    if(!r.ok){ $('#statsBox').innerHTML='<div class="empty">Ошибка сервера (HTTP '+r.status+'). Проверьте логи Vercel / что prisma db push выполнен.</div>'; return null; }
+    return r.json();
   }).then(function(j){ if(j){ loaded.stats=true; renderStats(j); } })
     .catch(function(){ $('#statsBox').innerHTML='<div class="empty">Ошибка загрузки.</div>'; });
 }
