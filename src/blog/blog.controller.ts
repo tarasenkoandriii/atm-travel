@@ -111,10 +111,10 @@ export class BlogController {
 
   private labels(locale?: string) {
     const L: Record<string, any> = {
-      ru: { back: '← Все статьи блога', disc: 'Статья носит справочный характер; правила въезда, цены и расписания уточняйте в официальных источниках.', sources: 'Источники:', loc: 'ru-RU' },
-      uk: { back: '← Усі статті блогу', disc: 'Стаття має довідковий характер; правила в’їзду, ціни й розклади уточнюйте в офіційних джерелах.', sources: 'Джерела:', loc: 'uk-UA' },
-      en: { back: '← All blog articles', disc: 'This article is for reference; verify entry rules, prices and schedules with official sources.', sources: 'Sources:', loc: 'en-GB' },
-      de: { back: '← Alle Blogartikel', disc: 'Dieser Artikel dient zur Orientierung; Einreiseregeln, Preise und Fahrpläne bitte in offiziellen Quellen prüfen.', sources: 'Quellen:', loc: 'de-DE' },
+      ru: { back: '← Все статьи блога', disc: 'Статья носит справочный характер; правила въезда, цены и расписания уточняйте в официальных источниках.', sources: 'Источники:', listen: 'Прослушать', loc: 'ru-RU' },
+      uk: { back: '← Усі статті блогу', disc: 'Стаття має довідковий характер; правила в’їзду, ціни й розклади уточнюйте в офіційних джерелах.', sources: 'Джерела:', listen: 'Прослухати', loc: 'uk-UA' },
+      en: { back: '← All blog articles', disc: 'This article is for reference; verify entry rules, prices and schedules with official sources.', sources: 'Sources:', listen: 'Listen', loc: 'en-GB' },
+      de: { back: '← Alle Blogartikel', disc: 'Dieser Artikel dient zur Orientierung; Einreiseregeln, Preise und Fahrpläne bitte in offiziellen Quellen prüfen.', sources: 'Quellen:', listen: 'Anhören', loc: 'de-DE' },
     };
     return L[(locale || 'ru').toLowerCase()] || L.en;
   }
@@ -160,7 +160,10 @@ export class BlogController {
       : this.interleave(rawSections.map((s: any) => `<h2>${this.esc(s.heading)}</h2>` + s.paragraphs.map((p: string) => `<p>${this.esc(p)}</p>`).join('')), gallery);
     const hero = a.imageUrl ? `<img class="hero" src="${this.esc(a.imageUrl)}" alt="${this.esc(a.imageAlt || a.h1)}" loading="eager">` : '';
     const credit = a.imageSource ? `<div class="credit">Фото: <a href="${this.esc(a.imageSourceUrl || '#')}" rel="nofollow noopener">${this.esc(a.imageSource)}</a></div>` : '';
-    const catsHtml = cats.length ? `<div class="cats">${cats.map((c) => `<span class="cat">${this.esc(c)}</span>`).join('')}</div>` : '';
+    const audioBadge = a.audioUrl
+      ? `<details class="audio-pill"><summary>🔊 ${this.esc(AL.listen)}</summary><div class="audio-panel"><audio controls preload="none" src="${this.esc(a.audioUrl)}"></audio></div></details>`
+      : '';
+    const catsHtml = (cats.length || audioBadge) ? `<div class="cats">${cats.map((c) => `<span class="cat">${this.esc(c)}</span>`).join('')}${audioBadge}</div>` : '';
     const dateStr = a.publishedAt ? new Date(a.publishedAt).toLocaleDateString(AL.loc) : '';
     const sourcesHtml = sources.length
       ? `<div class="sources"><span class="sh">${AL.sources}</span>${sources.map((s) => `<a href="${this.esc(s.url)}" rel="nofollow noopener" target="_blank"><img src="https://icons.duckduckgo.com/ip3/${this.esc(s.host)}.ico" alt="" loading="lazy" onerror="this.style.display='none'">${this.esc(s.title)}</a>`).join('')}</div>`
@@ -192,9 +195,18 @@ export class BlogController {
   h1{font-size:30px;line-height:1.2;margin:.3em 0 .25em}
   h2{font-size:22px;margin:1.4em 0 .3em;clear:both}
   .embed-img{float:right;width:50%;height:auto;border-radius:10px;margin:4px 0 14px 20px}
-  @media(max-width:520px){ .embed-img{float:none;width:100%;margin:14px 0} }
-  .cats{display:flex;gap:6px;flex-wrap:wrap;font-family:system-ui,sans-serif;margin:.2em 0 .35em}
+  .embed-img-l{float:left;width:50%;height:auto;border-radius:10px;margin:4px 20px 14px 0}
+  @media(max-width:520px){ .embed-img,.embed-img-l{float:none;width:100%;margin:14px 0} }
+  .cats{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-family:system-ui,sans-serif;margin:.2em 0 .35em}
   .cat{font-size:11px;letter-spacing:.3px;text-transform:uppercase;color:#0e7c86;background:#e6f4f6;border-radius:999px;padding:3px 10px;font-weight:700}
+  .audio-pill{margin-left:auto;position:relative}
+  .audio-pill summary{list-style:none;cursor:pointer;background:#e6f4f6;border:1px solid #bfe3e8;color:#0e7c86;border-radius:999px;padding:3px 12px;font-size:11px;font-weight:700;white-space:nowrap;user-select:none;font-family:system-ui,sans-serif}
+  .audio-pill summary::-webkit-details-marker{display:none}
+  .audio-pill summary::marker{content:''}
+  .audio-pill[open] summary{background:#d3edf0}
+  .audio-panel{position:absolute;top:calc(100% + 6px);right:0;background:#fff;border:1px solid #e6e9ee;border-radius:12px;padding:8px 10px;box-shadow:0 10px 28px rgba(20,40,50,.16);z-index:5}
+  .audio-panel audio{width:260px;max-width:65vw;display:block}
+  @media(max-width:480px){ .audio-panel{right:auto;left:0} }
   .pubdate{font-family:system-ui,sans-serif;color:#8a97a3;font-size:13px;margin-bottom:16px}
   .hero{width:100%;height:auto;border-radius:12px;margin:10px 0 4px;display:block}
   .inline-img{width:75%;height:auto;border-radius:10px;display:block;margin:1.4em auto}
@@ -242,16 +254,18 @@ ${sourcesHtml}
       out.push(`<h2>${this.esc(sec.heading)}</h2>`);
       sec.paragraphs.forEach((ptext) => {
         let img = '';
-        if (gi < gallery.length && slotList.includes(flatIdx)) { img = this.embedImg(gallery[gi]); gi++; }
+        if (gi < gallery.length && slotList.includes(flatIdx)) { img = this.embedImg(gallery[gi], gi); gi++; }
         out.push(`<p>${img}${this.esc(ptext)}</p>`);
         flatIdx++;
       });
     });
-    while (gi < gallery.length) { out.push(this.embedImg(gallery[gi])); gi++; }   // any leftovers go at the very end
+    while (gi < gallery.length) { out.push(this.embedImg(gallery[gi], gi)); gi++; }   // any leftovers go at the very end
     return out.join('\n');
   }
-  private embedImg(g: { url: string; alt?: string }): string {
-    return `<img class="embed-img" src="${this.esc(g.url)}" alt="${this.esc(g.alt || '')}" loading="lazy">`;
+  // Checkerboard placement: even index floats right, odd index floats left.
+  private embedImg(g: { url: string; alt?: string }, idx: number): string {
+    const cls = idx % 2 === 0 ? 'embed-img' : 'embed-img-l';
+    return `<img class="${cls}" src="${this.esc(g.url)}" alt="${this.esc(g.alt || '')}" loading="lazy">`;
   }
 
   // Spread gallery images evenly across the gaps between rendered sections (never before the first section).

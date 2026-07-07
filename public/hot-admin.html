@@ -102,8 +102,16 @@
   .pv-hero{width:100%;height:auto;border-radius:8px;display:block;margin:6px 0 10px}
   .pv-inline{width:75%;height:auto;border-radius:7px;display:block;margin:14px auto}
   .pv-embed{float:right;width:50%;height:auto;border-radius:7px;margin:4px 0 10px 14px}
-  @media(max-width:520px){ .pv-embed{float:none;width:100%;margin:10px 0} }
+  .pv-embed-l{float:left;width:50%;height:auto;border-radius:7px;margin:4px 14px 10px 0}
+  @media(max-width:520px){ .pv-embed,.pv-embed-l{float:none;width:100%;margin:10px 0} }
+  .pv-cats{align-items:center}
   .pv-cats,.pv-tags{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 10px}
+  .pv-audio-pill{margin-left:auto;position:relative}
+  .pv-audio-pill summary{list-style:none;cursor:pointer;background:#12303a;color:#4fd7e0;border:1px solid #1c4d55;border-radius:999px;padding:3px 12px;font-size:11px;font-weight:700;white-space:nowrap;user-select:none}
+  .pv-audio-pill summary::-webkit-details-marker{display:none}
+  .pv-audio-pill[open] summary{background:#184049}
+  .pv-audio-panel{position:absolute;top:calc(100% + 6px);right:0;background:#0b131c;border:1px solid #1e2c3c;border-radius:12px;padding:8px 10px;box-shadow:0 10px 28px rgba(0,0,0,.4);z-index:5}
+  .pv-audio-panel audio{width:240px;max-width:60vw;display:block}
   .pv-tags{margin-top:14px;border-top:1px solid #16222f;padding-top:10px}
   .pv-chip{background:#12303a;color:#4fd7e0;border-radius:999px;padding:2px 9px;font-size:11px}
   .bed-note{width:100%;box-sizing:border-box;background:#0b1420;border:1px solid #24425f;color:#dfe7ef;border-radius:8px;padding:7px 10px;font:13px system-ui,sans-serif;margin:2px 0 8px}
@@ -412,11 +420,12 @@ function buildPreview(st){
   var p='<div class="pv-doc">';
   if(imgs.length) p+='<img class="pv-hero" src="'+esc(imgs[0].url)+'" alt="">';
   p+='<h1>'+esc(st.h1)+'</h1>';
-  if((st.categories||[]).length) p+='<div class="pv-cats">'+pvChips(st.categories)+'</div>';
+  var audioBadge = st.audioUrl ? '<details class="pv-audio-pill"><summary>🔊 Прослушать</summary><div class="pv-audio-panel"><audio controls preload="none" src="'+esc(st.audioUrl)+'"></audio></div></details>' : '';
+  if((st.categories||[]).length || audioBadge) p+='<div class="pv-cats">'+pvChips(st.categories)+audioBadge+'</div>';
   var gallery=imgs.slice(1);
   var sections=(st.sections||[]).map(function(sec){ return {heading:sec.heading, paragraphs:(sec.paragraphs||[]).filter(function(pr){return !pr.deleted;}).map(function(pr){return pr.text;})}; });
   if(st.embedImages!==false){
-    // float-right at 50%, spread evenly across actual paragraphs (mirrors the public page's embedInline)
+    // float alternating left/right (checkerboard) at 50%, spread evenly across actual paragraphs (mirrors the public page's embedInline)
     var flat=[]; sections.forEach(function(sec,si){ sec.paragraphs.forEach(function(_,pi){ flat.push([si,pi]); }); });
     var total=flat.length; var slots={};
     if(gallery.length && total>1){
@@ -428,11 +437,11 @@ function buildPreview(st){
       p+='<h2>'+esc(sec.heading)+'</h2>';
       sec.paragraphs.forEach(function(ptext){
         var img='';
-        if(gi<gallery.length && slots[flatIdx]){ img='<img class="pv-embed" src="'+esc(gallery[gi].url)+'" alt="">'; gi++; }
+        if(gi<gallery.length && slots[flatIdx]){ img='<img class="'+(gi%2===0?'pv-embed':'pv-embed-l')+'" src="'+esc(gallery[gi].url)+'" alt="">'; gi++; }
         p+='<p>'+img+esc(ptext)+'</p>'; flatIdx++;
       });
     });
-    while(gi<gallery.length){ p+='<img class="pv-embed" src="'+esc(gallery[gi].url)+'" alt="">'; gi++; }
+    while(gi<gallery.length){ p+='<img class="'+(gi%2===0?'pv-embed':'pv-embed-l')+'" src="'+esc(gallery[gi].url)+'" alt="">'; gi++; }
   } else {
     // centered block at 75%, spread between sections (mirrors the public page's interleave)
     var gi2=0;
