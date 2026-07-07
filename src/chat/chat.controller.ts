@@ -42,6 +42,28 @@ export class ChatController {
     return this.svc.chatFunnel();
   }
 
+  // Leads captured by the chat bot (contacts + the client's request) — admin dashboard list.
+  @Get('leads')
+  async leads(@Query('key') key?: string) {
+    const admin = this.config.get<string>('HOT_TOURS_ADMIN_TOKEN');
+    if (!admin || key !== admin) throw new HttpException('unauthorized', HttpStatus.UNAUTHORIZED);
+    return { leads: await this.svc.leads() };
+  }
+
+  // Admin-configurable notification channel (Telegram chat id / email) for new leads.
+  @Get('settings')
+  async getSettings(@Query('key') key?: string) {
+    const admin = this.config.get<string>('HOT_TOURS_ADMIN_TOKEN');
+    if (!admin || key !== admin) throw new HttpException('unauthorized', HttpStatus.UNAUTHORIZED);
+    return this.svc.getAdminSettings();
+  }
+  @Post('settings')
+  async saveSettings(@Body() body: { key?: string; telegramChatId?: string; adminEmail?: string }) {
+    const admin = this.config.get<string>('HOT_TOURS_ADMIN_TOKEN');
+    if (!admin || body?.key !== admin) throw new HttpException('unauthorized', HttpStatus.UNAUTHORIZED);
+    return { ok: await this.svc.saveAdminSettings({ telegramChatId: body?.telegramChatId, adminEmail: body?.adminEmail }) };
+  }
+
   @Post('lead')
   async lead(@Body() body: any) {
     return this.svc.saveLead(body || {});

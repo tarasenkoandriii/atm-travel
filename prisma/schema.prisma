@@ -202,6 +202,7 @@ model HotTourArticle {
   imageSource     String?   // pixabay | pexels
   imageSourceUrl  String?
   imagesJson      Json?     // all article photos [{url,alt,source,sourceUrl}] (>=3), imagesJson[0] == hero/imageUrl
+  embedImages     Boolean   @default(true)  // true = float images beside paragraphs (50%); false = centered blocks (75%)
   publishedAt     DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -474,6 +475,7 @@ model BlogArticle {
   imageSource      String?
   imageSourceUrl   String?
   imagesJson       Json?     // all slide photos [{url,alt,source,sourceUrl}] (>=3)
+  embedImages      Boolean   @default(true)  // true = float images beside paragraphs (50%); false = centered blocks (75%)
   audioUrl         String?   // ElevenLabs narration (Vercel Blob)
   audioVoiceId     String?
   videoUrl         String?   // rendered slideshow reel (Vercel Blob)
@@ -483,4 +485,13 @@ model BlogArticle {
 
   @@index([status])
   @@index([theme, topic])
+}
+
+// Singleton row (id fixed to 'singleton'): lets the admin override the notification channel
+// from the UI instead of only via env vars. Null fields fall back to env (TELEGRAM/ADMIN_EMAIL).
+model AdminSettings {
+  id             String   @id @default("singleton")
+  telegramChatId String?  // overrides ADMIN_TELEGRAM_CHAT_ID when set
+  adminEmail     String?  // overrides ADMIN_EMAIL when set
+  updatedAt      DateTime @updatedAt
 }

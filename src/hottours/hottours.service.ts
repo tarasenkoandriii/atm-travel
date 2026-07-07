@@ -504,10 +504,10 @@ export class HotToursService {
       ? a.imagesJson
       : (a.imageUrl ? [{ url: a.imageUrl, alt: a.imageAlt, source: a.imageSource, sourceUrl: a.imageSourceUrl }] : []);
     const t: any = a.tour;
-    return { id: a.id, h1: a.h1, locale: a.locale, status: a.status, image: a.imageUrl, images, place: t ? `${t.destinationCity}, ${t.destinationCountry}` : '', sections, uncertainFacts: bj.uncertain_facts || [] };
+    return { id: a.id, h1: a.h1, locale: a.locale, status: a.status, image: a.imageUrl, images, embedImages: a.embedImages !== false, place: t ? `${t.destinationCity}, ${t.destinationCountry}` : '', sections, uncertainFacts: bj.uncertain_facts || [] };
   }
 
-  async applyEdit(id: string, patch: { h1?: string; sections?: { heading: string; paragraphs: string[] }[]; images?: { url: string; alt?: string; source?: string; sourceUrl?: string }[] }): Promise<boolean> {
+  async applyEdit(id: string, patch: { h1?: string; sections?: { heading: string; paragraphs: string[] }[]; images?: { url: string; alt?: string; source?: string; sourceUrl?: string }[]; embedImages?: boolean }): Promise<boolean> {
     const a = await this.prisma.hotTourArticle.findUnique({ where: { id } }).catch(() => null);
     if (!a) return false;
     const bj: any = a.bodyJson || {};
@@ -523,6 +523,7 @@ export class HotToursService {
         h1: patch.h1 != null && String(patch.h1).trim() ? String(patch.h1).slice(0, 300) : a.h1,
         bodyJson: newBj as any,
         ratingPct: null, ratingNote: null,   // edits invalidate the competitiveness rating so it's recomputed
+        ...(typeof patch.embedImages === 'boolean' ? { embedImages: patch.embedImages } : {}),
         ...(images ? {
           imagesJson: images as any,
           imageUrl: hero?.url || null, imageAlt: hero?.alt || null, imageSource: hero?.source || null, imageSourceUrl: hero?.sourceUrl || null,

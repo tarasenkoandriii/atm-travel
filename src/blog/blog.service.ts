@@ -287,7 +287,7 @@ export class BlogService {
     const images = Array.isArray(a.imagesJson) && a.imagesJson.length
       ? a.imagesJson
       : (a.imageUrl ? [{ url: a.imageUrl, alt: a.imageAlt, source: a.imageSource, sourceUrl: a.imageSourceUrl }] : []);
-    return { id: a.id, h1: a.h1, locale: a.locale, status: a.status, image: a.imageUrl, images, topic: a.topic, categories: bj.categories || [], tags: bj.tags || [], sections, uncertainFacts: bj.uncertain_facts || [], audioUrl: a.audioUrl, videoUrl: a.videoUrl, voiceId: a.audioVoiceId, geo: geoForTopic(a.topic), isGeo: !!geoForTopic(a.topic) };
+    return { id: a.id, h1: a.h1, locale: a.locale, status: a.status, image: a.imageUrl, images, embedImages: a.embedImages !== false, topic: a.topic, categories: bj.categories || [], tags: bj.tags || [], sections, uncertainFacts: bj.uncertain_facts || [], audioUrl: a.audioUrl, videoUrl: a.videoUrl, voiceId: a.audioVoiceId, geo: geoForTopic(a.topic), isGeo: !!geoForTopic(a.topic) };
   }
 
   private async grokRaw(sys: string, user: string): Promise<string | null> {
@@ -356,7 +356,7 @@ export class BlogService {
   }
 
   // Persist edits from the inline editor (deleted paragraphs already dropped by the client).
-  async applyEdit(id: string, patch: { h1?: string; categories?: string[]; tags?: string[]; sections?: { heading: string; paragraphs: string[] }[]; images?: { url: string; alt?: string; source?: string; sourceUrl?: string }[] }): Promise<boolean> {
+  async applyEdit(id: string, patch: { h1?: string; categories?: string[]; tags?: string[]; sections?: { heading: string; paragraphs: string[] }[]; images?: { url: string; alt?: string; source?: string; sourceUrl?: string }[]; embedImages?: boolean }): Promise<boolean> {
     const a = await this.prisma.blogArticle.findUnique({ where: { id } }).catch(() => null);
     if (!a) return false;
     const bj: any = a.bodyJson || {};
@@ -377,6 +377,7 @@ export class BlogService {
         bodyJson: newBj as any,
         // reset the article score so the moderator re-scores the edited text
         articleScore: null, articleScoreNote: null,
+        ...(typeof patch.embedImages === 'boolean' ? { embedImages: patch.embedImages } : {}),
         ...(images ? {
           imagesJson: images as any,
           imageUrl: hero?.url || null, imageAlt: hero?.alt || null, imageSource: hero?.source || null, imageSourceUrl: hero?.sourceUrl || null,

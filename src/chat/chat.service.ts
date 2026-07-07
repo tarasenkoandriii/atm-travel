@@ -45,7 +45,7 @@ const SYSTEM_PROMPT = `
 
 ИНСТРУМЕНТЫ:
 - search_tours(query, maxPriceUAH?, minStars?) — ВСЕГДА для подбора; не выдумывай цены/наличие, опирайся только на результат.
-- save_lead(direction, budget, when, contacts[], consent) — валидно только при consent=true и МИНИМУМ ДВУХ контактах. Если контакт один — вежливо попроси второй способ связи.
+- save_lead(direction, budget, when, contacts[], consent) — валидно только при consent=true и МИНИМУМ ОДНОМ контакте. Второй контакт приветствуется (надёжнее связаться), но необязателен — не настаивай, если человек не хочет его давать.
 - schedule_reminder(tourId, remindAt, channel, target) — напоминание о туре.
 - create_booking_intent(tourId, contact) — передать горячего клиента в продажи.
 - set_goal_state(state) — обнови этап воронки (${GOALS.join('|')}).
@@ -55,7 +55,7 @@ const SYSTEM_PROMPT = `
 
 const TOOLS: any[] = [
   { type: 'function', function: { name: 'search_tours', description: 'Гибридный поиск актуальных туров под критерии пользователя.', parameters: { type: 'object', properties: { query: { type: 'string', description: 'Свободный запрос: направление, месяц, тип отдыха' }, maxPriceUAH: { type: 'number', description: 'Максимальная цена в гривнах' }, minStars: { type: 'number', description: 'Минимальная звёздность отеля' } }, required: ['query'] } } },
-  { type: 'function', function: { name: 'save_lead', description: 'Сохранить лид: критерии + контакты. Только при consent=true и ≥2 контактах (иначе дозапроси второй контакт).', parameters: { type: 'object', properties: { direction: { type: 'string' }, budget: { type: 'number' }, when: { type: 'string' }, contacts: { type: 'array', items: { type: 'string' } }, consent: { type: 'boolean' } }, required: ['contacts', 'consent'] } } },
+  { type: 'function', function: { name: 'save_lead', description: 'Сохранить лид: критерии + контакты. Только при consent=true и минимум 1 контакте (второй контакт необязателен, но приветствуется).', parameters: { type: 'object', properties: { direction: { type: 'string' }, budget: { type: 'number' }, when: { type: 'string' }, contacts: { type: 'array', items: { type: 'string' } }, consent: { type: 'boolean' } }, required: ['contacts', 'consent'] } } },
   { type: 'function', function: { name: 'schedule_reminder', description: 'Назначить напоминание о туре на дату.', parameters: { type: 'object', properties: { tourId: { type: 'string' }, remindAt: { type: 'string', description: 'ISO-дата/время' }, channel: { type: 'string', enum: ['telegram', 'email'] }, target: { type: 'string', description: 'chat_id или email' }, message: { type: 'string' } }, required: ['remindAt', 'channel', 'target'] } } },
   { type: 'function', function: { name: 'create_booking_intent', description: 'Передать горячего клиента в продажи (черновик брони).', parameters: { type: 'object', properties: { tourId: { type: 'string' }, contact: { type: 'string' }, note: { type: 'string' } }, required: ['contact'] } } },
   { type: 'function', function: { name: 'set_goal_state', description: 'Обновить этап воронки диалога.', parameters: { type: 'object', properties: { state: { type: 'string', enum: GOALS } }, required: ['state'] } } },
@@ -223,8 +223,10 @@ export class ChatService {
   private async persistLead(input: { sub?: string; direction?: string; budget?: string | number; when?: string; contacts?: string[]; note?: string; consent?: boolean }) {
     if (!input.consent) return { ok: false, message: 'Нужно согласие на обработку данных.' };
     const contacts = (input.contacts || []).map((c) => String(c || '').trim()).filter(Boolean);
-    const minContacts = Math.max(1, Number(this.config.get<number>('LEAD_MIN_CONTACTS') ?? 2));
-    if (contacts.length < minContacts) return { ok: false, message: `Оставьте минимум ${minContacts} контакта (напр. телефон и Telegram/email) — так надёжнее связаться.` };
+    const minContacts = Math.max(1, Number(this.config.get<number>('LEAD_MIN_CONTACTS') ?? 1));
+    if (contacts.length < minContacts) {
+      return { ok: false, message: minContacts <= 1 ? 'Оставьте хотя бы один контакт (телефон, email или Telegram).' : `Оставьте минимум ${minContacts} контакта (напр. телефон и Telegram/email) — так надёжнее связаться.` };
+    }
     const budget = input.budget != null && String(input.budget).trim() !== '' ? (Math.round(Number(String(input.budget).replace(/[^\d]/g, ''))) || null) : null;
     const row = await this.prisma.chatLead.create({
       data: { sub: input.sub || null, direction: (input.direction || '').slice(0, 200) || null, budget, whenText: (input.when || '').slice(0, 200) || null, contacts: contacts.join(', ').slice(0, 500), note: (input.note || '').slice(0, 500) || null, consent: true },
@@ -233,12 +235,46 @@ export class ChatService {
     return { ok: true, id: row.id };
   }
 
+  // Admin-configurable notification channel: DB override (set via /hot-admin) takes precedence over env vars,
+  // so the channel can be changed without a redeploy.
+  private async adminChannel(): Promise<{ chat?: string; email?: string }> {
+    const row = await this.prisma.adminSettings.findUnique({ where: { id: 'singleton' } }).catch(() => null);
+    return {
+      chat: (row?.telegramChatId || '').trim() || this.config.get<string>('ADMIN_TELEGRAM_CHAT_ID') || undefined,
+      email: (row?.adminEmail || '').trim() || this.config.get<string>('ADMIN_EMAIL') || undefined,
+    };
+  }
+
+  async getAdminSettings(): Promise<{ telegramChatId: string; adminEmail: string; usingEnvFallback: { chat: boolean; email: boolean } }> {
+    const row = await this.prisma.adminSettings.findUnique({ where: { id: 'singleton' } }).catch(() => null);
+    return {
+      telegramChatId: row?.telegramChatId || '',
+      adminEmail: row?.adminEmail || '',
+      usingEnvFallback: { chat: !row?.telegramChatId, email: !row?.adminEmail },
+    };
+  }
+
+  async saveAdminSettings(patch: { telegramChatId?: string; adminEmail?: string }): Promise<boolean> {
+    await this.prisma.adminSettings.upsert({
+      where: { id: 'singleton' },
+      create: { id: 'singleton', telegramChatId: (patch.telegramChatId || '').trim() || null, adminEmail: (patch.adminEmail || '').trim() || null },
+      update: { telegramChatId: (patch.telegramChatId || '').trim() || null, adminEmail: (patch.adminEmail || '').trim() || null },
+    });
+    return true;
+  }
+
+  // Leads list for the admin dashboard — this is where chat contacts + the client's request end up (ChatLead table).
+  async leads(limit = 200): Promise<any[]> {
+    return this.prisma.chatLead.findMany({ orderBy: { createdAt: 'desc' }, take: Math.min(limit, 500) });
+  }
+
   private async notifyAdmin(lead: any) {
-    const token = this.config.get<string>('TELEGRAM_BOT_TOKEN'); const chat = this.config.get<string>('ADMIN_TELEGRAM_CHAT_ID');
+    const { chat, email } = await this.adminChannel();
+    const token = this.config.get<string>('TELEGRAM_BOT_TOKEN');
     const text = `🆕 Лид (чат): ${lead.direction || 'направление?'} · бюджет ${lead.budget || '?'} · когда: ${lead.whenText || '?'}\nКонтакты: ${lead.contacts}\n${this.baseUrl}/hot-admin`;
     if (token && chat) await fetch(`https://api.telegram.org/bot${token}/sendMessage`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chat_id: chat, text, disable_web_page_preview: true }) }).catch(() => {});
-    const key = this.config.get<string>('RESEND_API_KEY'); const from = this.config.get<string>('MAIL_FROM'); const to = this.config.get<string>('ADMIN_EMAIL');
-    if (key && from && to) await fetch('https://api.resend.com/emails', { method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ from, to, subject: 'Новый лид из чата ATM-travel', text }) }).catch(() => {});
+    const key = this.config.get<string>('RESEND_API_KEY'); const from = this.config.get<string>('MAIL_FROM');
+    if (key && from && email) await fetch('https://api.resend.com/emails', { method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ from, to: email, subject: 'Новый лид из чата ATM-travel', text }) }).catch(() => {});
   }
 
   // ── reminders dispatch (cron/pg_cron) ──

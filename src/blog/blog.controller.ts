@@ -47,9 +47,9 @@ export class BlogController {
   }
   // Persist edits (title/categories/tags/sections/images; deleted paragraphs/images already removed by the client).
   @Post('api/blog/edit')
-  async edit(@Body() b: { key?: string; id?: string; h1?: string; categories?: string[]; tags?: string[]; sections?: any[]; images?: any[] }) {
+  async edit(@Body() b: { key?: string; id?: string; h1?: string; categories?: string[]; tags?: string[]; sections?: any[]; images?: any[]; embedImages?: boolean }) {
     if (!this.adminOk(b?.key)) throw new UnauthorizedException('bad token');
-    return { ok: await this.svc.applyEdit(b?.id || '', { h1: b?.h1, categories: b?.categories, tags: b?.tags, sections: b?.sections, images: b?.images }) };
+    return { ok: await this.svc.applyEdit(b?.id || '', { h1: b?.h1, categories: b?.categories, tags: b?.tags, sections: b?.sections, images: b?.images, embedImages: b?.embedImages }) };
   }
 
   // ── Blog media: ElevenLabs voices/narration + rendered video ──
@@ -153,9 +153,11 @@ export class BlogController {
     const cats = this.articleCategories(a);
     const sources = this.articleSources(a);
     const gallery: { url: string; alt?: string }[] = (Array.isArray(a.imagesJson) ? a.imagesJson.slice(1) : []).filter((x: any) => x?.url);
-    const sectionsHtml = (a.bodyJson?.sections || []).map((s: any) =>
-      `<h2>${this.esc(s.heading)}</h2>` + String(s.body || '').split(/\n{2,}/).map((p: string) => `<p>${this.esc(p)}</p>`).join(''));
-    const body = this.interleave(sectionsHtml, gallery);
+    const rawSections = (a.bodyJson?.sections || []).map((s: any) => ({ heading: s.heading, paragraphs: String(s.body || '').split(/\n{2,}/) }));
+    const embedOn = a.embedImages !== false;
+    const body = embedOn
+      ? this.embedInline(rawSections, gallery)
+      : this.interleave(rawSections.map((s: any) => `<h2>${this.esc(s.heading)}</h2>` + s.paragraphs.map((p: string) => `<p>${this.esc(p)}</p>`).join('')), gallery);
     const hero = a.imageUrl ? `<img class="hero" src="${this.esc(a.imageUrl)}" alt="${this.esc(a.imageAlt || a.h1)}" loading="eager">` : '';
     const credit = a.imageSource ? `<div class="credit">Фото: <a href="${this.esc(a.imageSourceUrl || '#')}" rel="nofollow noopener">${this.esc(a.imageSource)}</a></div>` : '';
     const catsHtml = cats.length ? `<div class="cats">${cats.map((c) => `<span class="cat">${this.esc(c)}</span>`).join('')}</div>` : '';
@@ -188,7 +190,9 @@ export class BlogController {
   body{margin:0;background:#f6f8fa;color:#111;font:17px/1.65 Georgia,'Times New Roman',serif}
   .wrap{max-width:760px;margin:0 auto;padding:22px 18px 60px}
   h1{font-size:30px;line-height:1.2;margin:.3em 0 .25em}
-  h2{font-size:22px;margin:1.4em 0 .3em}
+  h2{font-size:22px;margin:1.4em 0 .3em;clear:both}
+  .embed-img{float:right;width:50%;height:auto;border-radius:10px;margin:4px 0 14px 20px}
+  @media(max-width:520px){ .embed-img{float:none;width:100%;margin:14px 0} }
   .cats{display:flex;gap:6px;flex-wrap:wrap;font-family:system-ui,sans-serif;margin:.2em 0 .35em}
   .cat{font-size:11px;letter-spacing:.3px;text-transform:uppercase;color:#0e7c86;background:#e6f4f6;border-radius:999px;padding:3px 10px;font-weight:700}
   .pubdate{font-family:system-ui,sans-serif;color:#8a97a3;font-size:13px;margin-bottom:16px}
@@ -218,6 +222,37 @@ ${sourcesHtml}
 </div></body></html>`;
   }
   private baseUrl() { return (this.config.get<string>('PUBLIC_BASE_URL') || 'https://atm-travel.org').replace(/\/$/, ''); }
+
+  // "Встроить картинки в текст" mode: float each gallery image right inside a chosen paragraph (50% width),
+  // spread evenly across all paragraphs (never into the very first paragraph of the article).
+  private embedInline(sections: { heading: string; paragraphs: string[] }[], gallery: { url: string; alt?: string }[]): string {
+    const flat: [number, number][] = [];
+    sections.forEach((sec, si) => sec.paragraphs.forEach((_, pi) => flat.push([si, pi])));
+    const total = flat.length;
+    const slots = new Set<number>();
+    if (gallery.length && total > 1) {
+      const gaps = total - 1;
+      const step = gaps / Math.min(gallery.length, gaps) || 1;
+      for (let gi = 0; gi < gallery.length; gi++) slots.add(Math.min(total - 1, Math.round(gi * step) + 1));
+    }
+    const slotList = [...slots].sort((a, b) => a - b);
+    let gi = 0, flatIdx = 0;
+    const out: string[] = [];
+    sections.forEach((sec) => {
+      out.push(`<h2>${this.esc(sec.heading)}</h2>`);
+      sec.paragraphs.forEach((ptext) => {
+        let img = '';
+        if (gi < gallery.length && slotList.includes(flatIdx)) { img = this.embedImg(gallery[gi]); gi++; }
+        out.push(`<p>${img}${this.esc(ptext)}</p>`);
+        flatIdx++;
+      });
+    });
+    while (gi < gallery.length) { out.push(this.embedImg(gallery[gi])); gi++; }   // any leftovers go at the very end
+    return out.join('\n');
+  }
+  private embedImg(g: { url: string; alt?: string }): string {
+    return `<img class="embed-img" src="${this.esc(g.url)}" alt="${this.esc(g.alt || '')}" loading="lazy">`;
+  }
 
   // Spread gallery images evenly across the gaps between rendered sections (never before the first section).
   // Hero stays full-size (.hero, unchanged); these render at 75% width (.inline-img).

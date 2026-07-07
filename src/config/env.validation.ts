@@ -122,7 +122,7 @@ export const envSchema = z.object({
   SUPPORTED_LOCALES: z.string().default('en,uk,ru,pl,fr,de,ja,it,pt,es'),
 
   ADMIN_API_KEY: z.string().min(1).default('change-me'),
-  LEAD_MIN_CONTACTS: z.coerce.number().int().positive().default(2),   // chat lead: required contacts (ТЗ: ≥2)
+  LEAD_MIN_CONTACTS: z.coerce.number().int().positive().default(1),   // chat lead: required contacts (contact 1 mandatory, contact 2 optional)
   ALLOWED_ORIGINS: z.string().default('http://localhost:3000'),
   PORT: z.coerce.number().int().positive().default(3000),
 });

@@ -35,9 +35,9 @@ export class HotToursController {
     return a ? { ok: true, article: a } : { ok: false };
   }
   @Post('api/hot-tours/edit')
-  async editArticle(@Body() b: { key?: string; id?: string; h1?: string; sections?: { heading: string; paragraphs: string[] }[]; images?: any[] }) {
+  async editArticle(@Body() b: { key?: string; id?: string; h1?: string; sections?: { heading: string; paragraphs: string[] }[]; images?: any[]; embedImages?: boolean }) {
     if (!this.svc.adminAllowed(b?.key)) throw new UnauthorizedException();
-    return { ok: b?.id ? await this.svc.applyEdit(b.id, { h1: b.h1, sections: b.sections, images: b.images }) : false };
+    return { ok: b?.id ? await this.svc.applyEdit(b.id, { h1: b.h1, sections: b.sections, images: b.images, embedImages: b.embedImages }) : false };
   }
   @Post('api/hot-tours/regenerate')
   async regenerate(@Body() b: { key?: string; id?: string; part?: string; sectionIdx?: number; paraIdx?: number; current?: string; note?: string; mode?: string; imgIdx?: number }) {
@@ -174,9 +174,11 @@ export class HotToursController {
     const t = a.tour;
     const AL = this.artLabels(a.locale);
     const gallery: { url: string; alt?: string }[] = (Array.isArray(a.imagesJson) ? a.imagesJson.slice(1) : []).filter((x: any) => x?.url);
-    const sectionsHtml = (a.bodyJson?.sections || []).map((s: any) =>
-      `<h2>${this.esc(s.heading)}</h2>` + String(s.body || '').split(/\n{2,}/).map((p: string) => `<p>${this.esc(p)}</p>`).join(''));
-    const body = this.interleave(sectionsHtml, gallery);
+    const rawSections = (a.bodyJson?.sections || []).map((s: any) => ({ heading: s.heading, paragraphs: String(s.body || '').split(/\n{2,}/) }));
+    const embedOn = a.embedImages !== false;
+    const body = embedOn
+      ? this.embedInline(rawSections, gallery)
+      : this.interleave(rawSections.map((s: any) => `<h2>${this.esc(s.heading)}</h2>` + s.paragraphs.map((p: string) => `<p>${this.esc(p)}</p>`).join('')), gallery);
     const pp = this.svc.priceBlock(a.locale, t.priceUAH);
     const oldPp = t.oldPriceUAH ? this.svc.priceBlock(a.locale, t.oldPriceUAH) : null;
     const old = oldPp ? `<s>${this.esc(oldPp.main)}</s> ` : '';
@@ -204,7 +206,9 @@ export class HotToursController {
 <script type="application/ld+json">${JSON.stringify(offer)}</script>
 <style>body{margin:0;background:#070c12;color:#e7eef4;font:16px/1.65 system-ui,-apple-system,sans-serif}
 .wrap{max-width:760px;margin:0 auto;padding:24px 18px 80px}a{color:#4fd7e0}
-h1{font-size:26px;line-height:1.25}h2{font-size:19px;margin-top:26px}
+h1{font-size:26px;line-height:1.25}h2{font-size:19px;margin-top:26px;clear:both}
+.embed-img{float:right;width:50%;height:auto;border-radius:9px;margin:4px 0 14px 20px}
+@media(max-width:520px){ .embed-img{float:none;width:100%;margin:14px 0} }
 .byline{color:#7d8b99;font-size:13px;margin:6px 0 18px}
 .ht-hero{width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:12px;margin:2px 0 6px}
 .ht-inline{width:75%;aspect-ratio:16/9;object-fit:cover;border-radius:10px;margin:20px auto;display:block}
@@ -232,6 +236,37 @@ ${uncertain}
 <p class="ht-disc">${AL.disc}</p>
 <script>(function(){try{var s=localStorage.getItem('atmSub')||'';var slug=${JSON.stringify(a.slug)};if(s){var c=document.getElementById('htCta');if(c)c.href='/go/hot-tour/'+encodeURIComponent(slug)+'?s='+encodeURIComponent(s);}new Image().src='/px/v?slug='+encodeURIComponent(slug)+(s?'&s='+encodeURIComponent(s):'');}catch(e){}})();</script>
 </div></body></html>`;
+  }
+
+  // "Встроить картинки в текст" mode: float each gallery image right inside a chosen paragraph (50% width),
+  // spread evenly across all paragraphs (never into the very first paragraph of the article).
+  private embedInline(sections: { heading: string; paragraphs: string[] }[], gallery: { url: string; alt?: string }[]): string {
+    const flat: [number, number][] = [];
+    sections.forEach((sec, si) => sec.paragraphs.forEach((_, pi) => flat.push([si, pi])));
+    const total = flat.length;
+    const slots = new Set<number>();
+    if (gallery.length && total > 1) {
+      const gaps = total - 1;
+      const step = gaps / Math.min(gallery.length, gaps) || 1;
+      for (let gi = 0; gi < gallery.length; gi++) slots.add(Math.min(total - 1, Math.round(gi * step) + 1));
+    }
+    const slotList = [...slots].sort((a, b) => a - b);
+    let gi = 0, flatIdx = 0;
+    const out: string[] = [];
+    sections.forEach((sec) => {
+      out.push(`<h2>${this.esc(sec.heading)}</h2>`);
+      sec.paragraphs.forEach((ptext) => {
+        let img = '';
+        if (gi < gallery.length && slotList.includes(flatIdx)) { img = this.embedImg(gallery[gi]); gi++; }
+        out.push(`<p>${img}${this.esc(ptext)}</p>`);
+        flatIdx++;
+      });
+    });
+    while (gi < gallery.length) { out.push(this.embedImg(gallery[gi])); gi++; }
+    return out.join('\n');
+  }
+  private embedImg(g: { url: string; alt?: string }): string {
+    return `<img class="embed-img" src="${this.esc(g.url)}" alt="${this.esc(g.alt || '')}" loading="lazy">`;
   }
 
   // Spread gallery images evenly across the gaps between rendered sections (never before the first section).

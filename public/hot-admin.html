@@ -97,10 +97,12 @@
   .bed-preview{flex:1 1 45%;min-width:0;max-height:72vh;overflow:auto;background:#0b1420;border:1px solid #1e2c3c;border-radius:8px;padding:12px 16px;position:sticky;top:8px}
   .pv-lbl{color:#7d8b99;font-size:11px;text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px}
   .pv-doc h1{font-size:20px;color:#eaf2f8;margin:.1em 0 .3em;line-height:1.25}
-  .pv-doc h2{font-size:15px;color:#9fb2c4;margin:1.1em 0 .3em}
+  .pv-doc h2{font-size:15px;color:#9fb2c4;margin:1.1em 0 .3em;clear:both}
   .pv-doc p{font-size:13px;color:#cdd7e1;line-height:1.6;margin:.5em 0}
   .pv-hero{width:100%;height:auto;border-radius:8px;display:block;margin:6px 0 10px}
   .pv-inline{width:75%;height:auto;border-radius:7px;display:block;margin:14px auto}
+  .pv-embed{float:right;width:50%;height:auto;border-radius:7px;margin:4px 0 10px 14px}
+  @media(max-width:520px){ .pv-embed{float:none;width:100%;margin:10px 0} }
   .pv-cats,.pv-tags{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 10px}
   .pv-tags{margin-top:14px;border-top:1px solid #16222f;padding-top:10px}
   .pv-chip{background:#12303a;color:#4fd7e0;border-radius:999px;padding:2px 9px;font-size:11px}
@@ -161,6 +163,7 @@
     <a href="#stats" data-view="stats">Статистика посещений и кликов</a>
     <a href="#retention" data-view="retention">Ретеншн подписчиков</a>
     <a href="#chatfunnel" data-view="chatfunnel">Чат-воронка</a>
+    <a href="#leads" data-view="leads">Лиды</a>
     <a href="#offerctr" data-view="offerctr">CTR офферов</a>
   </nav>
 
@@ -194,6 +197,13 @@
     <div id="cfBox"></div>
   </section>
 
+  <section class="view" id="view-leads">
+    <h1>Лиды из чата</h1>
+    <div class="sub">Контакты и запрос клиента, собранные ОРБИТА-Гидом после диалога. Канал оповещения админа настраивается ниже.</div>
+    <div id="leadSettings"></div>
+    <div id="leadList"></div>
+  </section>
+
   <section class="view" id="view-offerctr">
     <h1>CTR контекстных офферов</h1>
     <div class="sub">Показы и клики по офферам у камер: eSIM, отели, перелёты, экскурсии. CTR = клики / показы.</div>
@@ -209,12 +219,12 @@ function num(n){ return Number(n||0).toLocaleString('uk-UA'); }
 function dm(d){ if(!d) return ''; return new Date(d).toLocaleDateString('uk-UA',{day:'2-digit',month:'2-digit'}); }
 var KEY = localStorage.getItem('htAdminKey') || '';
 if(KEY) $('#key').value = KEY;
-var loaded = { moderation:false, stats:false, retention:false, chatfunnel:false, offerctr:false, blogmod:false };
+var loaded = { moderation:false, stats:false, retention:false, chatfunnel:false, offerctr:false, blogmod:false, leads:false };
 
 /* ---------- routing (default = moderation) ---------- */
 function currentView(){
   var h = (location.hash||'').replace('#','');
-  return (h==='stats'||h==='retention'||h==='chatfunnel'||h==='offerctr'||h==='blogmod') ? h : 'moderation';
+  return (h==='stats'||h==='retention'||h==='chatfunnel'||h==='offerctr'||h==='blogmod'||h==='leads') ? h : 'moderation';
 }
 function route(){
   var v = currentView();
@@ -224,6 +234,7 @@ function route(){
   $('#view-stats').classList.toggle('on', v==='stats');
   $('#view-retention').classList.toggle('on', v==='retention');
   $('#view-chatfunnel').classList.toggle('on', v==='chatfunnel');
+  $('#view-leads').classList.toggle('on', v==='leads');
   $('#view-offerctr').classList.toggle('on', v==='offerctr');
   if(!KEY) return;
   if(v==='moderation' && !loaded.moderation) loadModeration();
@@ -231,6 +242,7 @@ function route(){
   if(v==='stats' && !loaded.stats) loadStats();
   if(v==='retention' && !loaded.retention) loadRetention();
   if(v==='chatfunnel' && !loaded.chatfunnel) loadChatFunnel();
+  if(v==='leads' && !loaded.leads) loadLeads();
   if(v==='offerctr' && !loaded.offerctr) loadOfferCtr();
 }
 window.addEventListener('hashchange', route);
@@ -401,13 +413,36 @@ function buildPreview(st){
   if(imgs.length) p+='<img class="pv-hero" src="'+esc(imgs[0].url)+'" alt="">';
   p+='<h1>'+esc(st.h1)+'</h1>';
   if((st.categories||[]).length) p+='<div class="pv-cats">'+pvChips(st.categories)+'</div>';
-  var gallery=imgs.slice(1); var gi=0;
-  (st.sections||[]).forEach(function(sec,si){
-    p+='<h2>'+esc(sec.heading)+'</h2>';
-    sec.paragraphs.forEach(function(pr){ if(!pr.deleted) p+='<p>'+esc(pr.text)+'</p>'; });
-    if(gi<gallery.length && si<(st.sections.length-1)){ p+='<img class="pv-inline" src="'+esc(gallery[gi].url)+'" alt="">'; gi++; }
-  });
-  while(gi<gallery.length){ p+='<img class="pv-inline" src="'+esc(gallery[gi].url)+'" alt="">'; gi++; }
+  var gallery=imgs.slice(1);
+  var sections=(st.sections||[]).map(function(sec){ return {heading:sec.heading, paragraphs:(sec.paragraphs||[]).filter(function(pr){return !pr.deleted;}).map(function(pr){return pr.text;})}; });
+  if(st.embedImages!==false){
+    // float-right at 50%, spread evenly across actual paragraphs (mirrors the public page's embedInline)
+    var flat=[]; sections.forEach(function(sec,si){ sec.paragraphs.forEach(function(_,pi){ flat.push([si,pi]); }); });
+    var total=flat.length; var slots={};
+    if(gallery.length && total>1){
+      var gaps=total-1; var step=gaps/Math.min(gallery.length,gaps)||1;
+      for(var gi0=0; gi0<gallery.length; gi0++){ slots[Math.min(total-1, Math.round(gi0*step)+1)]=true; }
+    }
+    var gi=0, flatIdx=0;
+    sections.forEach(function(sec){
+      p+='<h2>'+esc(sec.heading)+'</h2>';
+      sec.paragraphs.forEach(function(ptext){
+        var img='';
+        if(gi<gallery.length && slots[flatIdx]){ img='<img class="pv-embed" src="'+esc(gallery[gi].url)+'" alt="">'; gi++; }
+        p+='<p>'+img+esc(ptext)+'</p>'; flatIdx++;
+      });
+    });
+    while(gi<gallery.length){ p+='<img class="pv-embed" src="'+esc(gallery[gi].url)+'" alt="">'; gi++; }
+  } else {
+    // centered block at 75%, spread between sections (mirrors the public page's interleave)
+    var gi2=0;
+    sections.forEach(function(sec,si){
+      p+='<h2>'+esc(sec.heading)+'</h2>';
+      sec.paragraphs.forEach(function(ptext){ p+='<p>'+esc(ptext)+'</p>'; });
+      if(gi2<gallery.length && si<(sections.length-1)){ p+='<img class="pv-inline" src="'+esc(gallery[gi2].url)+'" alt="">'; gi2++; }
+    });
+    while(gi2<gallery.length){ p+='<img class="pv-inline" src="'+esc(gallery[gi2].url)+'" alt="">'; gi2++; }
+  }
   if((st.tags||[]).length) p+='<div class="pv-tags">'+pvChips(st.tags)+'</div>';
   return p+'</div>';
 }
@@ -420,7 +455,7 @@ function renderEditor(id){
   }
   h+='<input class="bed-note" placeholder="Ремарка для 🔄 (необязательно): напр. «добавь про транспорт и цены»" value="'+esc(st.note||'')+'">';
   if(isBlog){
-    h+='<div class="bed-media"><span class="bed-lbl2">Сгенерировать:</span>'+bIc2('bed-audio','🔊 Аудио')+bIc2('bed-video','🎬 Видео')+(st.audioUrl?'<audio class="bed-audio-el" controls preload="none" src="'+esc(st.audioUrl)+'"></audio>':'')+(st.videoUrl?'<a class="btn" href="/publish?video='+encodeURIComponent(st.videoUrl)+'&title='+encodeURIComponent(st.h1)+'" target="_blank" rel="noopener">📣 Постить во все каналы</a>':'')+'<label class="bed-introlbl" title="Облёт глобуса + плашка гео (без погоды)"><input type="checkbox" class="bed-intro"'+(st.introOn?' checked':'')+(st.geo?'':' disabled')+'> интро (глобус)'+(st.geo?'':' — нет гео')+'</label>'+'<span class="bed-media-status"></span></div>';
+    h+='<div class="bed-media"><span class="bed-lbl2">Сгенерировать:</span>'+bIc2('bed-audio','🔊 Аудио')+bIc2('bed-video','🎬 Видео')+(st.audioUrl?'<audio class="bed-audio-el" controls preload="none" src="'+esc(st.audioUrl)+'"></audio>':'')+(st.videoUrl?'<a class="btn" href="/publish?video='+encodeURIComponent(st.videoUrl)+'&title='+encodeURIComponent(st.h1)+'" target="_blank" rel="noopener">📣 Постить во все каналы</a>':'')+'<label class="bed-introlbl" title="Фото float:right 50% внутри абзацев вместо блоков 75% между разделами"><input type="checkbox" class="bed-embedimgs"'+(st.embedImages!==false?' checked':'')+'> встроить картинки в текст</label>'+'<label class="bed-introlbl" title="Облёт глобуса + плашка гео (без погоды)"><input type="checkbox" class="bed-intro"'+(st.introOn?' checked':'')+(st.geo?'':' disabled')+'> добавить интро (глобус)'+(st.geo?'':' — нет гео')+'</label>'+'<span class="bed-media-status"></span></div>';
   }
   h+='<div class="bed-row"><div class="bed-lbl">Заголовок</div><div class="bed-val"><div class="bed-h1">'+esc(st.h1)+'</div></div><div class="bed-btns">'+bIc('rg-title','Сделать привлекательнее','🔄')+'</div></div>';
   h+='<div class="bed-lbl" style="margin-top:10px">Фото (первое — главное)</div><div class="bed-imgs">'+(st.images||[]).map(function(im,ii){
@@ -455,7 +490,7 @@ function openEditor(kind, id, btn){
   fetch(base+'/article?key='+encodeURIComponent(KEY)+'&id='+encodeURIComponent(id)).then(function(r){return r.ok?r.json():null;}).then(function(j){
     if(!j||!j.article){ box.innerHTML='<div class="empty">Не удалось загрузить.</div>'; return; }
     var a=j.article;
-    BEDIT[id]={ kind:kind, h1:a.h1, topic:a.topic||'', categories:(a.categories||[]).slice(), tags:(a.tags||[]).slice(), locale:a.locale||'ru', audioUrl:a.audioUrl||'', videoUrl:a.videoUrl||'', voiceId:a.voiceId||'', note:'', isGeo:!!a.isGeo, geo:a.geo||null, introOn:!!a.isGeo, uncertainFacts:a.uncertainFacts||[],
+    BEDIT[id]={ kind:kind, h1:a.h1, topic:a.topic||'', categories:(a.categories||[]).slice(), tags:(a.tags||[]).slice(), locale:a.locale||'ru', audioUrl:a.audioUrl||'', videoUrl:a.videoUrl||'', voiceId:a.voiceId||'', note:'', isGeo:!!a.isGeo, geo:a.geo||null, introOn:!!a.isGeo, uncertainFacts:a.uncertainFacts||[], embedImages:a.embedImages!==false,
       images:(a.images||[]).map(function(im){ return {url:im.url,alt:im.alt||'',source:im.source||'',sourceUrl:im.sourceUrl||'',deleted:false}; }),
       sections:(a.sections||[]).map(function(s){ return {heading:s.heading,paragraphs:(s.paragraphs||[]).map(function(t){return {text:t,deleted:false};})}; }) };
     renderEditor(id);
@@ -482,8 +517,8 @@ function saveEditor(id, btn){
   var isBlog = st.kind==='blog';
   var base = isBlog ? '/api/blog' : '/api/hot-tours';
   var payload = isBlog
-    ? { key:KEY, id:id, h1:st.h1, categories:st.categories, tags:st.tags, sections: sections, images: images }
-    : { key:KEY, id:id, h1:st.h1, sections: sections, images: images };
+    ? { key:KEY, id:id, h1:st.h1, categories:st.categories, tags:st.tags, sections: sections, images: images, embedImages: st.embedImages!==false }
+    : { key:KEY, id:id, h1:st.h1, sections: sections, images: images, embedImages: st.embedImages!==false };
   fetch(base+'/edit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
     .then(function(r){return r.ok?r.json():null;}).then(function(j){
       btn.disabled=false;
@@ -548,6 +583,7 @@ $('#blogList').addEventListener('click', function(e){
   var sv=e.target.closest('.bed-save'); if(sv){ saveEditor(id, sv); return; }
 });
 $('#blogList').addEventListener('input', function(e){ var n=e.target.closest('.bed-note'); if(!n)return; var id=editorIdOf(e.target); if(id&&BEDIT[id])BEDIT[id].note=n.value; });
+$('#blogList').addEventListener('change', function(e){ var c=e.target.closest('.bed-embedimgs'); if(!c)return; var id=editorIdOf(e.target); if(id&&BEDIT[id]){ BEDIT[id].embedImages=c.checked; renderEditor(id); } });
 var BDRAG=null;
 $('#blogList').addEventListener('dragstart', function(e){ var p=e.target.closest('.bed-para'); if(!p)return; BDRAG={id:editorIdOf(e.target),si:+p.getAttribute('data-si'),pi:+p.getAttribute('data-pi')}; p.classList.add('dragging'); if(e.dataTransfer)e.dataTransfer.effectAllowed='move'; });
 $('#blogList').addEventListener('dragend', function(e){ var p=e.target.closest('.bed-para'); if(p)p.classList.remove('dragging'); [].forEach.call(document.querySelectorAll('.bed-para.over'),function(x){x.classList.remove('over');}); BDRAG=null; });
@@ -701,6 +737,59 @@ function renderOfferCtr(d){
     brands.map(function(b){ return '<div class="fn-row"><div class="fn-l">'+esc(kindLabel(b.kind))+' · '+esc(b.brand)+'</div><div class="fn-bar"><i style="width:2%"></i><b>'+num(b.clicks)+'</b></div><div class="fn-cvr"></div></div>'; }).join('')+'</div>' : '';
   box.innerHTML=kpis+rows+br;
 }
+function renderLeadSettings(st){
+  var box=$('#leadSettings');
+  var hintChat = st.usingEnvFallback.chat ? ' (сейчас берётся из env ADMIN_TELEGRAM_CHAT_ID)' : '';
+  var hintEmail = st.usingEnvFallback.email ? ' (сейчас берётся из env ADMIN_EMAIL)' : '';
+  box.innerHTML =
+    '<div class="panelbox"><div class="pb-head"><span>Канал оповещения о новых лидах</span></div>'+
+    '<div style="padding:10px 14px 14px;display:flex;flex-direction:column;gap:8px">'+
+    '<label style="font-size:12px;color:#8a97a3">Telegram chat_id админа'+hintChat+'</label>'+
+    '<input id="lsChat" type="text" placeholder="напр. 123456789" value="'+esc(st.telegramChatId||'')+'" style="background:#0c1420;border:1px solid #1e2c3c;border-radius:8px;padding:8px 10px;color:#dfe8f0;font:inherit">'+
+    '<label style="font-size:12px;color:#8a97a3">Email админа'+hintEmail+'</label>'+
+    '<input id="lsEmail" type="email" placeholder="напр. admin@atm-travel.org" value="'+esc(st.adminEmail||'')+'" style="background:#0c1420;border:1px solid #1e2c3c;border-radius:8px;padding:8px 10px;color:#dfe8f0;font:inherit">'+
+    '<div style="display:flex;gap:8px;align-items:center"><button class="btn pub" id="lsSave">💾 Сохранить канал</button><span id="lsStatus" style="font-size:12px;color:#8a97a3"></span></div>'+
+    '<div style="font-size:11px;color:#5c6b7a">Пусто = используется env-переменная как раньше. Заполните, чтобы переопределить без редеплоя.</div>'+
+    '</div></div>';
+  $('#lsSave').addEventListener('click', function(){
+    var b=this; var old=b.textContent; b.disabled=true; b.textContent='Сохраняю…';
+    fetch('/api/chat/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:KEY,telegramChatId:$('#lsChat').value.trim(),adminEmail:$('#lsEmail').value.trim()})})
+      .then(function(r){return r.ok?r.json():null;}).then(function(j){
+        b.disabled=false; b.textContent=old;
+        var st2=$('#lsStatus'); if(st2) st2.textContent = (j&&j.ok) ? 'Сохранено ✓' : 'Ошибка сохранения';
+        if(j&&j.ok) setTimeout(function(){ loaded.leads=false; loadLeads(); },800);
+      }).catch(function(){ b.disabled=false; b.textContent=old; });
+  });
+}
+function dmFull(d){ if(!d) return ''; try{ return new Date(d).toLocaleString('uk-UA',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}); }catch(e){ return ''; } }
+function renderLeads(rows){
+  var box=$('#leadList');
+  if(!rows.length){ box.innerHTML='<div class="empty">Лидов пока нет.</div>'; return; }
+  box.innerHTML='<div class="panelbox"><div class="pb-head"><span>Заявки ('+rows.length+')</span></div>'+
+    rows.map(function(l){
+      return '<div class="fn-row" style="align-items:flex-start;flex-direction:column;gap:4px;padding:10px 14px">'+
+        '<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;width:100%">'+
+          '<b style="color:#dfe8f0">'+esc(l.contacts||'—')+'</b>'+
+          '<span style="color:#5c6b7a;font-size:12px">'+dmFull(l.createdAt)+'</span>'+
+          (l.consent?'<span style="color:#4fd7e0;font-size:11px">согласие ✓</span>':'<span style="color:#e0a63a;font-size:11px">без согласия</span>')+
+        '</div>'+
+        '<div style="color:#9fb2c4;font-size:13px">'+esc(l.direction||'направление не указано')+(l.budget?' · бюджет '+num(l.budget)+' грн':'')+(l.whenText?' · когда: '+esc(l.whenText):'')+'</div>'+
+        (l.note?'<div style="color:#7d8b99;font-size:12px">💬 '+esc(l.note)+'</div>':'')+
+      '</div>';
+    }).join('')+'</div>';
+}
+function loadLeads(){
+  $('#leadSettings').innerHTML='<div class="empty">Загрузка…</div>'; $('#leadList').innerHTML='';
+  Promise.all([
+    fetch('/api/chat/settings?key='+encodeURIComponent(KEY)).then(function(r){ if(r.status===401) return {__unauth:true}; return r.ok?r.json():null; }),
+    fetch('/api/chat/leads?key='+encodeURIComponent(KEY)).then(function(r){ return r.ok?r.json():null; }),
+  ]).then(function(res){
+    var st=res[0], lj=res[1];
+    if(st&&st.__unauth){ $('#leadSettings').innerHTML='<div class="empty">Неверный токен.</div>'; return; }
+    if(!st){ $('#leadSettings').innerHTML='<div class="empty">Ошибка загрузки настроек.</div>'; return; }
+    loaded.leads=true; renderLeadSettings(st); renderLeads((lj&&lj.leads)||[]);
+  }).catch(function(){ $('#leadSettings').innerHTML='<div class="empty">Ошибка загрузки.</div>'; });
+}
 function loadOfferCtr(){
   $('#ocBox').innerHTML='<div class="empty">Загрузка…</div>';
   fetch('/api/travel/offer-stats?key='+encodeURIComponent(KEY)).then(function(r){
@@ -750,7 +839,7 @@ function loadStats(){
 function enter(){
   KEY = $('#key').value.trim(); if(!KEY) return;
   localStorage.setItem('htAdminKey', KEY);
-  loaded.moderation = false; loaded.stats = false; loaded.retention = false; loaded.chatfunnel = false; loaded.offerctr = false; loaded.blogmod = false;
+  loaded.moderation = false; loaded.stats = false; loaded.retention = false; loaded.chatfunnel = false; loaded.offerctr = false; loaded.blogmod = false; loaded.leads = false;
   route();
 }
 $('#load').onclick = enter;
