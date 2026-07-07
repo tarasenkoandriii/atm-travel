@@ -129,6 +129,9 @@
   .btn-accent{padding:11px 20px;font-size:13px;font-weight:700;background:var(--cyan);border-color:var(--cyan);color:#04252a;white-space:nowrap;box-shadow:0 2px 10px rgba(79,215,224,.25);}
   .btn-accent:hover{background:#6be3ea;border-color:#6be3ea;}
   .btn-accent[disabled]{opacity:.6;}
+  .bed-uncertain{background:#241d0a;border:1px solid #5a4a12;border-radius:9px;padding:9px 13px;margin-bottom:10px;font-size:13px;color:#e0c975;}
+  .bed-uncertain b{color:#f0d060;}
+  .bed-uncertain ul{margin:5px 0 0;padding-left:18px;}
 </style>
 </head>
 <body>
@@ -159,7 +162,7 @@
   </section>
 
   <section class="view" id="view-blogmod">
-    <h1>Модерация блога</h1>
+    <div class="vhead"><h1>Модерация блога</h1><button class="btn btn-accent" id="blogCreate" title="Сгенерировать статью блога на модерацию (как крон)"><span aria-hidden="true">+</span> Создать</button></div>
     <div class="sub">Оригинальные тревел-статьи (гайды/советы/обзоры/истории). Скоринг текста и отдельно фотографии.</div>
     <div id="blogList"></div>
   </section>
@@ -233,6 +236,7 @@ function renderModeration(drafts){
     var disc = a.discountPct>0 ? '<span class="disc">−'+a.discountPct+'%</span>' : '';
     var oldp = a.oldPriceUAH ? '<s>'+money(a.oldPriceUAH)+'</s>' : '';
     var nm = a.status==='needs_manual' ? ' <span class="flag-nm">⚑ похоже на дубль — проверьте</span>' : '';
+    var unc = (a.uncertain&&a.uncertain.length) ? '<div class="txt" style="color:#b8860b">⚑ проверить: '+esc(a.uncertain.slice(0,3).join('; '))+'</div>' : '';
     var pct = (a.ratingPct==null) ? null : a.ratingPct;
     var rating = '<div class="rating"><div class="val">Конкурентность: '+(pct==null?'—':pct+'%')+'</div>'+
       (pct==null?'':'<div class="bar"><i style="width:'+pct+'%"></i></div>')+
@@ -240,9 +244,11 @@ function renderModeration(drafts){
     return '<div class="card">'+img+
       '<div class="body"><div class="h1">'+esc(a.h1)+nm+'</div>'+
       '<div class="meta">'+flag+esc(a.city)+', '+esc(a.country)+' · '+esc(a.hotel||'—')+' · '+(a.stars||0)+'★ · '+(a.nights||'')+' ноч. · вылет '+dm(a.departureDate)+'</div>'+
-      '<div class="price">'+oldp+' '+money(a.priceUAH)+disc+'</div>'+rating+
+      '<div class="price">'+oldp+' '+money(a.priceUAH)+disc+'</div>'+rating+unc+
       '<div class="actions"><a class="btn" href="/hot-tours/'+encodeURIComponent(a.slug)+'?key='+encodeURIComponent(KEY)+'" target="_blank" rel="noopener">Просмотр</a>'+
-      '<button class="btn pub" data-id="'+esc(a.id)+'">✓ Опубликовать</button></div></div></div>';
+      '<button class="btn ht-edit" data-id="'+esc(a.id)+'">✎ Редактировать</button>'+
+      '<button class="btn pub" data-id="'+esc(a.id)+'">✓ Опубликовать</button></div>'+
+      '<div class="beditor" id="ed-'+esc(a.id)+'" data-open="0"></div></div></div>';
   }).join('');
 }
 (function(){ var b=document.getElementById('modCreate'); if(!b) return;
@@ -264,6 +270,23 @@ function renderModeration(drafts){
       .catch(function(e){ b.disabled=false; b.innerHTML=old; alert('Ошибка: '+(e&&e.message||e)); });
   });
 })();
+(function(){ var b=document.getElementById('blogCreate'); if(!b) return;
+  b.addEventListener('click', function(){
+    if(!KEY){ alert('Сначала введите admin-токен.'); return; }
+    var old=b.innerHTML; b.disabled=true; b.textContent='Генерирую…';
+    fetch('/api/blog/generate?key='+encodeURIComponent(KEY), {method:'POST'})
+      .then(function(r){ if(r.status===401){ throw new Error('Неверный токен'); } return r.ok?r.json():null; })
+      .then(function(j){
+        b.disabled=false;
+        if(j&&j.ok){
+          if(j.generated>0){ b.innerHTML='Готово ✓ +'+j.generated; loaded.blogmod=false; loadBlogMod(); }
+          else { b.innerHTML=old; alert('Статья не создана (возможно, похожа на недавнюю — см. «needs_manual», или ошибка Grok). Попробуйте ещё раз.'); }
+          setTimeout(function(){ b.innerHTML=old; },2500);
+        } else { b.innerHTML=old; alert('Не удалось создать статью'+(j&&j.message?': '+j.message:'')); }
+      })
+      .catch(function(e){ b.disabled=false; b.innerHTML=old; alert('Ошибка: '+(e&&e.message||e)); });
+  });
+})();
 function loadModeration(){
   $('#modList').innerHTML = '<div class="empty">Загрузка…</div>';
   fetch('/api/hot-tours/drafts?key='+encodeURIComponent(KEY)).then(function(r){
@@ -273,15 +296,33 @@ function loadModeration(){
     .catch(function(){ $('#modList').innerHTML='<div class="empty">Ошибка загрузки.</div>'; });
 }
 $('#modList').addEventListener('click', function(e){
+  var edb=e.target.closest('.ht-edit'); if(edb){ openEditor('hottours', edb.getAttribute('data-id'), edb); return; }
+  var id=editorIdOf(e.target);
+  if(id && BEDIT[id] && BEDIT[id].kind==='hottours'){
+    var st=BEDIT[id]; var note=bedNote(id);
+    var t=e.target.closest('.rg-title'); if(t){ bRegen(id,'title',null,null,st.h1,t,function(v){ st.h1=v; renderEditor(id); },{note:note}); return; }
+    var para=e.target.closest('.bed-para');
+    var rp=e.target.closest('.rg-para'); if(rp&&para){ var si=+para.getAttribute('data-si'),pi=+para.getAttribute('data-pi'); bRegen(id,'paragraph',si,pi,st.sections[si].paragraphs[pi].text,rp,function(v){ st.sections[si].paragraphs[pi].text=v; renderEditor(id); },{note:note}); return; }
+    var sh=e.target.closest('.short-para'); if(sh&&para){ var s1=+para.getAttribute('data-si'),p1=+para.getAttribute('data-pi'); bRegen(id,'paragraph',s1,p1,st.sections[s1].paragraphs[p1].text,sh,function(v){ st.sections[s1].paragraphs[p1].text=v; renderEditor(id); },{note:note,mode:'shorter'}); return; }
+    var lg=e.target.closest('.long-para'); if(lg&&para){ var s2=+para.getAttribute('data-si'),p2=+para.getAttribute('data-pi'); bRegen(id,'paragraph',s2,p2,st.sections[s2].paragraphs[p2].text,lg,function(v){ st.sections[s2].paragraphs[p2].text=v; renderEditor(id); },{note:note,mode:'longer'}); return; }
+    var dp=e.target.closest('.del-para'); if(dp&&para){ var a1=+para.getAttribute('data-si'),b1=+para.getAttribute('data-pi'); st.sections[a1].paragraphs[b1].deleted=true; renderEditor(id); return; }
+    var rsp=e.target.closest('.rs-para'); if(rsp&&para){ var a2=+para.getAttribute('data-si'),b2=+para.getAttribute('data-pi'); st.sections[a2].paragraphs[b2].deleted=false; renderEditor(id); return; }
+    var sv=e.target.closest('.bed-save'); if(sv){ saveEditor(id, sv); return; }
+  }
   var b = e.target.closest('.pub'); if(!b) return;
-  var id = b.getAttribute('data-id'); b.disabled = true; b.textContent = 'Публикую…';
-  fetch('/api/hot-tours/publish', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ id: id, key: KEY }) })
+  var pid = b.getAttribute('data-id'); b.disabled = true; b.textContent = 'Публикую…';
+  fetch('/api/hot-tours/publish', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ id: pid, key: KEY }) })
     .then(function(r){ return r.ok?r.json():null; })
     .then(function(j){
       if(j && j.ok){ var card=b.closest('.card'); if(card){ card.style.opacity='.4'; b.textContent='Опубликовано ✓'; } loaded.stats=false; }
       else { b.disabled=false; b.textContent='✓ Опубликовать'; alert('Не удалось опубликовать'); }
     }).catch(function(){ b.disabled=false; b.textContent='✓ Опубликовать'; });
 });
+$('#modList').addEventListener('input', function(e){ var n=e.target.closest('.bed-note'); if(!n)return; var id=editorIdOf(e.target); if(id&&BEDIT[id])BEDIT[id].note=n.value; });
+$('#modList').addEventListener('dragstart', function(e){ var p=e.target.closest('.bed-para'); if(!p)return; BDRAG={id:editorIdOf(e.target),si:+p.getAttribute('data-si'),pi:+p.getAttribute('data-pi')}; p.classList.add('dragging'); if(e.dataTransfer)e.dataTransfer.effectAllowed='move'; });
+$('#modList').addEventListener('dragend', function(e){ var p=e.target.closest('.bed-para'); if(p)p.classList.remove('dragging'); [].forEach.call(document.querySelectorAll('.bed-para.over'),function(x){x.classList.remove('over');}); BDRAG=null; });
+$('#modList').addEventListener('dragover', function(e){ var p=e.target.closest('.bed-para'); if(!p||!BDRAG)return; if(+p.getAttribute('data-si')!==BDRAG.si)return; e.preventDefault(); [].forEach.call(document.querySelectorAll('.bed-para.over'),function(x){x.classList.remove('over');}); p.classList.add('over'); });
+$('#modList').addEventListener('drop', function(e){ var p=e.target.closest('.bed-para'); if(!p||!BDRAG)return; var id=BDRAG.id; if(!id||!BEDIT[id]){BDRAG=null;return;} var si=+p.getAttribute('data-si'),pi=+p.getAttribute('data-pi'); if(si!==BDRAG.si){BDRAG=null;return;} e.preventDefault(); var arr=BEDIT[id].sections[si].paragraphs; var from=BDRAG.pi,to=pi; if(from!==to){ var it=arr.splice(from,1)[0]; var tt=to; if(tt<0)tt=0; if(tt>arr.length)tt=arr.length; arr.splice(tt,0,it);} BDRAG=null; renderEditor(id); });
 
 /* ---------- blog moderation ---------- */
 function scoreBar(label,pct,note){
@@ -351,12 +392,20 @@ function buildPreview(st){
 }
 function renderEditor(id){
   var st=BEDIT[id], box=document.getElementById('ed-'+id); if(!st||!box) return;
+  var isBlog = st.kind==='blog';
   var h='<div class="bed-in"><div class="bed-panes"><div class="bed-edit">';
+  if(st.uncertainFacts && st.uncertainFacts.length){
+    h+='<div class="bed-uncertain"><b>Редактору проверить:</b><ul>'+st.uncertainFacts.map(function(u){return '<li>'+esc(u)+'</li>';}).join('')+'</ul></div>';
+  }
   h+='<input class="bed-note" placeholder="Ремарка для 🔄 (необязательно): напр. «добавь про транспорт и цены»" value="'+esc(st.note||'')+'">';
-  h+='<div class="bed-media"><span class="bed-lbl2">Сгенерировать:</span>'+bIc2('bed-audio','🔊 Аудио')+bIc2('bed-video','🎬 Видео')+(st.audioUrl?'<audio class="bed-audio-el" controls preload="none" src="'+esc(st.audioUrl)+'"></audio>':'')+(st.videoUrl?'<a class="btn" href="/publish?video='+encodeURIComponent(st.videoUrl)+'&title='+encodeURIComponent(st.h1)+'" target="_blank" rel="noopener">📣 Постить во все каналы</a>':'')+'<label class="bed-introlbl" title="Облёт глобуса + плашка гео (без погоды)"><input type="checkbox" class="bed-intro"'+(st.introOn?' checked':'')+(st.geo?'':' disabled')+'> интро (глобус)'+(st.geo?'':' — нет гео')+'</label>'+'<span class="bed-media-status"></span></div>';
-  h+='<div class="bed-row"><div class="bed-lbl">Заголовок</div><div class="bed-val"><div class="bed-h1">'+esc(st.h1)+'</div></div><div class="bed-btns">'+bIc('rg-title','Сделать кликбейтнее','🔄')+'</div></div>';
-  h+='<div class="bed-row"><div class="bed-lbl">Категории</div><div class="bed-val bchips">'+bChips(st.categories)+'</div><div class="bed-btns">'+bIc('rg-cats','Перегенерировать','🔄')+'</div></div>';
-  h+='<div class="bed-row"><div class="bed-lbl">Теги</div><div class="bed-val bchips">'+bChips(st.tags)+'</div><div class="bed-btns">'+bIc('rg-tags','Перегенерировать','🔄')+'</div></div>';
+  if(isBlog){
+    h+='<div class="bed-media"><span class="bed-lbl2">Сгенерировать:</span>'+bIc2('bed-audio','🔊 Аудио')+bIc2('bed-video','🎬 Видео')+(st.audioUrl?'<audio class="bed-audio-el" controls preload="none" src="'+esc(st.audioUrl)+'"></audio>':'')+(st.videoUrl?'<a class="btn" href="/publish?video='+encodeURIComponent(st.videoUrl)+'&title='+encodeURIComponent(st.h1)+'" target="_blank" rel="noopener">📣 Постить во все каналы</a>':'')+'<label class="bed-introlbl" title="Облёт глобуса + плашка гео (без погоды)"><input type="checkbox" class="bed-intro"'+(st.introOn?' checked':'')+(st.geo?'':' disabled')+'> интро (глобус)'+(st.geo?'':' — нет гео')+'</label>'+'<span class="bed-media-status"></span></div>';
+  }
+  h+='<div class="bed-row"><div class="bed-lbl">Заголовок</div><div class="bed-val"><div class="bed-h1">'+esc(st.h1)+'</div></div><div class="bed-btns">'+bIc('rg-title','Сделать привлекательнее','🔄')+'</div></div>';
+  if(isBlog){
+    h+='<div class="bed-row"><div class="bed-lbl">Категории</div><div class="bed-val bchips">'+bChips(st.categories)+'</div><div class="bed-btns">'+bIc('rg-cats','Перегенерировать','🔄')+'</div></div>';
+    h+='<div class="bed-row"><div class="bed-lbl">Теги</div><div class="bed-val bchips">'+bChips(st.tags)+'</div><div class="bed-btns">'+bIc('rg-tags','Перегенерировать','🔄')+'</div></div>';
+  }
   st.sections.forEach(function(sec,si){
     h+='<div class="bed-sec"><div class="bed-h2">'+esc(sec.heading)+'</div>';
     sec.paragraphs.forEach(function(p,pi){
@@ -371,14 +420,15 @@ function renderEditor(id){
   h+='</div><div class="bed-preview"><div class="pv-lbl">Предпросмотр статьи</div>'+buildPreview(st)+'</div></div></div>';
   box.innerHTML=h;
 }
-function openEditor(id, btn){
+function openEditor(kind, id, btn){
   var box=document.getElementById('ed-'+id); if(!box) return;
   if(box.getAttribute('data-open')==='1'){ box.innerHTML=''; box.setAttribute('data-open','0'); btn.textContent='✎ Редактировать'; return; }
   box.setAttribute('data-open','1'); btn.textContent='▲ Свернуть'; box.innerHTML='<div class="empty">Загрузка…</div>';
-  fetch('/api/blog/article?key='+encodeURIComponent(KEY)+'&id='+encodeURIComponent(id)).then(function(r){return r.ok?r.json():null;}).then(function(j){
+  var base = kind==='hottours' ? '/api/hot-tours' : '/api/blog';
+  fetch(base+'/article?key='+encodeURIComponent(KEY)+'&id='+encodeURIComponent(id)).then(function(r){return r.ok?r.json():null;}).then(function(j){
     if(!j||!j.article){ box.innerHTML='<div class="empty">Не удалось загрузить.</div>'; return; }
     var a=j.article;
-    BEDIT[id]={ h1:a.h1, topic:a.topic||'', categories:(a.categories||[]).slice(), tags:(a.tags||[]).slice(), locale:a.locale||'ru', audioUrl:a.audioUrl||'', videoUrl:a.videoUrl||'', voiceId:a.voiceId||'', note:'', isGeo:!!a.isGeo, geo:a.geo||null, introOn:!!a.isGeo,
+    BEDIT[id]={ kind:kind, h1:a.h1, topic:a.topic||'', categories:(a.categories||[]).slice(), tags:(a.tags||[]).slice(), locale:a.locale||'ru', audioUrl:a.audioUrl||'', videoUrl:a.videoUrl||'', voiceId:a.voiceId||'', note:'', isGeo:!!a.isGeo, geo:a.geo||null, introOn:!!a.isGeo, uncertainFacts:a.uncertainFacts||[],
       sections:(a.sections||[]).map(function(s){ return {heading:s.heading,paragraphs:(s.paragraphs||[]).map(function(t){return {text:t,deleted:false};})}; }) };
     renderEditor(id);
   }).catch(function(){ box.innerHTML='<div class="empty">Ошибка.</div>'; });
@@ -387,9 +437,10 @@ function editorIdOf(el){ var b=el.closest('.beditor'); return b?b.id.replace(/^e
 function bRegen(id, part, si, pi, cur, btn, cb, opts){
   opts=opts||{};
   var old=btn.textContent; btn.disabled=true; btn.textContent='⏳';
+  var base = (BEDIT[id]&&BEDIT[id].kind==='hottours') ? '/api/hot-tours' : '/api/blog';
   var body={key:KEY,id:id,part:part}; if(si!=null)body.sectionIdx=si; if(pi!=null)body.paraIdx=pi; if(cur!=null)body.current=cur;
   if(opts.note)body.note=opts.note; if(opts.mode)body.mode=opts.mode;
-  fetch('/api/blog/regenerate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
+  fetch(base+'/regenerate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})
     .then(function(r){return r.ok?r.json():null;}).then(function(j){
       btn.disabled=false; btn.textContent=old;
       if(j&&j.ok){ cb(j.value); } else { alert('Не удалось перегенерировать'+(j&&j.message?': '+j.message:'')); }
@@ -398,12 +449,16 @@ function bRegen(id, part, si, pi, cur, btn, cb, opts){
 function saveEditor(id, btn){
   var st=BEDIT[id]; if(!st) return; var box=document.getElementById('ed-'+id); var status=box?box.querySelector('.bed-status'):null;
   btn.disabled=true; if(status)status.textContent='Сохраняю…';
-  var payload={ key:KEY, id:id, h1:st.h1, categories:st.categories, tags:st.tags,
-    sections: st.sections.map(function(s){ return { heading:s.heading, paragraphs: s.paragraphs.filter(function(p){return !p.deleted;}).map(function(p){return p.text;}) }; }) };
-  fetch('/api/blog/edit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
+  var sections = st.sections.map(function(s){ return { heading:s.heading, paragraphs: s.paragraphs.filter(function(p){return !p.deleted;}).map(function(p){return p.text;}) }; });
+  var isBlog = st.kind==='blog';
+  var base = isBlog ? '/api/blog' : '/api/hot-tours';
+  var payload = isBlog
+    ? { key:KEY, id:id, h1:st.h1, categories:st.categories, tags:st.tags, sections: sections }
+    : { key:KEY, id:id, h1:st.h1, sections: sections };
+  fetch(base+'/edit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
     .then(function(r){return r.ok?r.json():null;}).then(function(j){
       btn.disabled=false;
-      if(j&&j.ok){ if(status)status.textContent='Сохранено ✓ (скоринг статьи сброшен для пересчёта)'; loaded.blogmod=false; }
+      if(j&&j.ok){ if(status)status.textContent='Сохранено ✓ (рейтинг/скоринг сброшен для пересчёта)'; if(isBlog){loaded.blogmod=false;} else {loaded.moderation=false;} }
       else { if(status)status.textContent='Ошибка сохранения'; }
     }).catch(function(){ btn.disabled=false; if(status)status.textContent='Ошибка сети'; });
 }
@@ -437,7 +492,7 @@ function openVoiceDialog(id){
 }
 function bedNote(id){ var n=document.querySelector('#ed-'+id+' .bed-note'); return n?n.value.trim():''; }
 $('#blogList').addEventListener('click', function(e){
-  var edb=e.target.closest('.blog-edit'); if(edb){ openEditor(edb.getAttribute('data-id'), edb); return; }
+  var edb=e.target.closest('.blog-edit'); if(edb){ openEditor('blog', edb.getAttribute('data-id'), edb); return; }
   var id=editorIdOf(e.target); if(!id||!BEDIT[id]) return; var st=BEDIT[id]; var note=bedNote(id);
   if(e.target.closest('.bed-audio')){ openVoiceDialog(id); return; }
   if(e.target.closest('.bed-video')){

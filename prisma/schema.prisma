@@ -201,6 +201,7 @@ model HotTourArticle {
   imageAlt        String?
   imageSource     String?   // pixabay | pexels
   imageSourceUrl  String?
+  imagesJson      Json?     // all article photos [{url,alt,source,sourceUrl}] (>=3), imagesJson[0] == hero/imageUrl
   publishedAt     DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt

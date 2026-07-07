@@ -223,14 +223,16 @@ export class HotToursService {
       if (dup && attempt < maxRetries) { this.logger.log(`hot-tours: near-duplicate for ${tour.destinationCity} → regenerating`); continue; }
       const slug = await this.uniqueSlug(tour);
       const contentHash = createHash('sha1').update(JSON.stringify(gen.sections)).digest('hex');
-      const img = await this.pickImage(gen.image_queries || [], gen.image_alt_texts || [], slug);
+      const place = `${tour.destinationCity}, ${tour.destinationCountry}`.trim();
+      const imgs = await this.pickImages(gen.image_queries || [], gen.image_alt_texts || [], slug, place, 4);
+      const img = imgs[0] || null;
       await this.prisma.hotTourArticle.create({
         data: {
           tourId: tour.id, slug, locale: 'ru', templateId: gen.template_id || tpl.id,
           h1: String(gen.h1).slice(0, 300), metaDescription: String(gen.meta_description || '').slice(0, 320),
           bodyJson: gen, contentHash, minhashSig: JSON.stringify(sig),
           status: dup ? 'needs_manual' : 'draft', authorName: this.author,
-          imageUrl: img?.url || null, imageAlt: img?.alt || null, imageSource: img?.source || null, imageSourceUrl: img?.sourceUrl || null,
+          imageUrl: img?.url || null, imageAlt: img?.alt || null, imageSource: img?.source || null, imageSourceUrl: img?.sourceUrl || null, imagesJson: imgs as any,
         },
       });
       return true;
@@ -315,26 +317,31 @@ export class HotToursService {
 
   // ── Image picker (ТЗ §6): Pixabay primary, Pexels fallback → download → our Vercel Blob. ──
   // Landscape/safe-search bias; the Grok image_queries are scenery ("coastline/beach/aerial").
-  private async pickImage(queries: string[], alts: string[], slug: string):
-    Promise<{ url: string; alt: string; source: string; sourceUrl: string } | null> {
-    if (!this.blobToken) return null;               // need somewhere to host the file
-    const q = (queries || []).find(Boolean);
-    if (!q) return null;
-    const alt = (alts || []).find(Boolean) || q;
-    const found = (await this.searchPixabay(q)) || (await this.searchPexels(q));
-    if (!found) return null;
-    try {
-      const img = await fetch(found.downloadUrl);
-      if (!img.ok) return null;
-      const buf = Buffer.from(await img.arrayBuffer());
-      const ct = img.headers.get('content-type') || 'image/jpeg';
-      const ext = (ct.includes('png') ? 'png' : ct.includes('webp') ? 'webp' : 'jpg');
-      const { put } = await import('@vercel/blob');
-      const blob = await put(`hot-tours/${slug}.${ext}`, buf, {
-        access: 'public', token: this.blobToken, contentType: ct, addRandomSuffix: true,
-      });
-      return { url: blob.url, alt, source: found.source, sourceUrl: found.sourceUrl };
-    } catch (e: any) { this.logger.warn(`image blob upload failed: ${e?.message || e}`); return null; }
+  // Fetch >=min distinct photos (Grok's queries + destination-derived fallbacks) so the article isn't a single-photo page.
+  private async pickImages(queries: string[], alts: string[], slug: string, place: string, min = 4): Promise<Array<{ url: string; alt: string; source: string; sourceUrl: string }>> {
+    if (!this.blobToken) return [];
+    const t = (place || '').trim();
+    const base = (queries || []).map((s) => String(s || '').trim()).filter(Boolean);
+    const extra = [`${t} beach`, `${t} hotel`, `${t} cityscape`, `${t} landmark`, `${t} street`, `${t} travel`];
+    const qlist = [...new Set([...base, ...extra])].filter(Boolean).slice(0, 8);
+    const alt0 = (alts || []).find(Boolean) || t || 'travel';
+    const out: Array<{ url: string; alt: string; source: string; sourceUrl: string }> = [];
+    const seen = new Set<string>();
+    const { put } = await import('@vercel/blob');
+    for (let i = 0; i < qlist.length && out.length < Math.max(min, 3); i++) {
+      const found = (await this.searchPixabay(qlist[i])) || (await this.searchPexels(qlist[i]));
+      if (!found || seen.has(found.downloadUrl)) continue;
+      seen.add(found.downloadUrl);
+      try {
+        const img = await fetch(found.downloadUrl); if (!img.ok) continue;
+        const buf = Buffer.from(await img.arrayBuffer());
+        const ct = img.headers.get('content-type') || 'image/jpeg';
+        const ext = ct.includes('png') ? 'png' : ct.includes('webp') ? 'webp' : 'jpg';
+        const blob = await put(`hot-tours/${slug}-${out.length}.${ext}`, buf, { access: 'public', token: this.blobToken, contentType: ct, addRandomSuffix: true });
+        out.push({ url: blob.url, alt: (alts || [])[out.length] || alt0, source: found.source, sourceUrl: found.sourceUrl });
+      } catch (e: any) { this.logger.warn(`image ${i} upload failed: ${e?.message || e}`); }
+    }
+    return out;
   }
 
   private async searchPixabay(q: string): Promise<{ source: string; downloadUrl: string; sourceUrl: string } | null> {
@@ -451,16 +458,94 @@ export class HotToursService {
     for (const a of rows) {
       const rating = await this.ratingFor(a);
       const t = a.tour;
+      const bj: any = a.bodyJson || {};
       out.push({
         id: a.id, slug: a.slug, h1: a.h1, status: a.status, image: a.imageUrl, imageAlt: a.imageAlt,
         city: t.destinationCity, country: t.destinationCountry, cc: (t.countryCode || '').toLowerCase(),
         hotel: t.hotelName, stars: t.hotelStars, priceUAH: t.priceUAH, oldPriceUAH: t.oldPriceUAH,
         discountPct: t.discountPct, departureDate: t.departureDate, nights: t.nights,
-        ratingPct: rating.pct, ratingNote: rating.note,
+        ratingPct: rating.pct, ratingNote: rating.note, uncertain: bj.uncertain_facts || [],
       });
     }
     return out;
   }
+
+  // ── Inline editor (admin), mirrors the blog editor: load parts, regenerate a part, persist edits ──
+  async articleForEdit(id: string): Promise<any | null> {
+    const a = await this.prisma.hotTourArticle.findUnique({ where: { id } }).catch(() => null);
+    if (!a) return null;
+    const bj: any = a.bodyJson || {};
+    const sections = (bj.sections || []).map((s: any) => ({
+      heading: s.heading || '',
+      paragraphs: String(s.body || '').split(/\n{2,}/).map((p: string) => p.trim()).filter(Boolean),
+    }));
+    return { id: a.id, h1: a.h1, locale: a.locale, status: a.status, image: a.imageUrl, sections, uncertainFacts: bj.uncertain_facts || [] };
+  }
+
+  async applyEdit(id: string, patch: { h1?: string; sections?: { heading: string; paragraphs: string[] }[] }): Promise<boolean> {
+    const a = await this.prisma.hotTourArticle.findUnique({ where: { id } }).catch(() => null);
+    if (!a) return false;
+    const bj: any = a.bodyJson || {};
+    const sections = Array.isArray(patch.sections)
+      ? patch.sections.map((s) => ({ heading: String(s.heading || '').slice(0, 300), body: (s.paragraphs || []).map((p) => String(p || '').trim()).filter(Boolean).join('\n\n') })).filter((s) => s.body || s.heading)
+      : bj.sections;
+    const newBj = { ...bj, sections };
+    await this.prisma.hotTourArticle.update({
+      where: { id },
+      data: {
+        h1: patch.h1 != null && String(patch.h1).trim() ? String(patch.h1).slice(0, 300) : a.h1,
+        bodyJson: newBj as any,
+        ratingPct: null, ratingNote: null,   // edits invalidate the competitiveness rating so it's recomputed
+      },
+    });
+    return true;
+  }
+
+  private async grokRaw(sys: string, user: string): Promise<string | null> {
+    const key = this.config.get<string>('XAI_API_KEY');
+    if (!key) return null;
+    try {
+      const resp = await fetch('https://api.x.ai/v1/chat/completions', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+        body: JSON.stringify({ model: 'grok-4.3', messages: [{ role: 'system', content: sys }, { role: 'user', content: user }] }),
+      });
+      if (!resp.ok) return null;
+      const data: any = await resp.json();
+      return String(data?.choices?.[0]?.message?.content || '').trim();
+    } catch { return null; }
+  }
+
+  async regeneratePart(id: string, part: string, sectionIdx?: number, paraIdx?: number, current?: string, note?: string, mode?: string): Promise<{ ok: boolean; value?: any; message?: string }> {
+    const a = await this.prisma.hotTourArticle.findUnique({ where: { id }, include: { tour: true } }).catch(() => null);
+    if (!a) return { ok: false, message: 'not found' };
+    if (!this.config.get<string>('XAI_API_KEY')) return { ok: false, message: 'нет XAI_API_KEY' };
+    const bj: any = a.bodyJson || {};
+    const t: any = a.tour;
+    const ctx = `Направление: ${t?.destinationCity || ''}, ${t?.destinationCountry || ''}. Отель: ${t?.hotelName || '—'} ${t?.hotelStars || ''}★. Цена: ${t?.priceUAH || ''} грн${t?.discountPct ? ` (−${t.discountPct}%)` : ''}.`;
+    const extra = [
+      note && note.trim() ? `Учитывай пожелание редактора: ${note.trim().slice(0, 300)}.` : '',
+      mode === 'shorter' ? 'Сделай ЗАМЕТНО КОРОЧЕ — оставь только суть, убери лишнее.' : '',
+      mode === 'longer' ? 'Сделай ПОДРОБНЕЕ — добавь конкретику и полезные детали, без воды и повторов.' : '',
+    ].filter(Boolean).join(' ');
+    const strip = (s: string) => s.replace(/^["'«»\s]+|["'«»\s]+$/g, '');
+    if (part === 'title') {
+      const sys = `Ты — редактор travel-статей о горящих турах. Перепиши ЗАГОЛОВОК: сделай его более привлекательным и цепляющим, но честным — НЕ меняй город/страну/отель/цену. ${extra} Язык: русский. Верни ТОЛЬКО текст заголовка, без кавычек.`;
+      const out = await this.grokRaw(sys, `${ctx}\nТекущий заголовок: ${(current && current.trim()) || a.h1}`);
+      if (!out) return { ok: false, message: 'grok failed' };
+      return { ok: true, value: strip(out).slice(0, 300) };
+    }
+    if (part === 'paragraph') {
+      const sec = (bj.sections || [])[sectionIdx ?? -1]; if (!sec) return { ok: false, message: 'no section' };
+      const paras = String(sec.body || '').split(/\n{2,}/);
+      const cur = (current && current.trim()) || paras[paraIdx ?? -1]; if (cur == null) return { ok: false, message: 'no paragraph' };
+      const sys = `Ты — редактор travel-статей о горящих турах. Переформулируй абзац: КОНКРЕТНЕЕ, меньше воды, чётче смысл; сохрани факты (цену/даты/отель не выдумывай и не меняй). ${extra} Верни ТОЛЬКО переписанный абзац.`;
+      const out = await this.grokRaw(sys, `${ctx}\nРаздел: ${sec.heading}\nАбзац: ${cur}`);
+      if (!out) return { ok: false, message: 'grok failed' };
+      return { ok: true, value: strip(out).trim() };
+    }
+    return { ok: false, message: 'unknown part' };
+  }
+
 
   async publish(id: string): Promise<boolean> {
     const a = await this.prisma.hotTourArticle.findUnique({ where: { id } });

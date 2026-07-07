@@ -27,6 +27,24 @@ export class HotToursController {
     return { ok };
   }
 
+  // Inline editor (admin): same editing toolkit as the blog editor (title/paragraph regen, drag-reorder, save).
+  @Get('api/hot-tours/article')
+  async articleForEdit(@Query('id') id?: string, @Query('key') key?: string) {
+    if (!this.svc.adminAllowed(key)) throw new UnauthorizedException();
+    const a = id ? await this.svc.articleForEdit(id) : null;
+    return a ? { ok: true, article: a } : { ok: false };
+  }
+  @Post('api/hot-tours/edit')
+  async editArticle(@Body() b: { key?: string; id?: string; h1?: string; sections?: { heading: string; paragraphs: string[] }[] }) {
+    if (!this.svc.adminAllowed(b?.key)) throw new UnauthorizedException();
+    return { ok: b?.id ? await this.svc.applyEdit(b.id, { h1: b.h1, sections: b.sections }) : false };
+  }
+  @Post('api/hot-tours/regenerate')
+  async regenerate(@Body() b: { key?: string; id?: string; part?: string; sectionIdx?: number; paraIdx?: number; current?: string; note?: string; mode?: string }) {
+    if (!this.svc.adminAllowed(b?.key)) throw new UnauthorizedException();
+    return this.svc.regeneratePart(b?.id || '', b?.part || '', b?.sectionIdx, b?.paraIdx, b?.current, b?.note, b?.mode);
+  }
+
   @Get('api/hot-tours/stats')
   async stats(@Query('key') key?: string) {
     if (!this.svc.adminAllowed(key)) throw new UnauthorizedException();
@@ -155,8 +173,10 @@ export class HotToursController {
   private renderArticle(a: any): string {
     const t = a.tour;
     const AL = this.artLabels(a.locale);
-    const body = (a.bodyJson?.sections || []).map((s: any) =>
-      `<h2>${this.esc(s.heading)}</h2>` + String(s.body || '').split(/\n{2,}/).map((p: string) => `<p>${this.esc(p)}</p>`).join('')).join('\n');
+    const gallery: { url: string; alt?: string }[] = (Array.isArray(a.imagesJson) ? a.imagesJson.slice(1) : []).filter((x: any) => x?.url);
+    const sectionsHtml = (a.bodyJson?.sections || []).map((s: any) =>
+      `<h2>${this.esc(s.heading)}</h2>` + String(s.body || '').split(/\n{2,}/).map((p: string) => `<p>${this.esc(p)}</p>`).join(''));
+    const body = this.interleave(sectionsHtml, gallery);
     const pp = this.svc.priceBlock(a.locale, t.priceUAH);
     const oldPp = t.oldPriceUAH ? this.svc.priceBlock(a.locale, t.oldPriceUAH) : null;
     const old = oldPp ? `<s>${this.esc(oldPp.main)}</s> ` : '';
@@ -172,7 +192,8 @@ export class HotToursController {
       '@context': 'https://schema.org', '@type': 'Offer', priceCurrency: pp.code, price: pp.amount,
       availabilityStarts: dt, url: '/go/hot-tour/' + a.slug,
     };
-    const uncertain = (a.bodyJson?.uncertain_facts || []).length
+    // The editor-review note is an internal drafting aid — never show it once the article is live.
+    const uncertain = a.status !== 'published' && (a.bodyJson?.uncertain_facts || []).length
       ? `<aside class="ht-note"><b>Редактору проверить:</b><ul>${a.bodyJson.uncertain_facts.map((u: string) => `<li>${this.esc(u)}</li>`).join('')}</ul></aside>` : '';
     return `<!doctype html><html lang="${a.locale}"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -186,6 +207,7 @@ export class HotToursController {
 h1{font-size:26px;line-height:1.25}h2{font-size:19px;margin-top:26px}
 .byline{color:#7d8b99;font-size:13px;margin:6px 0 18px}
 .ht-hero{width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:12px;margin:2px 0 6px}
+.ht-inline{width:75%;aspect-ratio:16/9;object-fit:cover;border-radius:10px;margin:20px auto;display:block}
 .ht-credit{color:#5c6b7a;font-size:11px;margin:0 0 14px}.ht-credit a{color:#7d8b99}
 .ht-price{border:1px solid #1b2734;background:#0b131c;border-radius:12px;padding:16px;margin:22px 0}
 .ht-price .p{font-size:24px;font-weight:800;color:#4fd7e0}
@@ -210,5 +232,24 @@ ${uncertain}
 <p class="ht-disc">${AL.disc}</p>
 <script>(function(){try{var s=localStorage.getItem('atmSub')||'';var slug=${JSON.stringify(a.slug)};if(s){var c=document.getElementById('htCta');if(c)c.href='/go/hot-tour/'+encodeURIComponent(slug)+'?s='+encodeURIComponent(s);}new Image().src='/px/v?slug='+encodeURIComponent(slug)+(s?'&s='+encodeURIComponent(s):'');}catch(e){}})();</script>
 </div></body></html>`;
+  }
+
+  // Spread gallery images evenly across the gaps between rendered sections (never before the first section).
+  // Hero (.ht-hero) stays full-size/unchanged; these render at 75% width (.ht-inline).
+  private interleave(sections: string[], gallery: { url: string; alt?: string }[]): string {
+    if (!gallery.length || sections.length < 2) return sections.join('\n') + gallery.map((g) => this.inlineImg(g)).join('');
+    const gaps = sections.length - 1;
+    const step = gaps / Math.min(gallery.length, gaps) || 1;
+    const out: string[] = [sections[0]];
+    let gi = 0;
+    for (let i = 1; i < sections.length; i++) {
+      if (gi < gallery.length && i >= Math.round(gi * step) + 1) { out.push(this.inlineImg(gallery[gi])); gi++; }
+      out.push(sections[i]);
+    }
+    while (gi < gallery.length) { out.push(this.inlineImg(gallery[gi])); gi++; }
+    return out.join('\n');
+  }
+  private inlineImg(g: { url: string; alt?: string }): string {
+    return `<img class="ht-inline" src="${this.esc(g.url)}" alt="${this.esc(g.alt || '')}" loading="lazy">`;
   }
 }

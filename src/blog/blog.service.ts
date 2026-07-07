@@ -29,7 +29,7 @@ export class BlogService {
       const dup = await this.isDuplicate(sig, gen.h1);
       if (dup && attempt < 1) { this.logger.log(`blog: near-duplicate for ${topic} → retry`); continue; }
       const slug = await this.uniqueSlug(gen.h1);
-      const imgs = await this.pickImages(gen.image_queries || [], gen.image_alt_texts || [], slug, topic, 3);
+      const imgs = await this.pickImages(gen.image_queries || [], gen.image_alt_texts || [], slug, topic, 4);
       const img = imgs[0] || null;
       await this.prisma.blogArticle.create({
         data: {
@@ -280,7 +280,7 @@ export class BlogService {
       heading: s.heading || '',
       paragraphs: String(s.body || '').split(/\n{2,}/).map((p: string) => p.trim()).filter(Boolean),
     }));
-    return { id: a.id, h1: a.h1, locale: a.locale, status: a.status, image: a.imageUrl, topic: a.topic, categories: bj.categories || [], tags: bj.tags || [], sections, audioUrl: a.audioUrl, videoUrl: a.videoUrl, voiceId: a.audioVoiceId, geo: geoForTopic(a.topic), isGeo: !!geoForTopic(a.topic) };
+    return { id: a.id, h1: a.h1, locale: a.locale, status: a.status, image: a.imageUrl, topic: a.topic, categories: bj.categories || [], tags: bj.tags || [], sections, uncertainFacts: bj.uncertain_facts || [], audioUrl: a.audioUrl, videoUrl: a.videoUrl, voiceId: a.audioVoiceId, geo: geoForTopic(a.topic), isGeo: !!geoForTopic(a.topic) };
   }
 
   private async grokRaw(sys: string, user: string): Promise<string | null> {

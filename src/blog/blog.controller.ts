@@ -78,13 +78,13 @@ export class BlogController {
 
   // Cron: generate one article per run (pg_cron target; also runs from the daily refresh).
   @Post('api/blog/generate')
-  async genPost(@Headers('authorization') auth?: string, @Headers('x-cron-secret') xsec?: string) {
-    if (!this.cronOk(auth, xsec)) throw new UnauthorizedException('bad cron secret');
+  async genPost(@Query('key') key?: string, @Headers('authorization') auth?: string, @Headers('x-cron-secret') xsec?: string) {
+    if (!this.cronOk(auth, xsec) && !this.adminOk(key)) throw new UnauthorizedException('bad cron secret / admin token');
     return { ok: true, generated: (await this.svc.generateOne()) ? 1 : 0 };
   }
   @Get('api/blog/generate')
-  async genGet(@Headers('authorization') auth?: string, @Headers('x-cron-secret') xsec?: string) {
-    if (!this.cronOk(auth, xsec)) throw new UnauthorizedException('bad cron secret');
+  async genGet(@Query('key') key?: string, @Headers('authorization') auth?: string, @Headers('x-cron-secret') xsec?: string) {
+    if (!this.cronOk(auth, xsec) && !this.adminOk(key)) throw new UnauthorizedException('bad cron secret / admin token');
     return { ok: true, generated: (await this.svc.generateOne()) ? 1 : 0 };
   }
 
@@ -152,8 +152,10 @@ export class BlogController {
     const AL = this.labels(a.locale);
     const cats = this.articleCategories(a);
     const sources = this.articleSources(a);
-    const body = (a.bodyJson?.sections || []).map((s: any) =>
-      `<h2>${this.esc(s.heading)}</h2>` + String(s.body || '').split(/\n{2,}/).map((p: string) => `<p>${this.esc(p)}</p>`).join('')).join('\n');
+    const gallery: { url: string; alt?: string }[] = (Array.isArray(a.imagesJson) ? a.imagesJson.slice(1) : []).filter((x: any) => x?.url);
+    const sectionsHtml = (a.bodyJson?.sections || []).map((s: any) =>
+      `<h2>${this.esc(s.heading)}</h2>` + String(s.body || '').split(/\n{2,}/).map((p: string) => `<p>${this.esc(p)}</p>`).join(''));
+    const body = this.interleave(sectionsHtml, gallery);
     const hero = a.imageUrl ? `<img class="hero" src="${this.esc(a.imageUrl)}" alt="${this.esc(a.imageAlt || a.h1)}" loading="eager">` : '';
     const credit = a.imageSource ? `<div class="credit">Фото: <a href="${this.esc(a.imageSourceUrl || '#')}" rel="nofollow noopener">${this.esc(a.imageSource)}</a></div>` : '';
     const catsHtml = cats.length ? `<div class="cats">${cats.map((c) => `<span class="cat">${this.esc(c)}</span>`).join('')}</div>` : '';
@@ -163,13 +165,15 @@ export class BlogController {
       : '';
     const schema = {
       '@context': 'https://schema.org', '@type': 'Article', headline: a.h1,
-      datePublished: a.publishedAt, dateModified: a.updatedAt, image: a.imageUrl ? [a.imageUrl] : undefined,
+      datePublished: a.publishedAt, dateModified: a.updatedAt,
+      image: a.imageUrl ? [a.imageUrl, ...gallery.map((g) => g.url)] : undefined,
       author: { '@type': 'Person', name: a.authorName || 'ATM-travel' },
       publisher: { '@type': 'Organization', name: 'ATM-travel' },
       articleSection: cats[0], keywords: [...cats, ...((a.bodyJson?.tags) || [])].join(', '),
       citation: sources.map((s) => s.url),
     };
-    const uncertain = (a.bodyJson?.uncertain_facts || []).length
+    // The editor-review note is an internal drafting aid — never show it once the article is live.
+    const uncertain = a.status !== 'published' && (a.bodyJson?.uncertain_facts || []).length
       ? `<aside class="note"><b>Редактору проверить:</b><ul>${a.bodyJson.uncertain_facts.map((u: string) => `<li>${this.esc(u)}</li>`).join('')}</ul></aside>` : '';
     return `<!doctype html><html lang="${a.locale}"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -189,6 +193,7 @@ export class BlogController {
   .cat{font-size:11px;letter-spacing:.3px;text-transform:uppercase;color:#0e7c86;background:#e6f4f6;border-radius:999px;padding:3px 10px;font-weight:700}
   .pubdate{font-family:system-ui,sans-serif;color:#8a97a3;font-size:13px;margin-bottom:16px}
   .hero{width:100%;height:auto;border-radius:12px;margin:10px 0 4px;display:block}
+  .inline-img{width:75%;height:auto;border-radius:10px;display:block;margin:1.4em auto}
   .credit{font-family:system-ui,sans-serif;font-size:11px;color:#8a97a3;margin-bottom:10px}
   p{margin:.7em 0}
   a{color:#0e7c86}
@@ -213,4 +218,23 @@ ${sourcesHtml}
 </div></body></html>`;
   }
   private baseUrl() { return (this.config.get<string>('PUBLIC_BASE_URL') || 'https://atm-travel.org').replace(/\/$/, ''); }
+
+  // Spread gallery images evenly across the gaps between rendered sections (never before the first section).
+  // Hero stays full-size (.hero, unchanged); these render at 75% width (.inline-img).
+  private interleave(sections: string[], gallery: { url: string; alt?: string }[]): string {
+    if (!gallery.length || sections.length < 2) return sections.join('\n') + gallery.map((g) => this.inlineImg(g)).join('');
+    const gaps = sections.length - 1;
+    const step = gaps / Math.min(gallery.length, gaps) || 1;
+    const out: string[] = [sections[0]];
+    let gi = 0;
+    for (let i = 1; i < sections.length; i++) {
+      if (gi < gallery.length && i >= Math.round(gi * step) + 1) { out.push(this.inlineImg(gallery[gi])); gi++; }
+      out.push(sections[i]);
+    }
+    while (gi < gallery.length) { out.push(this.inlineImg(gallery[gi])); gi++; }   // any leftovers go at the end
+    return out.join('\n');
+  }
+  private inlineImg(g: { url: string; alt?: string }): string {
+    return `<img class="inline-img" src="${this.esc(g.url)}" alt="${this.esc(g.alt || '')}" loading="lazy">`;
+  }
 }
