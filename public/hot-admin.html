@@ -124,8 +124,11 @@
   .vm-play{background:#152231;border:1px solid #24384a;color:#cfe0ee;border-radius:7px;width:30px;height:30px;cursor:pointer;flex:0 0 auto}
   .vm-foot{display:flex;gap:8px;justify-content:flex-end}
 
-  .vhead{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+  .vhead{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:6px 0 18px;margin-bottom:4px;}
   .vhead h1{margin:0;}
+  .btn-accent{padding:11px 20px;font-size:13px;font-weight:700;background:var(--cyan);border-color:var(--cyan);color:#04252a;white-space:nowrap;box-shadow:0 2px 10px rgba(79,215,224,.25);}
+  .btn-accent:hover{background:#6be3ea;border-color:#6be3ea;}
+  .btn-accent[disabled]{opacity:.6;}
 </style>
 </head>
 <body>
@@ -150,7 +153,7 @@
   </nav>
 
   <section class="view" id="view-moderation">
-    <div class="vhead"><h1>Черновики на публикацию</h1><button class="btn pub" id="modCreate" title="Сгенерировать статью на модерацию (как крон)">＋ Создать</button></div>
+    <div class="vhead"><h1>Черновики на публикацию</h1><button class="btn btn-accent" id="modCreate" title="Сгенерировать статью на модерацию (как крон)"><span aria-hidden="true">+</span> Создать</button></div>
     <div class="sub">Ни одна статья не публикуется без ручного одобрения. Рейтинг конкурентности — оценка Grok.</div>
     <div id="modList"></div>
   </section>
