@@ -344,6 +344,27 @@ export class HotToursService {
     return out;
   }
 
+  // Fetch ONE new photo not already used on the article — for the editor's "Заменить" (replace) button.
+  private async fetchFreshImage(place: string, slug: string, avoid: Set<string>, imgIdx: number, origQueries?: string[]): Promise<{ url: string; alt: string; source: string; sourceUrl: string } | null> {
+    if (!this.blobToken) return null;
+    const t = (place || '').trim() || 'travel';
+    const qlist = [...new Set([...(origQueries || []), `${t} beach`, `${t} hotel`, `${t} cityscape`, `${t} landmark`, `${t} street`, `${t} travel`])].filter(Boolean);
+    for (const q of qlist) {
+      const found = (await this.searchPixabay(q)) || (await this.searchPexels(q));
+      if (!found || avoid.has(found.downloadUrl)) continue;
+      try {
+        const img = await fetch(found.downloadUrl); if (!img.ok) continue;
+        const buf = Buffer.from(await img.arrayBuffer());
+        const ct = img.headers.get('content-type') || 'image/jpeg';
+        const ext = ct.includes('png') ? 'png' : ct.includes('webp') ? 'webp' : 'jpg';
+        const { put } = await import('@vercel/blob');
+        const blob = await put(`hot-tours/${slug}-r${imgIdx}-${Date.now()}.${ext}`, buf, { access: 'public', token: this.blobToken, contentType: ct, addRandomSuffix: true });
+        return { url: blob.url, alt: t, source: found.source, sourceUrl: found.sourceUrl };
+      } catch (e: any) { this.logger.warn(`replace image failed: ${e?.message || e}`); }
+    }
+    return null;
+  }
+
   private async searchPixabay(q: string): Promise<{ source: string; downloadUrl: string; sourceUrl: string } | null> {
     if (!this.pixabayKey) return null;
     try {
@@ -472,17 +493,21 @@ export class HotToursService {
 
   // ── Inline editor (admin), mirrors the blog editor: load parts, regenerate a part, persist edits ──
   async articleForEdit(id: string): Promise<any | null> {
-    const a = await this.prisma.hotTourArticle.findUnique({ where: { id } }).catch(() => null);
+    const a = await this.prisma.hotTourArticle.findUnique({ where: { id }, include: { tour: true } }).catch(() => null);
     if (!a) return null;
     const bj: any = a.bodyJson || {};
     const sections = (bj.sections || []).map((s: any) => ({
       heading: s.heading || '',
       paragraphs: String(s.body || '').split(/\n{2,}/).map((p: string) => p.trim()).filter(Boolean),
     }));
-    return { id: a.id, h1: a.h1, locale: a.locale, status: a.status, image: a.imageUrl, sections, uncertainFacts: bj.uncertain_facts || [] };
+    const images = Array.isArray(a.imagesJson) && a.imagesJson.length
+      ? a.imagesJson
+      : (a.imageUrl ? [{ url: a.imageUrl, alt: a.imageAlt, source: a.imageSource, sourceUrl: a.imageSourceUrl }] : []);
+    const t: any = a.tour;
+    return { id: a.id, h1: a.h1, locale: a.locale, status: a.status, image: a.imageUrl, images, place: t ? `${t.destinationCity}, ${t.destinationCountry}` : '', sections, uncertainFacts: bj.uncertain_facts || [] };
   }
 
-  async applyEdit(id: string, patch: { h1?: string; sections?: { heading: string; paragraphs: string[] }[] }): Promise<boolean> {
+  async applyEdit(id: string, patch: { h1?: string; sections?: { heading: string; paragraphs: string[] }[]; images?: { url: string; alt?: string; source?: string; sourceUrl?: string }[] }): Promise<boolean> {
     const a = await this.prisma.hotTourArticle.findUnique({ where: { id } }).catch(() => null);
     if (!a) return false;
     const bj: any = a.bodyJson || {};
@@ -490,12 +515,18 @@ export class HotToursService {
       ? patch.sections.map((s) => ({ heading: String(s.heading || '').slice(0, 300), body: (s.paragraphs || []).map((p) => String(p || '').trim()).filter(Boolean).join('\n\n') })).filter((s) => s.body || s.heading)
       : bj.sections;
     const newBj = { ...bj, sections };
+    const images = Array.isArray(patch.images) ? patch.images.filter((i) => i?.url) : undefined;
+    const hero = images ? images[0] : undefined;
     await this.prisma.hotTourArticle.update({
       where: { id },
       data: {
         h1: patch.h1 != null && String(patch.h1).trim() ? String(patch.h1).slice(0, 300) : a.h1,
         bodyJson: newBj as any,
         ratingPct: null, ratingNote: null,   // edits invalidate the competitiveness rating so it's recomputed
+        ...(images ? {
+          imagesJson: images as any,
+          imageUrl: hero?.url || null, imageAlt: hero?.alt || null, imageSource: hero?.source || null, imageSourceUrl: hero?.sourceUrl || null,
+        } : {}),
       },
     });
     return true;
@@ -515,12 +546,22 @@ export class HotToursService {
     } catch { return null; }
   }
 
-  async regeneratePart(id: string, part: string, sectionIdx?: number, paraIdx?: number, current?: string, note?: string, mode?: string): Promise<{ ok: boolean; value?: any; message?: string }> {
+  async regeneratePart(id: string, part: string, sectionIdx?: number, paraIdx?: number, current?: string, note?: string, mode?: string, imgIdx?: number): Promise<{ ok: boolean; value?: any; message?: string }> {
     const a = await this.prisma.hotTourArticle.findUnique({ where: { id }, include: { tour: true } }).catch(() => null);
     if (!a) return { ok: false, message: 'not found' };
+    const t: any = a.tour;
+    if (part === 'image') {
+      if (!this.blobToken) return { ok: false, message: 'нет BLOB_READ_WRITE_TOKEN' };
+      const bj0: any = a.bodyJson || {};
+      const existing: any[] = Array.isArray(a.imagesJson) && a.imagesJson.length ? a.imagesJson : (a.imageUrl ? [{ url: a.imageUrl }] : []);
+      const avoid = new Set(existing.map((x) => x?.url).filter(Boolean));
+      const place = t ? `${t.destinationCity}, ${t.destinationCountry}` : '';
+      const fresh = await this.fetchFreshImage(place, a.slug, avoid, imgIdx ?? existing.length, bj0.image_queries);
+      if (!fresh) return { ok: false, message: 'не нашли новое фото (стоки исчерпаны или нет ключей)' };
+      return { ok: true, value: fresh };
+    }
     if (!this.config.get<string>('XAI_API_KEY')) return { ok: false, message: 'нет XAI_API_KEY' };
     const bj: any = a.bodyJson || {};
-    const t: any = a.tour;
     const ctx = `Направление: ${t?.destinationCity || ''}, ${t?.destinationCountry || ''}. Отель: ${t?.hotelName || '—'} ${t?.hotelStars || ''}★. Цена: ${t?.priceUAH || ''} грн${t?.discountPct ? ` (−${t.discountPct}%)` : ''}.`;
     const extra = [
       note && note.trim() ? `Учитывай пожелание редактора: ${note.trim().slice(0, 300)}.` : '',

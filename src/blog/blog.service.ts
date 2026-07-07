@@ -148,21 +148,25 @@ export class BlogService {
     return out;
   }
 
-  private async pickImage(queries: string[], alts: string[], slug: string): Promise<{ url: string; alt: string; source: string; sourceUrl: string } | null> {
+  // Fetch ONE new photo not already used on the article — for the editor's "Заменить" (replace) button.
+  private async fetchFreshImage(topic: string, slug: string, avoid: Set<string>, imgIdx: number, origQueries?: string[]): Promise<{ url: string; alt: string; source: string; sourceUrl: string } | null> {
     if (!this.blobToken) return null;
-    const q = (queries || []).find(Boolean); if (!q) return null;
-    const alt = (alts || []).find(Boolean) || q;
-    const found = (await this.searchPixabay(q)) || (await this.searchPexels(q));
-    if (!found) return null;
-    try {
-      const img = await fetch(found.downloadUrl); if (!img.ok) return null;
-      const buf = Buffer.from(await img.arrayBuffer());
-      const ct = img.headers.get('content-type') || 'image/jpeg';
-      const ext = ct.includes('png') ? 'png' : ct.includes('webp') ? 'webp' : 'jpg';
-      const { put } = await import('@vercel/blob');
-      const blob = await put(`blog/${slug}.${ext}`, buf, { access: 'public', token: this.blobToken, contentType: ct, addRandomSuffix: true });
-      return { url: blob.url, alt, source: found.source, sourceUrl: found.sourceUrl };
-    } catch (e: any) { this.logger.warn(`blog image upload failed: ${e?.message || e}`); return null; }
+    const t = (topic || '').replace(/\(.*?\)/g, '').split(',')[0].trim() || 'travel';
+    const qlist = [...new Set([...(origQueries || []), `${t} scenery`, `${t} landmark`, `${t} street`, `${t} cityscape`, `${t} nature`, `${t} travel`, `${t} old town`])].filter(Boolean);
+    for (const q of qlist) {
+      const found = (await this.searchPixabay(q)) || (await this.searchPexels(q));
+      if (!found || avoid.has(found.downloadUrl)) continue;
+      try {
+        const img = await fetch(found.downloadUrl); if (!img.ok) continue;
+        const buf = Buffer.from(await img.arrayBuffer());
+        const ct = img.headers.get('content-type') || 'image/jpeg';
+        const ext = ct.includes('png') ? 'png' : ct.includes('webp') ? 'webp' : 'jpg';
+        const { put } = await import('@vercel/blob');
+        const blob = await put(`blog/${slug}-r${imgIdx}-${Date.now()}.${ext}`, buf, { access: 'public', token: this.blobToken, contentType: ct, addRandomSuffix: true });
+        return { url: blob.url, alt: t, source: found.source, sourceUrl: found.sourceUrl };
+      } catch (e: any) { this.logger.warn(`replace image failed: ${e?.message || e}`); }
+    }
+    return null;
   }
   private async searchPixabay(q: string): Promise<{ source: string; downloadUrl: string; sourceUrl: string } | null> {
     if (!this.pixabayKey) return null;
@@ -280,7 +284,10 @@ export class BlogService {
       heading: s.heading || '',
       paragraphs: String(s.body || '').split(/\n{2,}/).map((p: string) => p.trim()).filter(Boolean),
     }));
-    return { id: a.id, h1: a.h1, locale: a.locale, status: a.status, image: a.imageUrl, topic: a.topic, categories: bj.categories || [], tags: bj.tags || [], sections, uncertainFacts: bj.uncertain_facts || [], audioUrl: a.audioUrl, videoUrl: a.videoUrl, voiceId: a.audioVoiceId, geo: geoForTopic(a.topic), isGeo: !!geoForTopic(a.topic) };
+    const images = Array.isArray(a.imagesJson) && a.imagesJson.length
+      ? a.imagesJson
+      : (a.imageUrl ? [{ url: a.imageUrl, alt: a.imageAlt, source: a.imageSource, sourceUrl: a.imageSourceUrl }] : []);
+    return { id: a.id, h1: a.h1, locale: a.locale, status: a.status, image: a.imageUrl, images, topic: a.topic, categories: bj.categories || [], tags: bj.tags || [], sections, uncertainFacts: bj.uncertain_facts || [], audioUrl: a.audioUrl, videoUrl: a.videoUrl, voiceId: a.audioVoiceId, geo: geoForTopic(a.topic), isGeo: !!geoForTopic(a.topic) };
   }
 
   private async grokRaw(sys: string, user: string): Promise<string | null> {
@@ -303,9 +310,18 @@ export class BlogService {
   }
 
   // part: 'title' (кликбейтнее) | 'paragraph' (конкретнее) | 'categories' | 'tags'. Returns the new value; does NOT persist.
-  async regeneratePart(id: string, part: string, sectionIdx?: number, paraIdx?: number, current?: string, note?: string, mode?: string): Promise<{ ok: boolean; value?: any; message?: string }> {
+  async regeneratePart(id: string, part: string, sectionIdx?: number, paraIdx?: number, current?: string, note?: string, mode?: string, imgIdx?: number): Promise<{ ok: boolean; value?: any; message?: string }> {
     const a = await this.prisma.blogArticle.findUnique({ where: { id } }).catch(() => null);
     if (!a) return { ok: false, message: 'not found' };
+    if (part === 'image') {
+      if (!this.blobToken) return { ok: false, message: 'нет BLOB_READ_WRITE_TOKEN' };
+      const bj0: any = a.bodyJson || {};
+      const existing: any[] = Array.isArray(a.imagesJson) && a.imagesJson.length ? a.imagesJson : (a.imageUrl ? [{ url: a.imageUrl }] : []);
+      const avoid = new Set(existing.map((x) => x?.url).filter(Boolean));
+      const fresh = await this.fetchFreshImage(a.topic, a.slug, avoid, imgIdx ?? existing.length, bj0.image_queries);
+      if (!fresh) return { ok: false, message: 'не нашли новое фото (стоки исчерпаны или нет ключей)' };
+      return { ok: true, value: fresh };
+    }
     if (!this.key) return { ok: false, message: 'нет XAI_API_KEY' };
     const lang = this.langName(a.locale);
     const bj: any = a.bodyJson || {};
@@ -340,7 +356,7 @@ export class BlogService {
   }
 
   // Persist edits from the inline editor (deleted paragraphs already dropped by the client).
-  async applyEdit(id: string, patch: { h1?: string; categories?: string[]; tags?: string[]; sections?: { heading: string; paragraphs: string[] }[] }): Promise<boolean> {
+  async applyEdit(id: string, patch: { h1?: string; categories?: string[]; tags?: string[]; sections?: { heading: string; paragraphs: string[] }[]; images?: { url: string; alt?: string; source?: string; sourceUrl?: string }[] }): Promise<boolean> {
     const a = await this.prisma.blogArticle.findUnique({ where: { id } }).catch(() => null);
     if (!a) return false;
     const bj: any = a.bodyJson || {};
@@ -352,6 +368,8 @@ export class BlogService {
       categories: Array.isArray(patch.categories) ? patch.categories.map((c) => String(c).slice(0, 40)).filter(Boolean).slice(0, 6) : bj.categories,
       tags: Array.isArray(patch.tags) ? patch.tags.map((t) => String(t).slice(0, 40)).filter(Boolean).slice(0, 10) : bj.tags,
     };
+    const images = Array.isArray(patch.images) ? patch.images.filter((i) => i?.url) : undefined;
+    const hero = images ? images[0] : undefined;
     await this.prisma.blogArticle.update({
       where: { id },
       data: {
@@ -359,6 +377,10 @@ export class BlogService {
         bodyJson: newBj as any,
         // reset the article score so the moderator re-scores the edited text
         articleScore: null, articleScoreNote: null,
+        ...(images ? {
+          imagesJson: images as any,
+          imageUrl: hero?.url || null, imageAlt: hero?.alt || null, imageSource: hero?.source || null, imageSourceUrl: hero?.sourceUrl || null,
+        } : {}),
       },
     });
     return true;

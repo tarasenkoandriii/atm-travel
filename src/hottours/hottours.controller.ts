@@ -35,14 +35,14 @@ export class HotToursController {
     return a ? { ok: true, article: a } : { ok: false };
   }
   @Post('api/hot-tours/edit')
-  async editArticle(@Body() b: { key?: string; id?: string; h1?: string; sections?: { heading: string; paragraphs: string[] }[] }) {
+  async editArticle(@Body() b: { key?: string; id?: string; h1?: string; sections?: { heading: string; paragraphs: string[] }[]; images?: any[] }) {
     if (!this.svc.adminAllowed(b?.key)) throw new UnauthorizedException();
-    return { ok: b?.id ? await this.svc.applyEdit(b.id, { h1: b.h1, sections: b.sections }) : false };
+    return { ok: b?.id ? await this.svc.applyEdit(b.id, { h1: b.h1, sections: b.sections, images: b.images }) : false };
   }
   @Post('api/hot-tours/regenerate')
-  async regenerate(@Body() b: { key?: string; id?: string; part?: string; sectionIdx?: number; paraIdx?: number; current?: string; note?: string; mode?: string }) {
+  async regenerate(@Body() b: { key?: string; id?: string; part?: string; sectionIdx?: number; paraIdx?: number; current?: string; note?: string; mode?: string; imgIdx?: number }) {
     if (!this.svc.adminAllowed(b?.key)) throw new UnauthorizedException();
-    return this.svc.regeneratePart(b?.id || '', b?.part || '', b?.sectionIdx, b?.paraIdx, b?.current, b?.note, b?.mode);
+    return this.svc.regeneratePart(b?.id || '', b?.part || '', b?.sectionIdx, b?.paraIdx, b?.current, b?.note, b?.mode, b?.imgIdx);
   }
 
   @Get('api/hot-tours/stats')

@@ -41,15 +41,15 @@ export class BlogController {
   }
   // Regenerate one part (title=кликбейтнее, paragraph=конкретнее, categories, tags). Returns the new value; no persist.
   @Post('api/blog/regenerate')
-  async regenerate(@Body() b: { key?: string; id?: string; part?: string; sectionIdx?: number; paraIdx?: number; current?: string; note?: string; mode?: string }) {
+  async regenerate(@Body() b: { key?: string; id?: string; part?: string; sectionIdx?: number; paraIdx?: number; current?: string; note?: string; mode?: string; imgIdx?: number }) {
     if (!this.adminOk(b?.key)) throw new UnauthorizedException('bad token');
-    return this.svc.regeneratePart(b?.id || '', b?.part || '', b?.sectionIdx, b?.paraIdx, b?.current, b?.note, b?.mode);
+    return this.svc.regeneratePart(b?.id || '', b?.part || '', b?.sectionIdx, b?.paraIdx, b?.current, b?.note, b?.mode, b?.imgIdx);
   }
-  // Persist edits (title/categories/tags/sections; deleted paragraphs already removed by the client).
+  // Persist edits (title/categories/tags/sections/images; deleted paragraphs/images already removed by the client).
   @Post('api/blog/edit')
-  async edit(@Body() b: { key?: string; id?: string; h1?: string; categories?: string[]; tags?: string[]; sections?: any[] }) {
+  async edit(@Body() b: { key?: string; id?: string; h1?: string; categories?: string[]; tags?: string[]; sections?: any[]; images?: any[] }) {
     if (!this.adminOk(b?.key)) throw new UnauthorizedException('bad token');
-    return { ok: await this.svc.applyEdit(b?.id || '', { h1: b?.h1, categories: b?.categories, tags: b?.tags, sections: b?.sections }) };
+    return { ok: await this.svc.applyEdit(b?.id || '', { h1: b?.h1, categories: b?.categories, tags: b?.tags, sections: b?.sections, images: b?.images }) };
   }
 
   // ── Blog media: ElevenLabs voices/narration + rendered video ──
