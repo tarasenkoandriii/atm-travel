@@ -133,7 +133,7 @@ end $$;
 
 ### 3.3 Расписания (выполнить один раз)
 ```sql
-select cron.schedule('atm-hot-tours-generate',     '0 * * * *',   $$ select app_ping('/api/hot-tours/generate') $$);        -- ежечасно: инжест+статьи
+select cron.schedule('atm-hot-tours-generate',     '0 * * * *',   $$ select app_ping('/api/hot-tours/generate?ingest=1') $$);        -- ежечасно: инжест+статьи
 select cron.schedule('atm-publish-queue',          '*/2 * * * *', $$ select app_ping('/api/publish/queue/tick') $$);        -- очередь IG/YouTube
 select cron.schedule('atm-embed-run',              '0 * * * *',   $$ select app_ping('/api/embed/run') $$);                 -- pgvector-эмбеддинги
 select cron.schedule('atm-chat-reminders',         '*/5 * * * *', $$ select app_ping('/api/chat/reminders/dispatch') $$);   -- напоминания чата

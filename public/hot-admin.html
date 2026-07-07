@@ -248,15 +248,20 @@ function renderModeration(drafts){
 (function(){ var b=document.getElementById('modCreate'); if(!b) return;
   b.addEventListener('click', function(){
     if(!KEY){ alert('Сначала введите admin-токен.'); return; }
-    var old=b.textContent; b.disabled=true; b.textContent='Генерирую…';
-    fetch('/api/hot-tours/generate?ingest=0&key='+encodeURIComponent(KEY), {method:'POST'})
+    var old=b.innerHTML; b.disabled=true; b.textContent='Генерирую…';
+    // ingest=1: manual click should fetch fresh tour deals first, so there is actually something new to write about
+    // (the hourly cron itself calls with ingest=1 too — see docs/publish-queue-pgcron.md).
+    fetch('/api/hot-tours/generate?ingest=1&key='+encodeURIComponent(KEY), {method:'POST'})
       .then(function(r){ if(r.status===401){ throw new Error('Неверный токен'); } return r.ok?r.json():null; })
       .then(function(j){
-        b.disabled=false; b.textContent=old;
-        if(j&&j.ok){ b.textContent='Готово ✓'; setTimeout(function(){ b.textContent=old; },1500); loaded.moderation=false; loadModeration(); }
-        else { alert('Не удалось создать статью'+(j&&j.message?': '+j.message:'')); }
+        b.disabled=false;
+        if(j&&j.ok){
+          if(j.generated>0){ b.innerHTML='Готово ✓ +'+j.generated; loaded.moderation=false; loadModeration(); }
+          else { b.innerHTML=old; alert('Статья не создана: среди '+(j.ingested||0)+' загруженных туров нет ни одного активного без статьи (порог скидки/звёзд не пройден, или все уже расписаны). Попробуйте позже — предложения обновляются провайдерами не мгновенно.'); }
+          setTimeout(function(){ b.innerHTML=old; },2500);
+        } else { b.innerHTML=old; alert('Не удалось создать статью'+(j&&j.message?': '+j.message:'')); }
       })
-      .catch(function(e){ b.disabled=false; b.textContent=old; alert('Ошибка: '+(e&&e.message||e)); });
+      .catch(function(e){ b.disabled=false; b.innerHTML=old; alert('Ошибка: '+(e&&e.message||e)); });
   });
 })();
 function loadModeration(){
