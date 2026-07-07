@@ -152,7 +152,7 @@
     <a href="#offerctr" data-view="offerctr">CTR офферов</a>
   </nav>
 
-  <section class="view" id="view-moderation">
+  <section class="view on" id="view-moderation">
     <div class="vhead"><h1>Черновики на публикацию</h1><button class="btn btn-accent" id="modCreate" title="Сгенерировать статью на модерацию (как крон)"><span aria-hidden="true">+</span> Создать</button></div>
     <div class="sub">Ни одна статья не публикуется без ручного одобрения. Рейтинг конкурентности — оценка Grok.</div>
     <div id="modList"></div>
@@ -482,6 +482,7 @@ function downloadUtmCsv(){
   var u=URL.createObjectURL(blob), a=document.createElement('a');
   a.href=u; a.download='utm-report.csv'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(u);
 }
+function chartSvg(daily){
   if(!daily || !daily.length) return '';
   var W=680,H=190,pad=30, n=daily.length;
   var maxV=1; daily.forEach(function(d){ maxV=Math.max(maxV,d.views,d.clicks); });
@@ -660,3 +661,6 @@ $('#key').addEventListener('keydown', function(e){ if(e.key==='Enter') enter(); 
 
 if(!location.hash) location.hash = '#moderation';   // default view
 route();
+</script>
+</body>
+</html>
