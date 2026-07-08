@@ -771,30 +771,50 @@ async function initBlogMode() {
     // 1) title card — large headline; narration during this segment is just the title (see timing note above)
     const titleUrl = await makeCardClip([{ text: a.h1 || 'Статья', size: 62 }, { text: a.topic || '', size: 40 }], { seconds: titleSec });
     videoTracks.push({ url: titleUrl, provider: 'blog-title', id: 'blogt-' + Date.now(), attribution: '', tags: ['blog'], deleted: false, dur: titleSec });
+    renderTracks && renderTracks();
+    log('титр готов (' + titleSec.toFixed(1) + 'с)');
     if (clipsMode && clips.length) {
       // group clips by paragraph (flatIdx falls back to matching subtitle position if absent)
       const byPara = new Map();
       clips.forEach((c, ci) => { const k = (c.flatIdx != null ? c.flatIdx : ci); if (!byPara.has(k)) byPara.set(k, []); byPara.get(k).push(c); });
+      log('клипов подобрано: ' + clips.length + ' · абзацев: ' + subs.length);
       for (let i = 0; i < subs.length; i++) {
         const group = byPara.get(i) || [];
         if (!group.length) {
-          const url = await makeCardClip([{ text: subs[i], size: 38 }], { seconds: perDurs[i] });
-          videoTracks.push({ url, provider: 'blog-slide', id: 'blogs-' + Date.now() + '-' + i, attribution: '', tags: ['blog'], deleted: false, dur: perDurs[i] });
+          try {
+            const url = await makeCardClip([{ text: subs[i], size: 38 }], { seconds: perDurs[i] });
+            videoTracks.push({ url, provider: 'blog-slide', id: 'blogs-' + Date.now() + '-' + i, attribution: '', tags: ['blog'], deleted: false, dur: perDurs[i] });
+            renderTracks && renderTracks();
+          } catch (e1) { log('⚠ абзац ' + (i + 1) + ' (без клипа): ' + (e1 && e1.message || e1)); }
           continue;
         }
         const each = Math.max(1.5, perDurs[i] / group.length);
         for (let g = 0; g < group.length; g++) {
           const c = group[g];
-          const url = await makeVideoClipSlide(c.url, subs[i], each);
-          videoTracks.push({ url, provider: 'blog-clip', id: 'blogc-' + Date.now() + '-' + i + '-' + g, attribution: c.attribution || '', tags: ['blog', c.geo || ''].filter(Boolean), deleted: false, dur: each });
+          try {
+            const url = await makeVideoClipSlide(c.url, subs[i], each);
+            videoTracks.push({ url, provider: 'blog-clip', id: 'blogc-' + Date.now() + '-' + i + '-' + g, attribution: c.attribution || '', tags: ['blog', c.geo || ''].filter(Boolean), deleted: false, dur: each });
+            renderTracks && renderTracks();
+            log('клип ' + (i + 1) + '.' + (g + 1) + ' готов (' + (c.geo || '') + ', ' + each.toFixed(1) + 'с)');
+          } catch (e2) {
+            log('⚠ клип ' + (i + 1) + '.' + (g + 1) + ' не вышел, ставлю карточку-заглушку: ' + (e2 && e2.message || e2));
+            try {
+              const url2 = await makeCardClip([{ text: subs[i], size: 38 }], { seconds: each });
+              videoTracks.push({ url: url2, provider: 'blog-slide', id: 'blogs-' + Date.now() + '-' + i + '-' + g, attribution: '', tags: ['blog'], deleted: false, dur: each });
+              renderTracks && renderTracks();
+            } catch (e3) { log('⚠ заглушка тоже не вышла: ' + (e3 && e3.message || e3)); }
+          }
         }
       }
     } else {
       // photo slideshow — one slide per paragraph over the article photo(s)
       for (let i = 0; i < subs.length; i++) {
-        const img = imgs.length ? imgs[i % imgs.length] : null;
-        const url = img ? await makeImageSlideClip(img, subs[i], perDurs[i]) : await makeCardClip([{ text: subs[i], size: 38 }], { seconds: perDurs[i] });
-        videoTracks.push({ url, provider: 'blog-slide', id: 'blogs-' + Date.now() + '-' + i, attribution: '', tags: ['blog'], deleted: false, dur: perDurs[i] });
+        try {
+          const img = imgs.length ? imgs[i % imgs.length] : null;
+          const url = img ? await makeImageSlideClip(img, subs[i], perDurs[i]) : await makeCardClip([{ text: subs[i], size: 38 }], { seconds: perDurs[i] });
+          videoTracks.push({ url, provider: 'blog-slide', id: 'blogs-' + Date.now() + '-' + i, attribution: '', tags: ['blog'], deleted: false, dur: perDurs[i] });
+          renderTracks && renderTracks();
+        } catch (e4) { log('⚠ слайд ' + (i + 1) + ' не вышел: ' + (e4 && e4.message || e4)); }
       }
     }
     renderTracks && renderTracks();
