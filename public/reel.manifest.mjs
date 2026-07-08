@@ -3,7 +3,7 @@
 
 export const SHOT_TYPES   = ['establishing', 'hero', 'human_detail', 'emotional_peak'];
 export const SEGMENT_KIND = ['intro', 'clip', 'livecam'];
-export const PROVIDERS    = ['mediarecorder', 'pexels', 'pixabay', 'coverr', 'mixkit', 'atm_livecam'];
+export const PROVIDERS    = ['mediarecorder', 'pexels', 'pixabay', 'coverr', 'mixkit', 'atm_livecam', 'blog-title', 'blog-slide', 'blog-clip', 'tour-card'];
 
 // Dependency-free lint before ffmpeg.
 export function validateManifest(m) {
