@@ -130,12 +130,6 @@ import { validateManifest, checkBeatAlignment, buildFilterComplex, buildDefaultM
 const $ = s => document.querySelector(s);
 const qs = new URLSearchParams(location.search);
 const log = m => { const el = $('#log'); el.textContent += m + '\n'; el.scrollTop = el.scrollHeight; };
-// Guards against a hung clip download/record (e.g. a slow proxy fetch on a serverless timeout) so one
-// stuck clip can never block the whole montage — the caller's try/catch falls back to a card instead.
-const withTimeout = (promise, ms, label) => Promise.race([
-  promise,
-  new Promise((_, rej) => setTimeout(() => rej(new Error((label || 'clip') + ': timeout after ' + ms + 'ms')), ms)),
-]);
 const setStatus = m => $('#status').textContent = m;
 const setProg = p => $('#prog').style.width = Math.round(p * 100) + '%';
 const num = (v, d) => { const n = parseFloat(v); return isNaN(n) ? d : n; };
