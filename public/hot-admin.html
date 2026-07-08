@@ -147,6 +147,12 @@
   .bed-img img{width:100%;height:88px;object-fit:cover;display:block;transition:filter .15s}
   .bed-img.deleted img{filter:brightness(.5)}
   .bed-img-tag{position:absolute;top:4px;left:4px;background:rgba(9,16,24,.75);color:#4fd7e0;font-size:10px;text-transform:uppercase;letter-spacing:.4px;padding:2px 7px;border-radius:999px;z-index:2}
+  .bed-clips{display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 4px}
+  .bed-clip{width:150px;border-radius:9px;overflow:hidden;background:#0b131c;border:1px solid #1e2c3c}
+  .bed-clip video{width:100%;height:88px;object-fit:cover;display:block;background:#000;transition:filter .15s}
+  .bed-clip.deleted video{filter:brightness(.5)}
+  .bed-clip-q{font-size:10px;color:#7d8b99;padding:4px 6px 0;line-height:1.3;max-height:2.6em;overflow:hidden}
+  .bed-clip .bed-img-btns{padding:5px}
   .bed-img-btns{display:flex;gap:4px;padding:5px;justify-content:center}
   .bed-img-btns .bic{flex:0 0 auto;width:26px;height:26px;font-size:12px}
   .bed-uncertain b{color:#f0d060;}
@@ -464,7 +470,7 @@ function renderEditor(id){
   }
   h+='<input class="bed-note" placeholder="Ремарка для 🔄 (необязательно): напр. «добавь про транспорт и цены»" value="'+esc(st.note||'')+'">';
   if(isBlog){
-    h+='<div class="bed-media"><span class="bed-lbl2">Сгенерировать:</span>'+bIc2('bed-audio','🔊 Аудио')+bIc2('bed-video','🎬 Видео')+(st.audioUrl?'<audio class="bed-audio-el" controls preload="none" src="'+esc(st.audioUrl)+'"></audio>':'')+(st.videoUrl?'<a class="btn" href="/publish?video='+encodeURIComponent(st.videoUrl)+'&title='+encodeURIComponent(st.h1)+'" target="_blank" rel="noopener">📣 Постить во все каналы</a>':'')+'<label class="bed-introlbl" title="Фото float:right 50% внутри абзацев вместо блоков 75% между разделами"><input type="checkbox" class="bed-embedimgs"'+(st.embedImages!==false?' checked':'')+'> встроить картинки в текст</label>'+'<label class="bed-introlbl" title="Облёт глобуса + плашка гео (без погоды)"><input type="checkbox" class="bed-intro"'+(st.introOn?' checked':'')+(st.geo?'':' disabled')+'> добавить интро (глобус)'+(st.geo?'':' — нет гео')+'</label>'+'<span class="bed-media-status"></span></div>';
+    h+='<div class="bed-media"><span class="bed-lbl2">Сгенерировать:</span>'+bIc2('bed-audio','🔊 Аудио')+(st.slideshow===false?bIc2('bed-pickclips','🎞 Подобрать клипы'):'')+bIc2('bed-video', st.slideshow!==false?'🎬 Слайдшоу':'🎬 Видео')+(st.audioUrl?'<audio class="bed-audio-el" controls preload="none" src="'+esc(st.audioUrl)+'"></audio>':'')+(st.videoUrl?'<a class="btn" href="/publish?video='+encodeURIComponent(st.videoUrl)+'&title='+encodeURIComponent(st.h1)+'" target="_blank" rel="noopener">📣 Постить во все каналы</a>':'')+'<label class="bed-introlbl" title="Фото float:right 50% внутри абзацев вместо блоков 75% между разделами"><input type="checkbox" class="bed-embedimgs"'+(st.embedImages!==false?' checked':'')+'> встроить картинки в текст</label>'+'<label class="bed-introlbl" title="Вкл: фото-слайды из статьи. Выкл: подбор видео-клипов по абзацам"><input type="checkbox" class="bed-slideshow"'+(st.slideshow!==false?' checked':'')+'> слайд-шоу</label>'+'<label class="bed-introlbl" title="Облёт глобуса + плашка гео (без погоды)"><input type="checkbox" class="bed-intro"'+(st.introOn?' checked':'')+(st.geo?'':' disabled')+'> добавить интро (глобус)'+(st.geo?'':' — нет гео')+'</label>'+'<span class="bed-media-status"></span></div>';
   }
   h+='<div class="bed-row"><div class="bed-lbl">Заголовок</div><div class="bed-val"><div class="bed-h1">'+esc(st.h1)+'</div></div><div class="bed-btns">'+bIc('rg-title','Сделать привлекательнее','🔄')+'</div></div>';
   h+='<div class="bed-lbl" style="margin-top:10px">Фото (первое — главное)</div><div class="bed-imgs">'+(st.images||[]).map(function(im,ii){
@@ -473,6 +479,14 @@ function renderEditor(id){
       '<img src="'+esc(im.url)+'" alt="">'+
       '<div class="bed-img-btns">'+bIc('img-regen','Заменить фото','🔄')+(im.deleted?bIc('img-restore','Восстановить','↩'):bIc('img-del','Удалить фото','🗑'))+'</div></div>';
   }).join('')+'</div>';
+  if(isBlog && (st.clips||[]).length){
+    h+='<div class="bed-lbl" style="margin-top:10px">Видео-клипы ('+st.clips.length+')</div><div class="bed-clips">'+st.clips.map(function(c,ci){
+      return '<div class="bed-clip'+(c.deleted?' deleted':'')+'" data-ci="'+ci+'">'+
+        '<video src="'+esc(c.url)+'" muted preload="metadata" controls></video>'+
+        '<div class="bed-clip-q" title="Текстовый запрос поиска">'+esc(c.geo||'')+' · '+esc(c.query||'')+'</div>'+
+        '<div class="bed-img-btns">'+bIc('clip-regen','Перегенерировать клип','🔄')+(c.deleted?bIc('clip-restore','Восстановить','↩'):bIc('clip-del','Удалить клип','🗑'))+'</div></div>';
+    }).join('')+'</div>';
+  }
   if(isBlog){
     h+='<div class="bed-row"><div class="bed-lbl">Категории</div><div class="bed-val bchips">'+bChips(st.categories)+'</div><div class="bed-btns">'+bIc('rg-cats','Перегенерировать','🔄')+'</div></div>';
     h+='<div class="bed-row"><div class="bed-lbl">Теги</div><div class="bed-val bchips">'+bChips(st.tags)+'</div><div class="bed-btns">'+bIc('rg-tags','Перегенерировать','🔄')+'</div></div>';
@@ -500,6 +514,8 @@ function openEditor(kind, id, btn){
     if(!j||!j.article){ box.innerHTML='<div class="empty">Не удалось загрузить.</div>'; return; }
     var a=j.article;
     BEDIT[id]={ kind:kind, h1:a.h1, topic:a.topic||'', categories:(a.categories||[]).slice(), tags:(a.tags||[]).slice(), locale:a.locale||'ru', audioUrl:a.audioUrl||'', videoUrl:a.videoUrl||'', voiceId:a.voiceId||'', note:'', isGeo:!!a.isGeo, geo:a.geo||null, introOn:!!a.isGeo, uncertainFacts:a.uncertainFacts||[], embedImages:a.embedImages!==false,
+      slideshow: !((a.clips||[]).length),
+      clips:(a.clips||[]).map(function(c){ return {sIdx:c.sIdx,pIdx:c.pIdx,flatIdx:c.flatIdx,geo:c.geo||'',query:c.query||'',url:c.url,provider:c.provider||'',attribution:c.attribution||'',deleted:false}; }),
       images:(a.images||[]).map(function(im){ return {url:im.url,alt:im.alt||'',source:im.source||'',sourceUrl:im.sourceUrl||'',deleted:false}; }),
       sections:(a.sections||[]).map(function(s){ return {heading:s.heading,paragraphs:(s.paragraphs||[]).map(function(t){return {text:t,deleted:false};})}; }) };
     renderEditor(id);
@@ -523,10 +539,11 @@ function saveEditor(id, btn){
   btn.disabled=true; if(status)status.textContent='Сохраняю…';
   var sections = st.sections.map(function(s){ return { heading:s.heading, paragraphs: s.paragraphs.filter(function(p){return !p.deleted;}).map(function(p){return p.text;}) }; });
   var images = (st.images||[]).filter(function(im){return !im.deleted;}).map(function(im){ return {url:im.url,alt:im.alt,source:im.source,sourceUrl:im.sourceUrl}; });
+  var clips = (st.clips||[]).filter(function(c){return !c.deleted;}).map(function(c){ return {sIdx:c.sIdx,pIdx:c.pIdx,flatIdx:c.flatIdx,geo:c.geo,query:c.query,url:c.url,provider:c.provider,attribution:c.attribution}; });
   var isBlog = st.kind==='blog';
   var base = isBlog ? '/api/blog' : '/api/hot-tours';
   var payload = isBlog
-    ? { key:KEY, id:id, h1:st.h1, categories:st.categories, tags:st.tags, sections: sections, images: images, embedImages: st.embedImages!==false }
+    ? { key:KEY, id:id, h1:st.h1, categories:st.categories, tags:st.tags, sections: sections, images: images, embedImages: st.embedImages!==false, clips: clips }
     : { key:KEY, id:id, h1:st.h1, sections: sections, images: images, embedImages: st.embedImages!==false };
   fetch(base+'/edit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
     .then(function(r){return r.ok?r.json():null;}).then(function(j){
@@ -568,10 +585,22 @@ $('#blogList').addEventListener('click', function(e){
   var edb=e.target.closest('.blog-edit'); if(edb){ openEditor('blog', edb.getAttribute('data-id'), edb); return; }
   var id=editorIdOf(e.target); if(!id||!BEDIT[id]) return; var st=BEDIT[id]; var note=bedNote(id);
   if(e.target.closest('.bed-audio')){ openVoiceDialog(id); return; }
+  var pcb=e.target.closest('.bed-pickclips');
+  if(pcb){
+    pcb.disabled=true; var pcOld=pcb.textContent; pcb.textContent='Подбираю…';
+    fetch('/api/blog/pick-clips',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({key:KEY,id:id})})
+      .then(function(r){return r.ok?r.json():null;}).then(function(j){
+        pcb.disabled=false; pcb.textContent=pcOld;
+        if(j&&j.ok){ st.clips=(j.clips||[]).map(function(c){ return {sIdx:c.sIdx,pIdx:c.pIdx,flatIdx:c.flatIdx,geo:c.geo||'',query:c.query||'',url:c.url,provider:c.provider||'',attribution:c.attribution||'',deleted:false}; }); renderEditor(id); }
+        else { alert('Не удалось подобрать клипы'); }
+      }).catch(function(){ pcb.disabled=false; pcb.textContent=pcOld; alert('Ошибка сети'); });
+    return;
+  }
   if(e.target.closest('.bed-video')){
     if(!st.audioUrl&&!confirm('Аудио ещё не сгенерировано. Открыть монтаж без озвучки?')) return;
     var _box=document.getElementById('ed-'+id); var _ic=_box?_box.querySelector('.bed-intro'):null; var _intro=_ic?_ic.checked:!!st.introOn;
-    var u='/reel?blog='+encodeURIComponent(id)+'&key='+encodeURIComponent(KEY)+'&intro='+(_intro?'1':'0');
+    var u='/reels?blog='+encodeURIComponent(id)+'&key='+encodeURIComponent(KEY)+'&intro='+(_intro?'1':'0');
+    if(st.slideshow===false)u+='&clips=1';
     if(st.audioUrl)u+='&music='+encodeURIComponent(st.audioUrl);
     if(_intro&&st.geo){ u+='&lat='+st.geo.lat+'&lng='+st.geo.lng+'&geo='+encodeURIComponent(st.topic||''); }
     window.open(u,'_blank'); return;
@@ -589,10 +618,17 @@ $('#blogList').addEventListener('click', function(e){
   var ir=e.target.closest('.img-regen'); if(ir&&imgBox){ var ii=+imgBox.getAttribute('data-ii'); bRegen(id,'image',null,null,null,ir,function(v){ st.images[ii]={url:v.url,alt:v.alt||'',source:v.source||'',sourceUrl:v.sourceUrl||'',deleted:false}; renderEditor(id); },{imgIdx:ii}); return; }
   var idl=e.target.closest('.img-del'); if(idl&&imgBox){ var i1=+imgBox.getAttribute('data-ii'); st.images[i1].deleted=true; renderEditor(id); return; }
   var irs=e.target.closest('.img-restore'); if(irs&&imgBox){ var i2=+imgBox.getAttribute('data-ii'); st.images[i2].deleted=false; renderEditor(id); return; }
+  var clipBox=e.target.closest('.bed-clip');
+  var cr=e.target.closest('.clip-regen'); if(cr&&clipBox){ var ci=+clipBox.getAttribute('data-ci'); bRegen(id,'clip',null,null,null,cr,function(v){ st.clips[ci]={sIdx:v.sIdx,pIdx:v.pIdx,flatIdx:st.clips[ci].flatIdx,geo:v.geo||st.clips[ci].geo,query:v.query||st.clips[ci].query,url:v.url,provider:v.provider||'',attribution:v.attribution||'',deleted:false}; renderEditor(id); },{imgIdx:ci}); return; }
+  var cd=e.target.closest('.clip-del'); if(cd&&clipBox){ var ci1=+clipBox.getAttribute('data-ci'); st.clips[ci1].deleted=true; renderEditor(id); return; }
+  var crs=e.target.closest('.clip-restore'); if(crs&&clipBox){ var ci2=+clipBox.getAttribute('data-ci'); st.clips[ci2].deleted=false; renderEditor(id); return; }
   var sv=e.target.closest('.bed-save'); if(sv){ saveEditor(id, sv); return; }
 });
 $('#blogList').addEventListener('input', function(e){ var n=e.target.closest('.bed-note'); if(!n)return; var id=editorIdOf(e.target); if(id&&BEDIT[id])BEDIT[id].note=n.value; });
-$('#blogList').addEventListener('change', function(e){ var c=e.target.closest('.bed-embedimgs'); if(!c)return; var id=editorIdOf(e.target); if(id&&BEDIT[id]){ BEDIT[id].embedImages=c.checked; renderEditor(id); } });
+$('#blogList').addEventListener('change', function(e){
+  var c=e.target.closest('.bed-embedimgs'); if(c){ var id1=editorIdOf(e.target); if(id1&&BEDIT[id1]){ BEDIT[id1].embedImages=c.checked; renderEditor(id1); } return; }
+  var s=e.target.closest('.bed-slideshow'); if(s){ var id2=editorIdOf(e.target); if(id2&&BEDIT[id2]){ BEDIT[id2].slideshow=s.checked; renderEditor(id2); } return; }
+});
 var BDRAG=null;
 $('#blogList').addEventListener('dragstart', function(e){ var p=e.target.closest('.bed-para'); if(!p)return; BDRAG={id:editorIdOf(e.target),si:+p.getAttribute('data-si'),pi:+p.getAttribute('data-pi')}; p.classList.add('dragging'); if(e.dataTransfer)e.dataTransfer.effectAllowed='move'; });
 $('#blogList').addEventListener('dragend', function(e){ var p=e.target.closest('.bed-para'); if(p)p.classList.remove('dragging'); [].forEach.call(document.querySelectorAll('.bed-para.over'),function(x){x.classList.remove('over');}); BDRAG=null; });

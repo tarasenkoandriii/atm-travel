@@ -476,6 +476,7 @@ model BlogArticle {
   imageSourceUrl   String?
   imagesJson       Json?     // all slide photos [{url,alt,source,sourceUrl}] (>=3)
   embedImages      Boolean   @default(true)  // true = float images beside paragraphs (50%); false = centered blocks (75%)
+  clipsJson        Json?     // per-paragraph video clips [{sIdx,pIdx,geo,query,url,provider,attribution,w,h}] (§"Подобрать клипы")
   audioUrl         String?   // ElevenLabs narration (Vercel Blob)
   audioVoiceId     String?
   videoUrl         String?   // rendered slideshow reel (Vercel Blob)

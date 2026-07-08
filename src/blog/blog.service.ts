@@ -2,12 +2,13 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { ReelClipsService } from '../reel/reel-clips.service';
 import { SYSTEM_PROMPT, TOPICS, nextTheme, themeLabel, geoForTopic, BlogTheme } from './blog-templates';
 
 @Injectable()
 export class BlogService {
   private readonly logger = new Logger(BlogService.name);
-  constructor(private readonly config: ConfigService, private readonly prisma: PrismaService) {}
+  constructor(private readonly config: ConfigService, private readonly prisma: PrismaService, private readonly reelClips: ReelClipsService) {}
 
   private get key() { return this.config.get<string>('XAI_API_KEY') || ''; }
   private get pixabayKey() { return this.config.get<string>('PIXABAY_API_KEY') || ''; }
@@ -287,7 +288,8 @@ export class BlogService {
     const images = Array.isArray(a.imagesJson) && a.imagesJson.length
       ? a.imagesJson
       : (a.imageUrl ? [{ url: a.imageUrl, alt: a.imageAlt, source: a.imageSource, sourceUrl: a.imageSourceUrl }] : []);
-    return { id: a.id, h1: a.h1, locale: a.locale, status: a.status, image: a.imageUrl, images, embedImages: a.embedImages !== false, topic: a.topic, categories: bj.categories || [], tags: bj.tags || [], sections, uncertainFacts: bj.uncertain_facts || [], audioUrl: a.audioUrl, videoUrl: a.videoUrl, voiceId: a.audioVoiceId, geo: geoForTopic(a.topic), isGeo: !!geoForTopic(a.topic) };
+    const clips = Array.isArray(a.clipsJson) ? a.clipsJson : [];
+    return { id: a.id, h1: a.h1, locale: a.locale, status: a.status, image: a.imageUrl, images, embedImages: a.embedImages !== false, clips, topic: a.topic, categories: bj.categories || [], tags: bj.tags || [], sections, uncertainFacts: bj.uncertain_facts || [], audioUrl: a.audioUrl, videoUrl: a.videoUrl, voiceId: a.audioVoiceId, geo: geoForTopic(a.topic), isGeo: !!geoForTopic(a.topic) };
   }
 
   private async grokRaw(sys: string, user: string): Promise<string | null> {
@@ -313,6 +315,15 @@ export class BlogService {
   async regeneratePart(id: string, part: string, sectionIdx?: number, paraIdx?: number, current?: string, note?: string, mode?: string, imgIdx?: number): Promise<{ ok: boolean; value?: any; message?: string }> {
     const a = await this.prisma.blogArticle.findUnique({ where: { id } }).catch(() => null);
     if (!a) return { ok: false, message: 'not found' };
+    if (part === 'clip') {
+      const clips: any[] = Array.isArray(a.clipsJson) ? a.clipsJson : [];
+      const idx = imgIdx ?? -1; const cur = clips[idx];
+      if (!cur) return { ok: false, message: 'клип не найден' };
+      const pick = 1 + Math.floor(Math.random() * 3); // avoid returning the exact same top result again
+      const fresh = await this.reelClips.findOne(cur.query || cur.geo || a.topic, 'portrait', pick).catch(() => null);
+      if (!fresh) return { ok: false, message: 'не нашли другое видео по этому запросу' };
+      return { ok: true, value: { ...fresh, query: cur.query, geo: cur.geo, sIdx: cur.sIdx, pIdx: cur.pIdx } };
+    }
     if (part === 'image') {
       if (!this.blobToken) return { ok: false, message: 'нет BLOB_READ_WRITE_TOKEN' };
       const bj0: any = a.bodyJson || {};
@@ -356,7 +367,7 @@ export class BlogService {
   }
 
   // Persist edits from the inline editor (deleted paragraphs already dropped by the client).
-  async applyEdit(id: string, patch: { h1?: string; categories?: string[]; tags?: string[]; sections?: { heading: string; paragraphs: string[] }[]; images?: { url: string; alt?: string; source?: string; sourceUrl?: string }[]; embedImages?: boolean }): Promise<boolean> {
+  async applyEdit(id: string, patch: { h1?: string; categories?: string[]; tags?: string[]; sections?: { heading: string; paragraphs: string[] }[]; images?: { url: string; alt?: string; source?: string; sourceUrl?: string }[]; embedImages?: boolean; clips?: any[] }): Promise<boolean> {
     const a = await this.prisma.blogArticle.findUnique({ where: { id } }).catch(() => null);
     if (!a) return false;
     const bj: any = a.bodyJson || {};
@@ -378,6 +389,7 @@ export class BlogService {
         // reset the article score so the moderator re-scores the edited text
         articleScore: null, articleScoreNote: null,
         ...(typeof patch.embedImages === 'boolean' ? { embedImages: patch.embedImages } : {}),
+        ...(Array.isArray(patch.clips) ? { clipsJson: patch.clips.filter((c) => c?.url) as any } : {}),
         ...(images ? {
           imagesJson: images as any,
           imageUrl: hero?.url || null, imageAlt: hero?.alt || null, imageSource: hero?.source || null, imageSourceUrl: hero?.sourceUrl || null,
@@ -385,6 +397,35 @@ export class BlogService {
       },
     });
     return true;
+  }
+
+  // "Подобрать клипы": for every paragraph, detect place mentions and fetch one B-roll clip per
+  // distinct place (falls back to the article's own topic/city if none are mentioned), remembering
+  // the exact search query used for each so "Перегенерировать" can redo the same search.
+  async pickClips(id: string): Promise<any[]> {
+    const a = await this.prisma.blogArticle.findUnique({ where: { id } }).catch(() => null);
+    if (!a) return [];
+    const bj: any = a.bodyJson || {};
+    const fallbackPlace = (a.topic || '').replace(/\(.*?\)/g, '').split(',')[0].trim() || 'travel';
+    const sections: { heading: string; body: string }[] = bj.sections || [];
+    const out: any[] = [];
+    let flatIdx = 0;
+    for (let sIdx = 0; sIdx < sections.length; sIdx++) {
+      const paras = String(sections[sIdx].body || '').split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
+      for (let pIdx = 0; pIdx < paras.length; pIdx++) {
+        const text = paras[pIdx];
+        let places = this.reelClips.detectPlaces(text, 3);
+        if (!places.length) places = [fallbackPlace];
+        for (const geo of places) {
+          const query = `${geo} travel`;
+          const clip = await this.reelClips.findOne(query, 'portrait').catch(() => null);
+          if (clip) out.push({ sIdx, pIdx, flatIdx, geo, query, url: clip.url, provider: clip.provider, attribution: clip.attribution, w: clip.w, h: clip.h });
+        }
+        flatIdx++;
+      }
+    }
+    await this.prisma.blogArticle.update({ where: { id }, data: { clipsJson: out as any } }).catch(() => {});
+    return out;
   }
 
   // ── Inline part editing for the moderation editor ──
@@ -554,7 +595,8 @@ export class BlogService {
     const imgs = (Array.isArray(a.imagesJson) ? (a.imagesJson as any[]).map((x) => x?.url).filter(Boolean) : []);
     const images = imgs.length ? imgs : (a.imageUrl ? [a.imageUrl] : []);
     const geo = geoForTopic(a.topic);
-    return { id: a.id, slug: a.slug, h1: a.h1, locale: a.locale, topic: a.topic, image: a.imageUrl, images, subtitles, audioUrl: a.audioUrl, videoUrl: a.videoUrl, voiceId: a.audioVoiceId, geo, isGeo: !!geo };
+    const clips = Array.isArray(a.clipsJson) ? a.clipsJson : [];
+    return { id: a.id, slug: a.slug, h1: a.h1, locale: a.locale, topic: a.topic, image: a.imageUrl, images, subtitles, clips, audioUrl: a.audioUrl, videoUrl: a.videoUrl, voiceId: a.audioVoiceId, geo, isGeo: !!geo };
   }
 
   async list(limit = 60): Promise<any[]> {

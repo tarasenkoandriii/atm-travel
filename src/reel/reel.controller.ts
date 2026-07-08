@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AudioService } from '../audio/audio.service';
 import type { AudioProviderId, AudioRequest } from '../audio/audio.types';
 import { HotToursService } from '../hottours/hottours.service';
+import { ReelClipsService } from './reel-clips.service';
 
 type Clip = { provider: string; id: string; url: string; attribution: string; tags: string[]; w?: number; h?: number };
 
@@ -19,6 +20,7 @@ export class ReelController {
     private readonly prisma: PrismaService,
     private readonly audio: AudioService,
     private readonly hotTours: HotToursService,
+    private readonly reelClips: ReelClipsService,
   ) {}
 
   // Available tours/hotels/flights for a destination (by country code) — reel slide source.
@@ -201,62 +203,18 @@ export class ReelController {
   ];
   private readonly MAX = 80 * 1024 * 1024;
 
-  private provider(): string | null {
-    if (this.config.get<string>('PEXELS_API_KEY')) return 'pexels';
-    if (this.config.get<string>('PIXABAY_API_KEY')) return 'pixabay';
-    return null;
-  }
-
-  // ru/uk → en place resolution so a Cyrillic title still yields relevant stock footage.
-  private readonly PLACES: Record<string, string> = {
-    'хургада': 'Hurghada', 'шарм-эль-шейх': 'Sharm El Sheikh', 'шарм': 'Sharm El Sheikh', 'египет': 'Egypt',
-    'турция': 'Turkey', 'туреччина': 'Turkey', 'стамбул': 'Istanbul', 'анталия': 'Antalya', 'анталья': 'Antalya', 'аланья': 'Alanya',
-    'дубай': 'Dubai', 'оаэ': 'UAE', 'абу-даби': 'Abu Dhabi', 'мальдивы': 'Maldives', 'мальдіви': 'Maldives',
-    'таиланд': 'Thailand', 'тайланд': 'Thailand', 'пхукет': 'Phuket', 'бангкок': 'Bangkok', 'паттайя': 'Pattaya',
-    'бали': 'Bali', 'индонезия': 'Indonesia', 'вьетнам': 'Vietnam', 'нячанг': 'Nha Trang',
-    'киев': 'Kyiv', 'київ': 'Kyiv', 'львов': 'Lviv', 'львів': 'Lviv', 'одесса': 'Odesa', 'одеса': 'Odesa',
-    'карпаты': 'Carpathians mountains', 'карпати': 'Carpathians mountains', 'буковель': 'Bukovel',
-    'прага': 'Prague', 'чехия': 'Czechia', 'париж': 'Paris', 'франция': 'France', 'рим': 'Rome', 'италия': 'Italy',
-    'венеция': 'Venice', 'барселона': 'Barcelona', 'испания': 'Spain', 'мадрид': 'Madrid', 'тенерифе': 'Tenerife',
-    'канары': 'Canary Islands', 'кипр': 'Cyprus', 'греция': 'Greece', 'крит': 'Crete', 'родос': 'Rhodes',
-    'санторини': 'Santorini', 'афины': 'Athens', 'лондон': 'London', 'вена': 'Vienna', 'австрия': 'Austria',
-    'варшава': 'Warsaw', 'польша': 'Poland', 'краков': 'Krakow', 'будапешт': 'Budapest', 'амстердам': 'Amsterdam',
-    'лиссабон': 'Lisbon', 'португалия': 'Portugal', 'черногория': 'Montenegro', 'хорватия': 'Croatia',
-    'тунис': 'Tunisia', 'марокко': 'Morocco', 'занзибар': 'Zanzibar', 'шри-ланка': 'Sri Lanka',
-    'гоа': 'Goa', 'индия': 'India', 'грузия': 'Georgia', 'тбилиси': 'Tbilisi', 'батуми': 'Batumi', 'армения': 'Armenia',
-  };
-  private readonly TR: Record<string, string> = {
-    а: 'a', б: 'b', в: 'v', г: 'g', д: 'd', е: 'e', ё: 'e', ж: 'zh', з: 'z', и: 'i', й: 'i', к: 'k', л: 'l', м: 'm',
-    н: 'n', о: 'o', п: 'p', р: 'r', с: 's', т: 't', у: 'u', ф: 'f', х: 'kh', ц: 'ts', ч: 'ch', ш: 'sh', щ: 'shch',
-    ъ: '', ы: 'y', ь: '', э: 'e', ю: 'yu', я: 'ya', і: 'i', ї: 'i', є: 'ie', ґ: 'g',
-  };
-  private translit(s: string): string {
-    return s.toLowerCase().split('').map((ch) => (this.TR[ch] !== undefined ? this.TR[ch] : ch)).join('').replace(/\s+/g, ' ').trim();
-  }
-  private resolveToken(s: string): string {
-    const k = s.toLowerCase().trim(); if (!k) return '';
-    if (this.PLACES[k]) return this.PLACES[k];
-    if (/[а-яёіїєґ]/i.test(k)) return this.translit(k).replace(/\b\w/g, (c) => c.toUpperCase());
-    return s.trim();
-  }
-  private resolvePlaceEn(q: string): { base: string; fallbackBase: string } {
-    const parts = (q || '').split(',').map((p) => this.resolveToken(p)).filter(Boolean);
-    const city = parts[0] || '', country = parts[1] || '';
-    return { base: city || country || '', fallbackBase: country || 'travel' };
-  }
-
   @Get('config')
-  cfg() { return { clipsProvider: this.provider() }; }
+  cfg() { return { clipsProvider: this.reelClips.provider() }; }
 
   // Auto-source B-roll for the "нарезка" between the globe intro and the live camera.
   @Get('clips')
   async clips(@Query('q') q: string, @Query('n') n: string, @Query('orientation') orientation: string, @Query('shots') shots: string) {
-    const provider = this.provider();
+    const provider = this.reelClips.provider();
     if (!provider) return { provider: null, clips: [] };
     const count = Math.min(6, Math.max(1, parseInt(n || '4', 10)));
     const shotList = (shots || 'establishing,hero,human_detail,emotional_peak').split(',').map((s) => s.trim());
     const SUF: Record<string, string> = { establishing: 'aerial drone', hero: 'cinematic landmark', human_detail: 'street detail slowmo', emotional_peak: 'sunset golden hour' };
-    const { base, fallbackBase } = this.resolvePlaceEn(q);
+    const { base, fallbackBase } = this.reelClips.resolvePlaceEn(q);
     const terms = shotList.slice(0, count).map((sh) => ({
       shot: sh,
       term: (base ? base + ' ' : 'travel ') + (SUF[sh] || ''),
@@ -265,39 +223,12 @@ export class ReelController {
 
     const seen = new Set<string>(); const out: Clip[] = [];
     for (const t of terms) {
-      let c = await this.search(provider, t.term, orientation).catch(() => null);
-      if (!c) c = await this.search(provider, t.fallback, orientation).catch(() => null);
+      let c = await this.reelClips.findOne(t.term, orientation).catch(() => null);
+      if (!c) c = await this.reelClips.findOne(t.fallback, orientation).catch(() => null);
       if (c && !seen.has(c.id)) { seen.add(c.id); c.tags = [t.shot]; out.push(c); }
       if (out.length >= count) break;
     }
     return { provider, query: base, clips: out };
-  }
-
-  private async search(provider: string, term: string, orientation?: string): Promise<Clip | null> {
-    if (provider === 'pexels') {
-      const key = this.config.get<string>('PEXELS_API_KEY')!;
-      const o = orientation === 'portrait' ? '&orientation=portrait' : (orientation === 'landscape' ? '&orientation=landscape' : '');
-      const r = await fetch(`https://api.pexels.com/videos/search?query=${encodeURIComponent(term)}&per_page=6&size=medium${o}`, { headers: { Authorization: key } });
-      if (!r.ok) return null;
-      const j: any = await r.json();
-      const v = (j.videos || [])[0]; if (!v) return null;
-      const files = (v.video_files || []).filter((f: any) => f.file_type === 'video/mp4');
-      files.sort((a: any, b: any) => Math.abs((a.height || 0) - 1080) - Math.abs((b.height || 0) - 1080));
-      const file = files[0]; if (!file) return null;
-      return { provider, id: 'pexels-' + v.id, url: file.link, attribution: `Pexels / ${v.user?.name || 'author'}`, tags: [], w: file.width, h: file.height };
-    }
-    if (provider === 'pixabay') {
-      const key = this.config.get<string>('PIXABAY_API_KEY')!;
-      const r = await fetch(`https://pixabay.com/api/videos/?key=${key}&q=${encodeURIComponent(term)}&per_page=6`);
-      if (!r.ok) return null;
-      const j: any = await r.json();
-      const h = (j.hits || [])[0]; if (!h) return null;
-      const vids = h.videos || {};
-      const pick = vids.large?.url ? vids.large : (vids.medium || vids.small || vids.tiny);
-      if (!pick?.url) return null;
-      return { provider, id: 'pixabay-' + h.id, url: pick.url, attribution: `Pixabay / ${h.user || 'author'}`, tags: [], w: pick.width, h: pick.height };
-    }
-    return null;
   }
 
   @Get('proxy')

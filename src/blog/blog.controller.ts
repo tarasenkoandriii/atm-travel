@@ -47,9 +47,16 @@ export class BlogController {
   }
   // Persist edits (title/categories/tags/sections/images; deleted paragraphs/images already removed by the client).
   @Post('api/blog/edit')
-  async edit(@Body() b: { key?: string; id?: string; h1?: string; categories?: string[]; tags?: string[]; sections?: any[]; images?: any[]; embedImages?: boolean }) {
+  async edit(@Body() b: { key?: string; id?: string; h1?: string; categories?: string[]; tags?: string[]; sections?: any[]; images?: any[]; embedImages?: boolean; clips?: any[] }) {
     if (!this.adminOk(b?.key)) throw new UnauthorizedException('bad token');
-    return { ok: await this.svc.applyEdit(b?.id || '', { h1: b?.h1, categories: b?.categories, tags: b?.tags, sections: b?.sections, images: b?.images, embedImages: b?.embedImages }) };
+    return { ok: await this.svc.applyEdit(b?.id || '', { h1: b?.h1, categories: b?.categories, tags: b?.tags, sections: b?.sections, images: b?.images, embedImages: b?.embedImages, clips: b?.clips }) };
+  }
+  // "Подобрать клипы": one B-roll video per paragraph (or one per distinct geo mentioned in it).
+  @Post('api/blog/pick-clips')
+  async pickClips(@Body() b: { key?: string; id?: string }) {
+    if (!this.adminOk(b?.key)) throw new UnauthorizedException('bad token');
+    const clips = await this.svc.pickClips(b?.id || '');
+    return { ok: true, clips };
   }
 
   // ── Blog media: ElevenLabs voices/narration + rendered video ──

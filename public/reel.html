@@ -701,9 +701,49 @@ function makeImageSlideClip(imgUrl, subtitle, seconds) {
   });
 }
 
+// Same subtitle/gradient treatment as makeImageSlideClip, but the background is a looping video clip
+// instead of a static photo — used by blog "Подобрать клипы" mode.
+function makeVideoClipSlide(clipUrl, subtitle, seconds) {
+  return new Promise(resolve => {
+    const w = 1280, h = 720, cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+    const cx = cv.getContext('2d');
+    const rec = new MediaRecorder(cv.captureStream(30), { mimeType: MIME, videoBitsPerSecond: 8_000_000 });
+    const chunks = []; rec.ondataavailable = e => e.data.size && chunks.push(e.data);
+    rec.onstop = () => { try { vid.pause(); } catch (e) {} resolve(URL.createObjectURL(new Blob(chunks, { type: 'video/webm' }))); };
+    const vid = document.createElement('video');
+    vid.crossOrigin = 'anonymous'; vid.muted = true; vid.loop = true; vid.playsInline = true; vid.preload = 'auto';
+    const dur = Math.max(1, seconds || 3) * 1000;
+    function wrap(text, maxW) { const words = String(text).split(/\s+/); const lines = []; let ln = '';
+      cx.font = "36px 'Space Grotesk', system-ui, sans-serif";
+      words.forEach(wd => { const t = ln ? ln + ' ' + wd : wd; if (cx.measureText(t).width > maxW && ln) { lines.push(ln); ln = wd; } else ln = t; });
+      if (ln) lines.push(ln); return lines.slice(0, 4); }
+    let started = false;
+    function start() {
+      if (started) return; started = true;
+      const t0 = performance.now(); rec.start(); vid.play().catch(() => {});
+      (function loop() {
+        const t = Math.min(1, (performance.now() - t0) / dur);
+        cx.fillStyle = '#070c12'; cx.fillRect(0, 0, w, h);
+        if (vid.readyState >= 2 && vid.videoWidth) { const s = Math.max(w / vid.videoWidth, h / vid.videoHeight); const iw = vid.videoWidth * s, ih = vid.videoHeight * s; cx.drawImage(vid, (w - iw) / 2, (h - ih) / 2, iw, ih); }
+        const g = cx.createLinearGradient(0, h * 0.45, 0, h); g.addColorStop(0, 'rgba(7,12,18,0)'); g.addColorStop(1, 'rgba(7,12,18,.92)'); cx.fillStyle = g; cx.fillRect(0, h * 0.45, w, h * 0.55);
+        const lines = wrap(subtitle || '', w - 160); let y = h - 60 - (lines.length - 1) * 46;
+        cx.textBaseline = 'alphabetic'; cx.font = "36px 'Space Grotesk', system-ui, sans-serif";
+        lines.forEach(ln => { cx.fillStyle = '#eef4f8'; cx.fillText(ln, 80, y); y += 46; });
+        cx.fillStyle = '#4fd7e0'; cx.fillRect(80, h - 30, (w - 160) * t, 4);
+        if (performance.now() - t0 < dur) requestAnimationFrame(loop); else setTimeout(() => rec.stop(), 100);
+      })();
+    }
+    vid.onloadeddata = start; vid.onerror = start;   // start on error too so the montage never gets stuck
+    setTimeout(start, 6000);                          // safety net if the source never fires an event
+    vid.src = '/api/reels/proxy?url=' + encodeURIComponent(clipUrl);
+    vid.load();
+  });
+}
+
 async function initBlogMode() {
   const blogId = qs.get('blog'); if (!blogId) return;
   const key = qs.get('key') || '';
+  const clipsMode = qs.get('clips') === '1';
   setStatus && setStatus('Загрузка статьи для монтажа…');
   let m; try { m = await fetch('/api/blog/media?key=' + encodeURIComponent(key) + '&id=' + encodeURIComponent(blogId)).then(r => r.ok ? r.json() : null); } catch (e) { m = null; }
   if (!m || !m.ok || !m.media) { setStatus && setStatus('Не удалось загрузить статью блога.'); return; }
@@ -714,24 +754,53 @@ async function initBlogMode() {
   if (a.audioUrl) { try { total = await new Promise((res) => { const au = new Audio(); au.preload = 'metadata'; au.onloadedmetadata = () => res(isFinite(au.duration) && au.duration ? au.duration : 24); au.onerror = () => res(24); au.src = a.audioUrl; setTimeout(() => res(24), 8000); }); } catch (e) {} }
   const subs = (a.subtitles && a.subtitles.length) ? a.subtitles : [a.h1];
   const imgs = (a.images && a.images.length) ? a.images : [];
-  const titleSec = Math.min(4, Math.max(2.5, total * 0.12));
-  const per = Math.max(2.4, (total - titleSec) / subs.length);
+  const clips = (a.clips && a.clips.length) ? a.clips : [];
+  // Timing follows narration length in characters, not a flat average: the globe intro's share of the
+  // total is proportional to the TITLE's share of the whole narrated text (only the title is read during
+  // the intro), and each paragraph's slide/clip gets a share proportional to ITS OWN character count.
+  const titleLen = (a.h1 || '').length || 1;
+  const bodyLens = subs.map(s => (s || '').length || 1);
+  const bodyLenSum = bodyLens.reduce((s, x) => s + x, 0) || 1;
+  const totalLen = titleLen + bodyLenSum;
+  const titleSec = Math.max(2.2, Math.min(6, total * (titleLen / totalLen)));
+  const remain = Math.max(1, total - titleSec);
+  const perDurs = bodyLens.map(len => Math.max(1.8, remain * (len / bodyLenSum)));
   $('#addTourSlides') && ($('#addTourSlides').disabled = true);
-  setStatus && setStatus('Рендер слайдов статьи…');
+  setStatus && setStatus(clipsMode ? 'Рендер видео-клипов статьи…' : 'Рендер слайдов статьи…');
   try {
-    // 1) title card — large headline
+    // 1) title card — large headline; narration during this segment is just the title (see timing note above)
     const titleUrl = await makeCardClip([{ text: a.h1 || 'Статья', size: 62 }, { text: a.topic || '', size: 40 }], { seconds: titleSec });
     videoTracks.push({ url: titleUrl, provider: 'blog-title', id: 'blogt-' + Date.now(), attribution: '', tags: ['blog'], deleted: false });
-    // 2) one slide per subtitle over the article photo(s)
-    for (let i = 0; i < subs.length; i++) {
-      const img = imgs.length ? imgs[i % imgs.length] : null;
-      const url = img ? await makeImageSlideClip(img, subs[i], per) : await makeCardClip([{ text: subs[i], size: 38 }], { seconds: per });
-      videoTracks.push({ url, provider: 'blog-slide', id: 'blogs-' + Date.now() + '-' + i, attribution: '', tags: ['blog'], deleted: false });
+    if (clipsMode && clips.length) {
+      // group clips by paragraph (flatIdx falls back to matching subtitle position if absent)
+      const byPara = new Map();
+      clips.forEach((c, ci) => { const k = (c.flatIdx != null ? c.flatIdx : ci); if (!byPara.has(k)) byPara.set(k, []); byPara.get(k).push(c); });
+      for (let i = 0; i < subs.length; i++) {
+        const group = byPara.get(i) || [];
+        if (!group.length) {
+          const url = await makeCardClip([{ text: subs[i], size: 38 }], { seconds: perDurs[i] });
+          videoTracks.push({ url, provider: 'blog-slide', id: 'blogs-' + Date.now() + '-' + i, attribution: '', tags: ['blog'], deleted: false });
+          continue;
+        }
+        const each = Math.max(1.5, perDurs[i] / group.length);
+        for (let g = 0; g < group.length; g++) {
+          const c = group[g];
+          const url = await makeVideoClipSlide(c.url, subs[i], each);
+          videoTracks.push({ url, provider: 'blog-clip', id: 'blogc-' + Date.now() + '-' + i + '-' + g, attribution: c.attribution || '', tags: ['blog', c.geo || ''].filter(Boolean), deleted: false });
+        }
+      }
+    } else {
+      // photo slideshow — one slide per paragraph over the article photo(s)
+      for (let i = 0; i < subs.length; i++) {
+        const img = imgs.length ? imgs[i % imgs.length] : null;
+        const url = img ? await makeImageSlideClip(img, subs[i], perDurs[i]) : await makeCardClip([{ text: subs[i], size: 38 }], { seconds: perDurs[i] });
+        videoTracks.push({ url, provider: 'blog-slide', id: 'blogs-' + Date.now() + '-' + i, attribution: '', tags: ['blog'], deleted: false });
+      }
     }
     renderTracks && renderTracks();
-    // 3) make sure the narration track is the selected soundtrack (music was pushed from ?music)
+    // 2) make sure the narration track is the selected soundtrack (music was pushed from ?music)
     if (a.audioUrl && typeof audioTracks !== 'undefined') { audioTracks.forEach(t => t.selected = (t.url === a.audioUrl)); if (!audioTracks.some(t => t.selected)) { audioTracks.push({ url: a.audioUrl, previewUrl: a.audioUrl, title: 'Озвучка', selected: true }); } renderTracks && renderTracks(); }
-    setStatus && setStatus('Слайды готовы (' + subs.length + '). Нажмите «Собрать ролик» — озвучка идёт параллельно. После — «Постить».');
+    setStatus && setStatus((clipsMode ? 'Клипы готовы (' : 'Слайды готовы (') + subs.length + '). Нажмите «Собрать ролик» — озвучка идёт параллельно. После — «Постить».');
     window.__BLOG_ID = blogId; window.__BLOG_KEY = key;
   } catch (e) { setStatus && setStatus('Ошибка монтажа блога: ' + (e && e.message || e)); }
   $('#addTourSlides') && ($('#addTourSlides').disabled = false);
