@@ -709,9 +709,14 @@ function makeVideoClipSlide(clipUrl, subtitle, seconds) {
     const cx = cv.getContext('2d');
     const rec = new MediaRecorder(cv.captureStream(30), { mimeType: MIME, videoBitsPerSecond: 8_000_000 });
     const chunks = []; rec.ondataavailable = e => e.data.size && chunks.push(e.data);
-    rec.onstop = () => { try { vid.pause(); } catch (e) {} resolve(URL.createObjectURL(new Blob(chunks, { type: 'video/webm' }))); };
+    const cleanup = () => { try { vid.pause(); } catch (e) {} try { vid.removeAttribute('src'); vid.load(); } catch (e) {} try { vid.remove(); } catch (e) {} };
+    rec.onstop = () => { cleanup(); resolve(URL.createObjectURL(new Blob(chunks, { type: 'video/webm' }))); };
     const vid = document.createElement('video');
     vid.crossOrigin = 'anonymous'; vid.muted = true; vid.loop = true; vid.playsInline = true; vid.preload = 'auto';
+    // Many browsers won't reliably decode frames (loadeddata never fires, drawImage stays blank) for a
+    // <video> that's never attached to the document — keep it in the DOM but visually hidden off-screen.
+    vid.style.cssText = 'position:fixed;left:-9999px;top:0;width:2px;height:2px;opacity:0;pointer-events:none';
+    document.body.appendChild(vid);
     const dur = Math.max(1, seconds || 3) * 1000;
     function wrap(text, maxW) { const words = String(text).split(/\s+/); const lines = []; let ln = '';
       cx.font = "36px 'Space Grotesk', system-ui, sans-serif";
@@ -734,7 +739,7 @@ function makeVideoClipSlide(clipUrl, subtitle, seconds) {
       })();
     }
     vid.onloadeddata = start; vid.onerror = start;   // start on error too so the montage never gets stuck
-    setTimeout(start, 6000);                          // safety net if the source never fires an event
+    setTimeout(start, 4000);                          // safety net if the source never fires an event
     vid.src = '/api/reels/proxy?url=' + encodeURIComponent(clipUrl);
     vid.load();
   });
