@@ -705,7 +705,7 @@ function makeImageSlideClip(imgUrl, subtitle, seconds) {
 async function initBlogMode() {
   const blogId = qs.get('blog'); if (!blogId) return;
   const key = qs.get('key') || '';
-  const clipsMode = qs.get('clips') === '1';
+  const clipsMode = qs.get('bclips') === '1';
   setStatus && setStatus('Загрузка статьи для монтажа…');
   let m; try { m = await fetch('/api/blog/media?key=' + encodeURIComponent(key) + '&id=' + encodeURIComponent(blogId)).then(r => r.ok ? r.json() : null); } catch (e) { m = null; }
   if (!m || !m.ok || !m.media) { setStatus && setStatus('Не удалось загрузить статью блога.'); return; }

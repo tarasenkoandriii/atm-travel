@@ -609,7 +609,7 @@ $('#blogList').addEventListener('click', function(e){
     if(!st.audioUrl&&!confirm('Аудио ещё не сгенерировано. Открыть монтаж без озвучки?')) return;
     var _box=document.getElementById('ed-'+id); var _ic=_box?_box.querySelector('.bed-intro'):null; var _intro=_ic?_ic.checked:!!st.introOn;
     var u='/reels?blog='+encodeURIComponent(id)+'&key='+encodeURIComponent(KEY)+'&intro='+(_intro?'1':'0');
-    if(st.slideshow===false)u+='&clips=1';
+    if(st.slideshow===false)u+='&bclips=1';
     if(st.audioUrl)u+='&music='+encodeURIComponent(st.audioUrl);
     if(_intro&&st.geo){ u+='&lat='+st.geo.lat+'&lng='+st.geo.lng+'&geo='+encodeURIComponent(st.topic||''); }
     window.open(u,'_blank'); return;
