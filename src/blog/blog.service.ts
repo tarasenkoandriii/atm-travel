@@ -319,8 +319,15 @@ export class BlogService {
       const clips: any[] = Array.isArray(a.clipsJson) ? a.clipsJson : [];
       const idx = imgIdx ?? -1; const cur = clips[idx];
       if (!cur) return { ok: false, message: 'клип не найден' };
-      const pick = 1 + Math.floor(Math.random() * 3); // avoid returning the exact same top result again
-      const fresh = await this.reelClips.findOne(cur.query || cur.geo || a.topic, 'portrait', pick).catch(() => null);
+      const otherIds = new Set(clips.filter((_, i) => i !== idx).map((c) => c?.id).filter(Boolean));
+      const otherUrls = new Set(clips.filter((_, i) => i !== idx).map((c) => c?.url).filter(Boolean));
+      let fresh: any = null;
+      for (let pick = 1; pick < 5; pick++) {
+        const c = await this.reelClips.findOne(cur.query || cur.geo || a.topic, 'portrait', pick).catch(() => null);
+        if (!c) break;
+        if (!otherIds.has(c.id) && !otherUrls.has(c.url)) { fresh = c; break; }
+      }
+      if (!fresh) fresh = await this.reelClips.findOne(cur.query || cur.geo || a.topic, 'portrait', 1 + Math.floor(Math.random() * 3)).catch(() => null);
       if (!fresh) return { ok: false, message: 'не нашли другое видео по этому запросу' };
       return { ok: true, value: { ...fresh, query: cur.query, geo: cur.geo, sIdx: cur.sIdx, pIdx: cur.pIdx } };
     }
@@ -399,9 +406,33 @@ export class BlogService {
     return true;
   }
 
+  // Content hints (RU/UK keyword → English shot suffix) so paragraphs WITHOUT an explicit place mention
+  // still get visually distinct search terms instead of all falling back to the same "<city> travel".
+  private readonly SHOT_HINTS: [RegExp, string][] = [
+    [/пляж|море|побереж|пляжн/i, 'beach coastline'],
+    [/отел|гостиниц|бассейн курорт/i, 'hotel resort pool'],
+    [/еда|кухня|ресторан|блюд|заведени/i, 'local food market'],
+    [/улиц|старый город|бродить|прогулк/i, 'old town street'],
+    [/рынок|базар|магазин|сувенир/i, 'market bazaar'],
+    [/гора|природ|парк|заповедник/i, 'nature landscape'],
+    [/закат|вечер|ночь|огни/i, 'sunset golden hour'],
+    [/аэропорт|транспорт|автобус|такси/i, 'airport transport'],
+    [/история|музе|древн|архитектур/i, 'historic landmark'],
+  ];
+  // Generic rotation used only when a paragraph has neither an explicit place nor a keyword hint —
+  // keeps repeated "no signal" paragraphs from all searching the exact same term.
+  private readonly GENERIC_ROTATION = ['aerial city view', 'cinematic landmark', 'street detail', 'coastline view', 'local life', 'panorama view'];
+
+  private shotHintFor(text: string, fallbackIdx: number): string {
+    for (const [re, suffix] of this.SHOT_HINTS) if (re.test(text)) return suffix;
+    return this.GENERIC_ROTATION[fallbackIdx % this.GENERIC_ROTATION.length];
+  }
+
   // "Подобрать клипы": for every paragraph, detect place mentions and fetch one B-roll clip per
-  // distinct place (falls back to the article's own topic/city if none are mentioned), remembering
-  // the exact search query used for each so "Перегенерировать" can redo the same search.
+  // distinct place (falls back to the article's own topic/city + a content-derived shot hint if no
+  // place is mentioned), remembering the exact search query used for each. Clips are kept UNIQUE
+  // across the whole article — if a search returns an already-used clip, we retry (different result,
+  // then a different query) rather than reuse it.
   async pickClips(id: string): Promise<any[]> {
     const a = await this.prisma.blogArticle.findUnique({ where: { id } }).catch(() => null);
     if (!a) return [];
@@ -409,17 +440,46 @@ export class BlogService {
     const fallbackPlace = (a.topic || '').replace(/\(.*?\)/g, '').split(',')[0].trim() || 'travel';
     const sections: { heading: string; body: string }[] = bj.sections || [];
     const out: any[] = [];
-    let flatIdx = 0;
+    const usedIds = new Set<string>(); const usedUrls = new Set<string>();
+    let flatIdx = 0; let fallbackCount = 0;
+
+    // Try up to a few non-first results for the same term; if the whole term is exhausted, broaden
+    // with a different generic suffix so we don't just keep repeating one destination's top clip.
+    const findUniqueClip = async (baseQuery: string, place: string): Promise<{ query: string; clip: any } | null> => {
+      for (let pick = 0; pick < 5; pick++) {
+        const c = await this.reelClips.findOne(baseQuery, 'portrait', pick).catch(() => null);
+        if (!c) break;
+        if (!usedIds.has(c.id) && !usedUrls.has(c.url)) return { query: baseQuery, clip: c };
+      }
+      for (const suffix of this.GENERIC_ROTATION) {
+        const q2 = `${place} ${suffix}`; if (q2 === baseQuery) continue;
+        for (let pick = 0; pick < 3; pick++) {
+          const c = await this.reelClips.findOne(q2, 'portrait', pick).catch(() => null);
+          if (!c) break;
+          if (!usedIds.has(c.id) && !usedUrls.has(c.url)) return { query: q2, clip: c };
+        }
+      }
+      return null; // provider's pool for this destination is exhausted — caller accepts a duplicate rather than a gap
+    };
+
     for (let sIdx = 0; sIdx < sections.length; sIdx++) {
       const paras = String(sections[sIdx].body || '').split(/\n{2,}/).map((p) => p.trim()).filter(Boolean);
       for (let pIdx = 0; pIdx < paras.length; pIdx++) {
         const text = paras[pIdx];
-        let places = this.reelClips.detectPlaces(text, 3);
-        if (!places.length) places = [fallbackPlace];
-        for (const geo of places) {
-          const query = `${geo} travel`;
-          const clip = await this.reelClips.findOne(query, 'portrait').catch(() => null);
-          if (clip) out.push({ sIdx, pIdx, flatIdx, geo, query, url: clip.url, provider: clip.provider, attribution: clip.attribution, w: clip.w, h: clip.h });
+        const explicitPlaces = this.reelClips.detectPlaces(text, 3);
+        const geos = explicitPlaces.length ? explicitPlaces : [fallbackPlace];
+        for (const geo of geos) {
+          const hint = explicitPlaces.length ? '' : ` ${this.shotHintFor(text, fallbackCount++)}`;
+          const query = `${geo}${hint} travel`.replace(/\s+/g, ' ').trim();
+          let found = await findUniqueClip(query, geo);
+          if (!found) { // last resort: accept whatever the base query returns, even if a repeat
+            const c = await this.reelClips.findOne(query, 'portrait').catch(() => null);
+            found = c ? { query, clip: c } : null;
+          }
+          if (found) {
+            usedIds.add(found.clip.id); usedUrls.add(found.clip.url);
+            out.push({ sIdx, pIdx, flatIdx, geo, query: found.query, url: found.clip.url, provider: found.clip.provider, attribution: found.clip.attribution, w: found.clip.w, h: found.clip.h });
+          }
         }
         flatIdx++;
       }
