@@ -57,7 +57,10 @@ export class FrontendController {
 
   @Get('reels')
   reelPage(@Res() res: Response) {
-    return this.serve(res, this.reel);
+    // No caching while this montage studio is under active iteration — a stale cached copy here has
+    // repeatedly masked whether a fix actually reached the browser during debugging.
+    res.setHeader('Cache-Control', 'no-store');
+    return res.type('html').send(this.reel || '<h1>ATM-travel.org</h1><p>frontend asset not found in bundle</p>');
   }
 
   @Get('publish')

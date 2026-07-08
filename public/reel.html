@@ -55,7 +55,7 @@
 <div class="wrap">
   <header>
     <a class="logo" href="/">ATM<b>·</b>travel</a>
-    <div class="sub">auto-reel · ffmpeg.wasm montage (1080p, in-browser)</div>
+    <div class="sub">auto-reel · ffmpeg.wasm montage (1080p, in-browser) · <b id="buildMarker" style="color:#4fd7e0">build 2026-07-08-05:45</b></div>
   </header>
 
   <div id="stage"><div id="globeHost"></div></div>
@@ -130,6 +130,7 @@ import { validateManifest, checkBeatAlignment, buildFilterComplex, buildDefaultM
 const $ = s => document.querySelector(s);
 const qs = new URLSearchParams(location.search);
 const log = m => { const el = $('#log'); el.textContent += m + '\n'; el.scrollTop = el.scrollHeight; };
+log('build-marker: reel v2026-07-08-05:45 (raw B-roll clips + bclips param + introBlob diag)');
 const setStatus = m => $('#status').textContent = m;
 const setProg = p => $('#prog').style.width = Math.round(p * 100) + '%';
 const num = (v, d) => { const n = parseFloat(v); return isNaN(n) ? d : n; };
@@ -534,6 +535,7 @@ async function run() {
         setStatus('Формат ' + fmt.name + ' — intro (глобус)…');
         introBlob = await recordIntro(fmt.w, fmt.h, introSec, lat, lng, m.render.fps, qs.get('geo') || m.destination.name);
         introExt = 'webm';
+        log('интро-глобус ' + fmt.name + ': ' + (introBlob ? introBlob.size : 0) + 'B, type=' + (introBlob ? introBlob.type : '—'));
       }
 
       // fresh ffmpeg per ratio → terminate after, so the wasm heap is freed between renders
