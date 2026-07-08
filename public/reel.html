@@ -328,7 +328,7 @@ async function getManifest(introSecOverride) {
   const wantIntro = qs.get('intro') !== '0';   // blog can disable the globe intro; reels keep it on by default
   const lat = num($('#lat').value, NaN), lng = num($('#lng').value, NaN);
   if (wantIntro && (isNaN(lat) || isNaN(lng))) throw new Error('нужны Lat/Lng или Manifest URL');
-  let clips = liveVideo().map(t => ({ url: t.url, provider: t.provider, id: t.id, attribution: t.attribution, tags: t.tags }));
+  let clips = liveVideo().map(t => ({ url: t.url, provider: t.provider, id: t.id, attribution: t.attribution, tags: t.tags, dur: t.dur }));
   // Auto-source B-roll if the table has no live clips and a provider key is configured.
   if (!clips.length) {
     const q = (qs.get('q') || $('#title').value || '').trim();
@@ -336,7 +336,7 @@ async function getManifest(introSecOverride) {
       const j = await fetch('/api/reels/clips?n=4&orientation=landscape&q=' + encodeURIComponent(q)).then(r => r.json());
       if (j && j.clips && j.clips.length) {
         setVideoTracks(j.clips);   // reflect auto clips in the table
-        clips = liveVideo().map(t => ({ url: t.url, provider: t.provider, id: t.id, attribution: t.attribution, tags: t.tags }));
+        clips = liveVideo().map(t => ({ url: t.url, provider: t.provider, id: t.id, attribution: t.attribution, tags: t.tags, dur: t.dur }));
         log('авто-клипы: ' + clips.length + ' · ' + (j.provider || '') + ' · запрос: ' + (j.query || '—'));
         clips.forEach(c => c.attribution && log('  © ' + c.attribution));
       } else if (j && !j.provider) log('авто-источник клипов не настроен (нет PEXELS/PIXABAY ключа)');
@@ -770,7 +770,7 @@ async function initBlogMode() {
   try {
     // 1) title card — large headline; narration during this segment is just the title (see timing note above)
     const titleUrl = await makeCardClip([{ text: a.h1 || 'Статья', size: 62 }, { text: a.topic || '', size: 40 }], { seconds: titleSec });
-    videoTracks.push({ url: titleUrl, provider: 'blog-title', id: 'blogt-' + Date.now(), attribution: '', tags: ['blog'], deleted: false });
+    videoTracks.push({ url: titleUrl, provider: 'blog-title', id: 'blogt-' + Date.now(), attribution: '', tags: ['blog'], deleted: false, dur: titleSec });
     if (clipsMode && clips.length) {
       // group clips by paragraph (flatIdx falls back to matching subtitle position if absent)
       const byPara = new Map();
@@ -779,14 +779,14 @@ async function initBlogMode() {
         const group = byPara.get(i) || [];
         if (!group.length) {
           const url = await makeCardClip([{ text: subs[i], size: 38 }], { seconds: perDurs[i] });
-          videoTracks.push({ url, provider: 'blog-slide', id: 'blogs-' + Date.now() + '-' + i, attribution: '', tags: ['blog'], deleted: false });
+          videoTracks.push({ url, provider: 'blog-slide', id: 'blogs-' + Date.now() + '-' + i, attribution: '', tags: ['blog'], deleted: false, dur: perDurs[i] });
           continue;
         }
         const each = Math.max(1.5, perDurs[i] / group.length);
         for (let g = 0; g < group.length; g++) {
           const c = group[g];
           const url = await makeVideoClipSlide(c.url, subs[i], each);
-          videoTracks.push({ url, provider: 'blog-clip', id: 'blogc-' + Date.now() + '-' + i + '-' + g, attribution: c.attribution || '', tags: ['blog', c.geo || ''].filter(Boolean), deleted: false });
+          videoTracks.push({ url, provider: 'blog-clip', id: 'blogc-' + Date.now() + '-' + i + '-' + g, attribution: c.attribution || '', tags: ['blog', c.geo || ''].filter(Boolean), deleted: false, dur: each });
         }
       }
     } else {
@@ -794,7 +794,7 @@ async function initBlogMode() {
       for (let i = 0; i < subs.length; i++) {
         const img = imgs.length ? imgs[i % imgs.length] : null;
         const url = img ? await makeImageSlideClip(img, subs[i], perDurs[i]) : await makeCardClip([{ text: subs[i], size: 38 }], { seconds: perDurs[i] });
-        videoTracks.push({ url, provider: 'blog-slide', id: 'blogs-' + Date.now() + '-' + i, attribution: '', tags: ['blog'], deleted: false });
+        videoTracks.push({ url, provider: 'blog-slide', id: 'blogs-' + Date.now() + '-' + i, attribution: '', tags: ['blog'], deleted: false, dur: perDurs[i] });
       }
     }
     renderTracks && renderTracks();

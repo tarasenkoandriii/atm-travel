@@ -470,7 +470,7 @@ function renderEditor(id){
   }
   h+='<input class="bed-note" placeholder="Ремарка для 🔄 (необязательно): напр. «добавь про транспорт и цены»" value="'+esc(st.note||'')+'">';
   if(isBlog){
-    h+='<div class="bed-media"><span class="bed-lbl2">Сгенерировать:</span>'+bIc2('bed-audio','🔊 Аудио')+(st.slideshow===false?bIc2('bed-pickclips','🎞 Видеоряд'):'')+bIc2('bed-video', st.slideshow!==false?'🎬 Слайдшоу':'🎬 Видео')+(st.audioUrl?'<audio class="bed-audio-el" controls preload="none" src="'+esc(st.audioUrl)+'"></audio>':'')+(st.videoUrl?'<a class="btn" href="/publish?video='+encodeURIComponent(st.videoUrl)+'&title='+encodeURIComponent(st.h1)+'" target="_blank" rel="noopener">📣 Постить во все каналы</a>':'')+'<label class="bed-introlbl" title="Фото float:right 50% внутри абзацев вместо блоков 75% между разделами"><input type="checkbox" class="bed-embedimgs"'+(st.embedImages!==false?' checked':'')+'> встроить картинки в текст</label>'+'<label class="bed-introlbl" title="Вкл: фото-слайды из статьи. Выкл: подбор видео-клипов по абзацам"><input type="checkbox" class="bed-slideshow"'+(st.slideshow!==false?' checked':'')+'> слайд-шоу</label>'+'<label class="bed-introlbl" title="Облёт глобуса + плашка гео (без погоды)"><input type="checkbox" class="bed-intro"'+(st.introOn?' checked':'')+(st.geo?'':' disabled')+'> добавить интро (глобус)'+(st.geo?'':' — нет гео')+'</label>'+'<span class="bed-media-status"></span></div>';
+    h+='<div class="bed-media">'+bIc2('bed-audio','🔊 Аудио')+(st.slideshow===false?bIc2('bed-pickclips','🎞 Видеоряд'):'')+bIc2('bed-video', st.slideshow!==false?'🎬 Слайдшоу':'🎬 Видео')+(st.audioUrl?'<audio class="bed-audio-el" controls preload="none" src="'+esc(st.audioUrl)+'"></audio>':'')+(st.videoUrl?'<a class="btn" href="/publish?video='+encodeURIComponent(st.videoUrl)+'&title='+encodeURIComponent(st.h1)+'" target="_blank" rel="noopener">📣 Постить во все каналы</a>':'')+'<label class="bed-introlbl" title="Фото float:right 50% внутри абзацев вместо блоков 75% между разделами"><input type="checkbox" class="bed-embedimgs"'+(st.embedImages!==false?' checked':'')+'> встроить картинки в текст</label>'+'<label class="bed-introlbl" title="Вкл: фото-слайды из статьи. Выкл: подбор видео-клипов по абзацам"><input type="checkbox" class="bed-slideshow"'+(st.slideshow!==false?' checked':'')+'> слайд-шоу</label>'+'<label class="bed-introlbl" title="Облёт глобуса + плашка гео (без погоды)"><input type="checkbox" class="bed-intro"'+(st.introOn?' checked':'')+(st.geo?'':' disabled')+'> добавить интро (глобус)'+(st.geo?'':' — нет гео')+'</label>'+'<span class="bed-media-status"></span></div>';
   }
   h+='<div class="bed-row"><div class="bed-lbl">Заголовок</div><div class="bed-val"><div class="bed-h1">'+esc(st.h1)+'</div></div><div class="bed-btns">'+bIc('rg-title','Сделать привлекательнее','🔄')+'</div></div>';
   h+='<div class="bed-lbl" style="margin-top:10px">Фото (первое — главное)</div><div class="bed-imgs">'+(st.images||[]).map(function(im,ii){
@@ -484,7 +484,7 @@ function renderEditor(id){
       return '<div class="bed-clip'+(c.deleted?' deleted':'')+'" data-ci="'+ci+'">'+
         '<video src="'+esc(c.url)+'" muted preload="metadata" controls></video>'+
         '<div class="bed-clip-q" title="Текстовый запрос поиска">'+esc(c.geo||'')+' · '+esc(c.query||'')+'</div>'+
-        '<div class="bed-img-btns">'+bIc('clip-regen','Перегенерировать клип','🔄')+(c.deleted?bIc('clip-restore','Восстановить','↩'):bIc('clip-del','Удалить клип','🗑'))+'</div></div>';
+        '<div class="bed-img-btns">'+bIc('clip-max','Просмотреть подробнее','⛶')+bIc('clip-regen','Перегенерировать клип','🔄')+(c.deleted?bIc('clip-restore','Восстановить','↩'):bIc('clip-del','Удалить клип','🗑'))+'</div></div>';
     }).join('')+'</div>';
   }
   if(isBlog){
@@ -553,6 +553,15 @@ function saveEditor(id, btn){
     }).catch(function(){ btn.disabled=false; if(status)status.textContent='Ошибка сети'; });
 }
 function bIc2(cls,txt){ return '<button class="btn '+cls+'">'+txt+'</button>'; }
+function openClipViewer(c){
+  var ov=document.createElement('div'); ov.className='vm-ov';
+  ov.innerHTML='<div class="vm-box" style="padding:14px;width:min(420px,92vw)"><h3 style="margin:0 0 6px">Просмотр клипа</h3>'+
+    '<video src="'+esc(c.url)+'" controls autoplay style="width:100%;border-radius:10px;background:#000;max-height:70vh"></video>'+
+    '<div class="vm-sub" style="margin-top:8px">'+esc(c.geo||'')+' · '+esc(c.query||'')+(c.attribution?' · © '+esc(c.attribution):'')+'</div>'+
+    '<div class="vm-foot" style="margin-top:10px"><button class="btn" data-vm="cancel">Закрыть</button></div></div>';
+  document.body.appendChild(ov);
+  ov.addEventListener('click', function(e){ if(e.target===ov||e.target.closest('[data-vm="cancel"]')){ var v=ov.querySelector('video'); if(v)v.pause(); ov.remove(); } });
+}
 function openVoiceDialog(id){
   var st=BEDIT[id]; if(!st) return;
   var ov=document.createElement('div'); ov.className='vm-ov';
@@ -619,6 +628,7 @@ $('#blogList').addEventListener('click', function(e){
   var idl=e.target.closest('.img-del'); if(idl&&imgBox){ var i1=+imgBox.getAttribute('data-ii'); st.images[i1].deleted=true; renderEditor(id); return; }
   var irs=e.target.closest('.img-restore'); if(irs&&imgBox){ var i2=+imgBox.getAttribute('data-ii'); st.images[i2].deleted=false; renderEditor(id); return; }
   var clipBox=e.target.closest('.bed-clip');
+  var cmx=e.target.closest('.clip-max'); if(cmx&&clipBox){ var cim=+clipBox.getAttribute('data-ci'); var cc=st.clips[cim]; if(cc)openClipViewer(cc); return; }
   var cr=e.target.closest('.clip-regen'); if(cr&&clipBox){ var ci=+clipBox.getAttribute('data-ci'); bRegen(id,'clip',null,null,null,cr,function(v){ st.clips[ci]={sIdx:v.sIdx,pIdx:v.pIdx,flatIdx:st.clips[ci].flatIdx,geo:v.geo||st.clips[ci].geo,query:v.query||st.clips[ci].query,url:v.url,provider:v.provider||'',attribution:v.attribution||'',deleted:false}; renderEditor(id); },{imgIdx:ci}); return; }
   var cd=e.target.closest('.clip-del'); if(cd&&clipBox){ var ci1=+clipBox.getAttribute('data-ci'); st.clips[ci1].deleted=true; renderEditor(id); return; }
   var crs=e.target.closest('.clip-restore'); if(crs&&clipBox){ var ci2=+clipBox.getAttribute('data-ci'); st.clips[ci2].deleted=false; renderEditor(id); return; }

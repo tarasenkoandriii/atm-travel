@@ -97,12 +97,16 @@ export function buildFilterComplex(m, formatName, opts = {}) {
 }
 
 // ── Auto-build a manifest from simple inputs (for "everything automatic") ──
-// clips: [{url, shot?, tags?, attribution?}], beats derived from bpm. Segments snap to the beat grid.
+// clips: [{url, shot?, tags?, attribution?, dur?}], beats derived from bpm. Segments snap to the beat grid.
+// A clip's own `dur` (pre-rendered blog/tour clips carry their exact intended length) overrides the
+// uniform `clipSec` fallback — otherwise every clip would be forced to the same generic duration
+// regardless of how long its source recording actually is.
 export function buildDefaultManifest({ destination, formats, fps = 30, bpm = 120, music = '', overlay = '',
   introSec = 2.5, clipSec = 2.0, liveSec = 2.0, clips = [], livecam = null, lut = '', intro = true }) {
   const beatDur = 60 / bpm;
-  // build a dense beat grid up to a safe length
-  const totalGuess = introSec + clips.length * clipSec + (livecam ? liveSec : 0) + 4;
+  // build a dense beat grid up to a safe length (uses each clip's own duration when provided)
+  const clipsGuess = clips.reduce((s, c) => s + (Number(c.dur) > 0 ? Number(c.dur) : clipSec), 0);
+  const totalGuess = introSec + clipsGuess + (livecam ? liveSec : 0) + 4;
   const beats = []; for (let t = 0; t <= totalGuess; t += beatDur) beats.push(+t.toFixed(3));
 
   const snap = (t) => beats.reduce((a, b) => (Math.abs(b - t) < Math.abs(a - t) ? b : a), beats[0]);
@@ -124,7 +128,7 @@ export function buildDefaultManifest({ destination, formats, fps = 30, bpm = 120
     kind: 'clip', shot: c.shot || shots[i % shots.length],
     source: { provider: c.provider || 'pexels', id: c.id || String(i), url: c.url, tags: c.tags || [], attribution: c.attribution || '' },
     srcIn: c.srcIn ?? 1.0, transition: 'cut',
-  }, clipSec));
+  }, Number(c.dur) > 0 ? Number(c.dur) : clipSec));
   if (livecam) push({
     kind: 'livecam',
     source: { provider: 'atm_livecam', id: livecam.id || 'cam', url: livecam.url },
