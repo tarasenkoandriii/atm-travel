@@ -701,49 +701,6 @@ function makeImageSlideClip(imgUrl, subtitle, seconds) {
   });
 }
 
-// Same subtitle/gradient treatment as makeImageSlideClip, but the background is a looping video clip
-// instead of a static photo — used by blog "Подобрать клипы" mode.
-function makeVideoClipSlide(clipUrl, subtitle, seconds) {
-  return new Promise(resolve => {
-    const w = 1280, h = 720, cv = document.createElement('canvas'); cv.width = w; cv.height = h;
-    const cx = cv.getContext('2d');
-    const rec = new MediaRecorder(cv.captureStream(30), { mimeType: MIME, videoBitsPerSecond: 8_000_000 });
-    const chunks = []; rec.ondataavailable = e => e.data.size && chunks.push(e.data);
-    const cleanup = () => { try { vid.pause(); } catch (e) {} try { vid.removeAttribute('src'); vid.load(); } catch (e) {} try { vid.remove(); } catch (e) {} };
-    rec.onstop = () => { cleanup(); resolve(URL.createObjectURL(new Blob(chunks, { type: 'video/webm' }))); };
-    const vid = document.createElement('video');
-    vid.crossOrigin = 'anonymous'; vid.muted = true; vid.loop = true; vid.playsInline = true; vid.preload = 'auto';
-    // Many browsers won't reliably decode frames (loadeddata never fires, drawImage stays blank) for a
-    // <video> that's never attached to the document — keep it in the DOM but visually hidden off-screen.
-    vid.style.cssText = 'position:fixed;left:-9999px;top:0;width:2px;height:2px;opacity:0;pointer-events:none';
-    document.body.appendChild(vid);
-    const dur = Math.max(1, seconds || 3) * 1000;
-    function wrap(text, maxW) { const words = String(text).split(/\s+/); const lines = []; let ln = '';
-      cx.font = "36px 'Space Grotesk', system-ui, sans-serif";
-      words.forEach(wd => { const t = ln ? ln + ' ' + wd : wd; if (cx.measureText(t).width > maxW && ln) { lines.push(ln); ln = wd; } else ln = t; });
-      if (ln) lines.push(ln); return lines.slice(0, 4); }
-    let started = false;
-    function start() {
-      if (started) return; started = true;
-      const t0 = performance.now(); rec.start(); vid.play().catch(() => {});
-      (function loop() {
-        const t = Math.min(1, (performance.now() - t0) / dur);
-        cx.fillStyle = '#070c12'; cx.fillRect(0, 0, w, h);
-        if (vid.readyState >= 2 && vid.videoWidth) { const s = Math.max(w / vid.videoWidth, h / vid.videoHeight); const iw = vid.videoWidth * s, ih = vid.videoHeight * s; cx.drawImage(vid, (w - iw) / 2, (h - ih) / 2, iw, ih); }
-        const g = cx.createLinearGradient(0, h * 0.45, 0, h); g.addColorStop(0, 'rgba(7,12,18,0)'); g.addColorStop(1, 'rgba(7,12,18,.92)'); cx.fillStyle = g; cx.fillRect(0, h * 0.45, w, h * 0.55);
-        const lines = wrap(subtitle || '', w - 160); let y = h - 60 - (lines.length - 1) * 46;
-        cx.textBaseline = 'alphabetic'; cx.font = "36px 'Space Grotesk', system-ui, sans-serif";
-        lines.forEach(ln => { cx.fillStyle = '#eef4f8'; cx.fillText(ln, 80, y); y += 46; });
-        cx.fillStyle = '#4fd7e0'; cx.fillRect(80, h - 30, (w - 160) * t, 4);
-        if (performance.now() - t0 < dur) requestAnimationFrame(loop); else setTimeout(() => rec.stop(), 100);
-      })();
-    }
-    vid.onloadeddata = start; vid.onerror = start;   // start on error too so the montage never gets stuck
-    setTimeout(start, 4000);                          // safety net if the source never fires an event
-    vid.src = '/api/reels/proxy?url=' + encodeURIComponent(clipUrl);
-    vid.load();
-  });
-}
 
 async function initBlogMode() {
   const blogId = qs.get('blog'); if (!blogId) return;
@@ -796,19 +753,13 @@ async function initBlogMode() {
         const each = Math.max(1.5, perDurs[i] / group.length);
         for (let g = 0; g < group.length; g++) {
           const c = group[g];
-          try {
-            const url = await withTimeout(makeVideoClipSlide(c.url, subs[i], each), 15000, 'клип ' + (i + 1) + '.' + (g + 1));
-            videoTracks.push({ url, provider: 'blog-clip', id: 'blogc-' + Date.now() + '-' + i + '-' + g, attribution: c.attribution || '', tags: ['blog', c.geo || ''].filter(Boolean), deleted: false, dur: each });
-            renderTracks && renderTracks();
-            log('клип ' + (i + 1) + '.' + (g + 1) + ' готов (' + (c.geo || '') + ', ' + each.toFixed(1) + 'с)');
-          } catch (e2) {
-            log('⚠ клип ' + (i + 1) + '.' + (g + 1) + ' не вышел, ставлю карточку-заглушку: ' + (e2 && e2.message || e2));
-            try {
-              const url2 = await makeCardClip([{ text: subs[i], size: 38 }], { seconds: each });
-              videoTracks.push({ url: url2, provider: 'blog-slide', id: 'blogs-' + Date.now() + '-' + i + '-' + g, attribution: '', tags: ['blog'], deleted: false, dur: each });
-              renderTracks && renderTracks();
-            } catch (e3) { log('⚠ заглушка тоже не вышла: ' + (e3 && e3.message || e3)); }
-          }
+          // Feed the clip's own URL straight into the manifest as a normal 'clip' segment — the SAME
+          // reliable path already used for tour B-roll (raw fetch → ffmpeg trim/scale), instead of a
+          // client-side <video>+canvas+MediaRecorder pre-render, which proved unreliable in testing
+          // (every clip timed out even though title/photo canvas rendering worked fine).
+          videoTracks.push({ url: c.url, provider: c.provider || 'pexels', id: c.id || ('blogclip-' + i + '-' + g), attribution: c.attribution || '', tags: ['blog', c.geo || ''].filter(Boolean), deleted: false, dur: each });
+          renderTracks && renderTracks();
+          log('клип ' + (i + 1) + '.' + (g + 1) + ' добавлен (' + (c.geo || '') + ', ' + each.toFixed(1) + 'с) — без подписи, как обычный B-roll');
         }
       }
     } else {
