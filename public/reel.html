@@ -130,6 +130,12 @@ import { validateManifest, checkBeatAlignment, buildFilterComplex, buildDefaultM
 const $ = s => document.querySelector(s);
 const qs = new URLSearchParams(location.search);
 const log = m => { const el = $('#log'); el.textContent += m + '\n'; el.scrollTop = el.scrollHeight; };
+// Guards against a hung clip download/record (e.g. a slow proxy fetch on a serverless timeout) so one
+// stuck clip can never block the whole montage — the caller's try/catch falls back to a card instead.
+const withTimeout = (promise, ms, label) => Promise.race([
+  promise,
+  new Promise((_, rej) => setTimeout(() => rej(new Error((label || 'clip') + ': timeout after ' + ms + 'ms')), ms)),
+]);
 const setStatus = m => $('#status').textContent = m;
 const setProg = p => $('#prog').style.width = Math.round(p * 100) + '%';
 const num = (v, d) => { const n = parseFloat(v); return isNaN(n) ? d : n; };
@@ -792,7 +798,7 @@ async function initBlogMode() {
         for (let g = 0; g < group.length; g++) {
           const c = group[g];
           try {
-            const url = await makeVideoClipSlide(c.url, subs[i], each);
+            const url = await withTimeout(makeVideoClipSlide(c.url, subs[i], each), 15000, 'клип ' + (i + 1) + '.' + (g + 1));
             videoTracks.push({ url, provider: 'blog-clip', id: 'blogc-' + Date.now() + '-' + i + '-' + g, attribution: c.attribution || '', tags: ['blog', c.geo || ''].filter(Boolean), deleted: false, dur: each });
             renderTracks && renderTracks();
             log('клип ' + (i + 1) + '.' + (g + 1) + ' готов (' + (c.geo || '') + ', ' + each.toFixed(1) + 'с)');
@@ -811,7 +817,7 @@ async function initBlogMode() {
       for (let i = 0; i < subs.length; i++) {
         try {
           const img = imgs.length ? imgs[i % imgs.length] : null;
-          const url = img ? await makeImageSlideClip(img, subs[i], perDurs[i]) : await makeCardClip([{ text: subs[i], size: 38 }], { seconds: perDurs[i] });
+          const url = img ? await withTimeout(makeImageSlideClip(img, subs[i], perDurs[i]), 15000, 'слайд ' + (i + 1)) : await makeCardClip([{ text: subs[i], size: 38 }], { seconds: perDurs[i] });
           videoTracks.push({ url, provider: 'blog-slide', id: 'blogs-' + Date.now() + '-' + i, attribution: '', tags: ['blog'], deleted: false, dur: perDurs[i] });
           renderTracks && renderTracks();
         } catch (e4) { log('⚠ слайд ' + (i + 1) + ' не вышел: ' + (e4 && e4.message || e4)); }

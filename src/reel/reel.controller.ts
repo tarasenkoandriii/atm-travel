@@ -246,11 +246,23 @@ export class ReelController {
     if (!upstream.ok) return res.status(502).json({ error: 'upstream ' + upstream.status });
     const len = Number(upstream.headers.get('content-length') || '0');
     if (len && len > this.MAX) return res.status(413).json({ error: 'asset too large' });
-    const buf = Buffer.from(await upstream.arrayBuffer());
-    if (buf.length > this.MAX) return res.status(413).json({ error: 'asset too large' });
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Cache-Control', 'public, max-age=3600');
     res.setHeader('Content-Type', upstream.headers.get('content-type') || 'application/octet-stream');
-    return res.send(buf);
+    if (len) res.setHeader('Content-Length', String(len));
+    // Stream the body through instead of buffering the whole file in memory first — large video
+    // clips otherwise sat waiting for a full download+buffer before the browser saw a single byte,
+    // which on a serverless function's execution-time budget could make the request hang/time out
+    // with no error ever reaching the <video> element (it just never fires loadeddata/error).
+    if (!upstream.body) { const buf = Buffer.from(await upstream.arrayBuffer()); return res.send(buf); }
+    try {
+      const { Readable } = await import('stream');
+      const nodeStream = Readable.fromWeb(upstream.body as any);
+      nodeStream.on('error', () => { try { res.end(); } catch {} });
+      nodeStream.pipe(res);
+    } catch {
+      const buf = Buffer.from(await upstream.arrayBuffer());
+      return res.send(buf);
+    }
   }
 }
