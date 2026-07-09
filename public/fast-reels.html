@@ -248,7 +248,6 @@ function recordIntro(w, h, seconds, lat, lng, fps, geoLabel) {
     rec.onstop = () => resolve(new Blob(chunks, { type: 'video/webm' }));
     const start = { lat: lat - 6, lng: lng - 26, altitude: 2.5 }, end = { lat, lng, altitude: 0.62 };
     const driftDeg = 14;   // gentle continuous longitude glide, ramped in so it's a slow cinematic drift near the end
-    const t0 = performance.now(), dur = seconds * 1000;
     function plate(alpha) {
       if (!geoLabel) return;
       const fs = Math.round(h * 0.032);
@@ -261,20 +260,30 @@ function recordIntro(w, h, seconds, lat, lng, fps, geoLabel) {
       cx.fillStyle = '#eef4f8'; cx.textBaseline = 'middle'; cx.fillText(geoLabel, bx + padX + h * 0.02, by + bh / 2);
       cx.globalAlpha = 1;
     }
-    G.pointOfView(start, 0); rec.start();
-    (function loop() {
-      const t = Math.min(1, (performance.now() - t0) / dur), e = easeInOut(t);
-      const drift = driftDeg * t * t;   // quadratic ramp-in: ~0 at start, still gliding at the end
-      G.pointOfView({
-        lat: start.lat + (end.lat - start.lat) * e,
-        lng: start.lng + (end.lng - start.lng) * e + drift,
-        altitude: start.altitude + (end.altitude - start.altitude) * e,
-      }, 0);
-      cx.fillStyle = '#05080c'; cx.fillRect(0, 0, w, h);
-      try { cx.drawImage(gc(), 0, 0, w, h); } catch (err) {}
-      plate(Math.min(1, t * 2.5));   // fade the geo plate in
-      if (t < 1) requestAnimationFrame(loop); else setTimeout(() => rec.stop(), 120);
-    })();
+    G.pointOfView(start, 0);
+    // G.width/height resizes the WebGL renderer, but that resize is only VISIBLE once Three.js
+    // actually renders a frame at the new size — which happens on a later animation frame, not
+    // synchronously. Capturing/drawImage'ing gc() immediately after resize can grab the canvas
+    // mid-reallocation (observed as ~110-byte near-empty webm outputs for some formats, while
+    // others — recorded later, after the renderer had "caught up" — came out fine). Wait a couple
+    // of animation frames so the resized globe has definitely been painted before we start.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const t0 = performance.now(), dur = seconds * 1000;
+      rec.start();
+      (function loop() {
+        const t = Math.min(1, (performance.now() - t0) / dur), e = easeInOut(t);
+        const drift = driftDeg * t * t;   // quadratic ramp-in: ~0 at start, still gliding at the end
+        G.pointOfView({
+          lat: start.lat + (end.lat - start.lat) * e,
+          lng: start.lng + (end.lng - start.lng) * e + drift,
+          altitude: start.altitude + (end.altitude - start.altitude) * e,
+        }, 0);
+        cx.fillStyle = '#05080c'; cx.fillRect(0, 0, w, h);
+        try { cx.drawImage(gc(), 0, 0, w, h); } catch (err) {}
+        plate(Math.min(1, t * 2.5));   // fade the geo plate in
+        if (t < 1) requestAnimationFrame(loop); else setTimeout(() => rec.stop(), 120);
+      })();
+    }));
   });
 }
 
@@ -600,6 +609,14 @@ async function run() {
         introBlob = await recordIntro(fmt.w, fmt.h, introSec, lat, lng, m.render.fps, qs.get('geo') || m.destination.name);
         introExt = 'webm';
         log('интро-глобус ' + fmt.name + ': ' + (introBlob ? introBlob.size : 0) + 'B, type=' + (introBlob ? introBlob.type : '—'));
+        // A near-empty blob (just webm container, no real frames) means the capture started before
+        // the resized globe had actually been painted — rare even with the settle delay above
+        // (e.g. if the tab/GPU was briefly busy). One retry is cheap and clears it reliably.
+        if (introBlob && introBlob.size < 2000) {
+          log('⚠ интро ' + fmt.name + ' подозрительно маленькое — повторная запись…');
+          introBlob = await recordIntro(fmt.w, fmt.h, introSec, lat, lng, m.render.fps, qs.get('geo') || m.destination.name);
+          log('интро-глобус ' + fmt.name + ' (повтор): ' + (introBlob ? introBlob.size : 0) + 'B');
+        }
       }
       introByFmt.push({ blob: introBlob, ext: introExt });
     }
