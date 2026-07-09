@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Fast-reels · ATM-travel.org</title>
+<title>Very Good FFmpeg · ATM-travel.org</title>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Space+Mono&display=swap" rel="stylesheet" crossorigin="anonymous">
 <style>
   :root{--bg:#05070d;--panel:#0a0f1a;--line:#1a2436;--text:#e7edf5;--muted:#8b9bb4;--cyan:#4fd7e0;--cyan-dim:#1f6b72;--amber:#f2b64c;}
@@ -47,7 +47,7 @@
 <div class="wrap">
   <header>
     <a class="logo" href="/">ATM<b>·</b>travel</a>
-    <div class="sub">fast-reels · multi-threaded ffmpeg.wasm montage (1080p, in-browser) · <b id="buildMarker" style="color:#4fd7e0">build 2026-07-08-fast-1</b></div>
+    <div class="sub">very-good-ffmpeg · render via Very Good FFmpeg API (verygoodffmpeg.com) · <b id="buildMarker" style="color:#4fd7e0">build 2026-07-09-vgf-1</b></div>
   </header>
 
   <div id="stage"><div id="globeHost"></div></div>
@@ -57,21 +57,30 @@
       <div><label>Lat</label><input id="lat" type="number" step="0.0001"></div>
       <div><label>Lng</label><input id="lng" type="number" step="0.0001"></div>
       <div><label>Title</label><input id="title" placeholder="Хургада, Египет"></div>
-      <div><label>BPM</label><input id="bpm" type="number" value="120"></div>
-      <div><label>FPS</label><input id="fps" type="number" value="30"></div>
+      <div><label>Ширина/высота</label><input id="outW" type="number" value="1080" style="width:48%;display:inline-block"> <input id="outH" type="number" value="1920" style="width:48%;display:inline-block"></div>
     </div>
-    <div style="margin-top:10px">
-      <label>Форматы для рендера</label>
-      <div style="margin-top:6px;display:flex;gap:14px;flex-wrap:wrap">
-        <label style="display:flex;align-items:center;gap:6px;text-transform:none;font-family:inherit;font-size:13px;color:var(--text)"><input type="checkbox" id="fmt-9x16" checked style="width:auto;margin:0"> 9:16 (вертикальный)</label>
-        <label style="display:flex;align-items:center;gap:6px;text-transform:none;font-family:inherit;font-size:13px;color:var(--text)"><input type="checkbox" id="fmt-4x5" checked style="width:auto;margin:0"> 4:5</label>
-        <label style="display:flex;align-items:center;gap:6px;text-transform:none;font-family:inherit;font-size:13px;color:var(--text)"><input type="checkbox" id="fmt-16x9" checked style="width:auto;margin:0"> 16:9 (горизонтальный)</label>
+    <div class="grid">
+      <div><label>Переход (transition.type)</label>
+        <select id="transType">
+          <option value="crossfade" selected>crossfade</option>
+          <option value="fade">fade</option>
+          <option value="dissolve">dissolve</option>
+          <option value="wipeleft">wipeleft</option>
+          <option value="wiperight">wiperight</option>
+          <option value="slideleft">slideleft</option>
+          <option value="slideright">slideright</option>
+          <option value="circleopen">circleopen</option>
+          <option value="circleclose">circleclose</option>
+        </select>
       </div>
-      <label style="display:flex;align-items:center;gap:6px;text-transform:none;font-family:inherit;font-size:13px;color:var(--text);margin-top:8px"><input type="checkbox" id="fastParallel" style="width:auto;margin:0"> ⚡ ускоренная сборка (параллельно, экспериментально)</label>
+      <div><label>Длительность перехода, с</label><input id="transDur" type="number" step="0.1" value="0.5"></div>
+      <div><label>fillMode (если видео короче озвучки)</label>
+        <select id="fillMode"><option value="freeze" selected>freeze</option><option value="loop">loop</option></select>
+      </div>
     </div>
     <div style="margin-top:10px"><label>Manifest URL (optional — иначе собираем из полей)</label><input id="manifestUrl" placeholder="https://…/manifest.json"></div>
     <div style="margin-top:10px">
-      <label>Треки — видео-клипы и озвучка (нарезка между глобусом и live-камерой)</label>
+      <label>Треки — видео-клипы и озвучка (интро-глобус, затем клипы по порядку; live-cam — последним клипом)</label>
       <table class="tracks" id="tracksTable"><tbody></tbody></table>
       <div class="trk-tools">
         <button type="button" class="mini" id="addClip">＋ клип по URL</button>
@@ -80,14 +89,13 @@
       </div>
     </div>
     <div class="grid">
-      <div><label>Overlay .webm (alpha)</label><input id="overlay" placeholder="https://.../overlay.webm"></div>
-      <div><label>Live-cam clip .mp4</label><input id="livecam" placeholder="https://.../cam.mp4"></div>
+      <div><label>Live-cam clip .mp4 (добавляется последним клипом)</label><input id="livecam" placeholder="https://.../cam.mp4"></div>
     </div>
     <div style="margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-      <button class="btn" id="go">▶ Собрать 3 ролика</button>
+      <button class="btn" id="go">▶ Собрать ролик</button>
       <button class="btn2" id="analyze" disabled>🧠 Анализ Grok</button>
       <button class="btn2" id="publish" disabled>📣 Публикация</button>
-      <span class="muted">1080p · x264 · всё в браузере</span>
+      <span class="muted">H.264 · рендер на стороне Very Good FFmpeg API</span>
     </div>
     <div class="status" id="status"></div>
     <div class="bar"><i id="prog"></i></div>
@@ -118,40 +126,24 @@
     </div>
   </div>
 
-  <p class="muted" style="margin-top:12px">Порядок: <b>intro (глобус)</b> (по очереди, один WebGL-рендерер) → 3 формата собираются <b>параллельно</b> в многопоточном ffmpeg.wasm → результат в Vercel Blob. Без режима превью и без слайд-шоу — только видео-клипы.</p>
+  <p class="muted" style="margin-top:12px">Порядок: <b>intro (глобус)</b> записывается локально и грузится в Blob → манифест (клипы + voiceover + переход + fillMode) отправляется в <b>Very Good FFmpeg API</b> (POST /render) → опрос статуса job до completed → готовый MP4. Рендер идёт на стороне API, не в браузере — ffmpeg.wasm тут не используется.</p>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/globe.gl" crossorigin="anonymous"></script>
 <script type="module">
-import { FFmpeg } from 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/+esm';
-import { fetchFile, toBlobURL } from 'https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.1/+esm';
-import { validateManifest, checkBeatAlignment, buildFilterComplex, buildDefaultManifest } from '/reel.manifest.mjs';
+// No client-side ffmpeg.wasm here — video assembly is delegated to the hosted Very Good FFmpeg
+// API (verygoodffmpeg.com) via our own server-side proxy (/api/vgffmpeg/*), which also builds the
+// actual raw ffmpeg filter-graph command from our clips/transition/voiceover manifest. This means
+// no COOP/COEP headers, no SharedArrayBuffer, no local WASM heap — much lighter than fast-reels.
 
 const $ = s => document.querySelector(s);
 const qs = new URLSearchParams(location.search);
 const log = m => { const el = $('#log'); el.textContent += m + '\n'; el.scrollTop = el.scrollHeight; };
-log('build-marker: fast-reels v2026-07-08-fast-1 (multi-thread ffmpeg, no preview/slideshow modes)');
-log(window.crossOriginIsolated
-  ? '✓ страница изолирована (crossOriginIsolated=true) — многопоточная сборка доступна.'
-  : '⚠ crossOriginIsolated=false — многопоточность НЕДОСТУПНА. Обычно значит, что какой-то ресурс на странице (шрифт/CDN) не прислал заголовки CORP/CORS и браузер снял изоляцию. Сборка ffmpeg не запустится.');
+log('build-marker: very-good-ffmpeg v2026-07-09-vgf-1 (render via verygoodffmpeg.com API, no local ffmpeg.wasm)');
 const setStatus = m => $('#status').textContent = m;
 const setProg = p => $('#prog').style.width = Math.round(p * 100) + '%';
 const num = (v, d) => { const n = parseFloat(v); return isNaN(n) ? d : n; };
 
-const FORMATS = [{ name: '9:16', w: 1080, h: 1920 }, { name: '4:5', w: 1080, h: 1350 }, { name: '16:9', w: 1920, h: 1080 }];
-// Skip formats the user doesn't need — the single biggest render-time lever (rendering 1 format
-// instead of all 3 is ~3× faster since each is fully re-encoded independently).
-function selectedFormats() {
-  const map = { '9:16': 'fmt-9x16', '4:5': 'fmt-4x5', '16:9': 'fmt-16x9' };
-  const out = FORMATS.filter(f => { const el = document.getElementById(map[f.name]); return !el || el.checked; });
-  return out.length ? out : FORMATS;   // never render zero formats
-}
-function updateGoLabel() {
-  const n = selectedFormats().length;
-  const btn = $('#go'); if (btn) btn.textContent = '▶ Собрать ' + n + ' ролик' + (n === 1 ? '' : (n < 5 ? 'а' : 'ов'));
-}
-['fmt-9x16', 'fmt-4x5', 'fmt-16x9'].forEach(id => { const el = document.getElementById(id); if (el) el.addEventListener('change', updateGoLabel); });
-updateGoLabel();
 // Clips passed from /cine: ?clipset=<id> (fetched in init) or ?clips= (base64-JSON / comma URLs).
 let presetClips = (() => {
   const cp = qs.get('clips'); if (!cp) return [];
@@ -202,7 +194,9 @@ async function findMusic() {
   try {
     setStatus('Подбор музыки…');
     const q = ($('#title').value || qs.get('q') || 'travel uplifting cinematic').trim();
-    const bpm = num($('#bpm').value, 120);
+    // No beat-grid concept on this page (Very Good FFmpeg has no bpm/tempo field) — just ask for
+    // a reasonably generic tempo range instead of reading a (removed) #bpm input.
+    const bpm = 120;
     const r = await fetch('/api/reels/audio', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ query: q, durationSec: 20, bpmRange: [Math.max(60, bpm - 15), bpm + 15] }),
@@ -218,7 +212,7 @@ async function findMusic() {
 }
 
 // prefill from params
-['lat', 'lng', 'title', 'bpm', 'fps', 'overlay', 'livecam'].forEach(k => { if (qs.get(k)) $('#' + k).value = qs.get(k); });
+['lat', 'lng', 'title', 'livecam'].forEach(k => { if (qs.get(k)) $('#' + k).value = qs.get(k); });
 if (qs.get('manifest')) $('#manifestUrl').value = qs.get('manifest');
 if (presetClips.length) setVideoTracks(presetClips); else renderTracks();
 if (qs.get('music')) audioTracks.push({ url: qs.get('music'), previewUrl: qs.get('music'), title: '', selected: true }), renderTracks();
@@ -298,253 +292,35 @@ async function fetchBytes(url) {
 }
 const extOf = (url, def) => { const m = /\.([a-z0-9]{2,4})(?:\?|$)/i.exec(url || ''); return m ? m[1].toLowerCase() : def; };
 
-// ── ffmpeg.wasm ──
-// ffmpeg assets are built once (blob URLs), then a FRESH instance is created per format and
-// terminated after — this keeps the wasm heap from growing across the 3 renders.
-let ffAssets = null;
-async function ffAssetsReady() {
-  if (ffAssets) return ffAssets;
-  if (!window.crossOriginIsolated) {
-    // Multi-thread ffmpeg.wasm needs SharedArrayBuffer, which only exists when the page is
-    // "cross-origin isolated" (COOP+COEP headers — set on this route in frontend.controller.ts).
-    // If some cross-origin embed on the page doesn't send matching CORP/CORS headers, the browser
-    // silently drops isolation instead of erroring, so we surface it clearly here.
-    throw new Error('страница не изолирована (crossOriginIsolated=false) — многопоточность недоступна. Проверьте, что COOP/COEP отдаются и что все сторонние ресурсы (шрифты/CDN) их не ломают.');
-  }
-  setStatus('Загрузка ffmpeg.wasm (multi-thread)…');
-  // ESM core: the module worker loads the core via dynamic import() and needs a default export.
-  // The UMD core has none → "failed to import ffmpeg-core.js"; the esm build fixes it.
-  const base = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core-mt@0.12.10/dist/esm';
-  // The ffmpeg worker must be same-origin (browsers block `new Worker(cross-origin-url)`), but the
-  // real worker.js pulls in ./const.js + ./errors.js via relative imports, so it can't just be
-  // blob'd. Trick: a tiny SAME-ORIGIN blob worker that `import`s the real ESM worker from a CDN —
-  // cross-origin *imports* inside a module worker are allowed (jsDelivr sends CORS headers), and
-  // its relative deps then resolve against the CDN too. Version pinned to match @ffmpeg/ffmpeg.
-  const cdnWorker = 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/esm/worker.js';
-  const stub = `import ${JSON.stringify(cdnWorker)};`;
-  const classWorkerURL = URL.createObjectURL(new Blob([stub], { type: 'text/javascript' }));
-  ffAssets = {
-    classWorkerURL,
-    coreURL: await toBlobURL(`${base}/ffmpeg-core.js`, 'text/javascript'),
-    wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, 'application/wasm'),
-    // MT-only: the core's own pthread pool worker (absent from the single-thread core package).
-    workerURL: await toBlobURL(`${base}/ffmpeg-core.worker.js`, 'text/javascript'),
-  };
-  return ffAssets;
-}
-// Per-format progress state, read by the ffmpeg log listener attached in newFF().
-let progLabel = '', progIndex = 0, progTotal = 1, curTotalSec = 0;
 let analysisBlob = null, analysisMeta = null;   // Grok analysis: video source for frames + metadata
-let lastSetId = null;      // id of the persisted reel package (for the Publish page)
-async function newFF(onProgress) {
-  const a = await ffAssetsReady();
-  const f = new FFmpeg();
-  // ffmpeg emits "frame=.. time=HH:MM:SS.xx" during encoding; derive % from time / known duration
-  // (the native `progress` event is unreliable for filter_complex + concat, so we parse the log).
-  // onProgress(fraction) is per-instance — safe to run several ffmpeg.wasm workers concurrently
-  // without their progress lines/log parsing clobbering each other (each closes over its own state).
-  f.on('log', ({ message }) => {
-    if (/error|Error/i.test(message)) log(message);
-    const t = /time=(\d+):(\d+):(\d+(?:\.\d+)?)/.exec(message);
-    if (t && onProgress) {
-      const sec = (+t[1]) * 3600 + (+t[2]) * 60 + parseFloat(t[3]);
-      onProgress(sec);
-    }
-  });
-  await f.load({ classWorkerURL: a.classWorkerURL, coreURL: a.coreURL, wasmURL: a.wasmURL, workerURL: a.workerURL });
-  return f;
-}
+let lastSetId = null;      // id of the produced job (for the Publish page)
 
 // Build a manifest from the form (or load provided URL). introSecOverride = reuse cine flight length.
-async function getManifest(introSecOverride) {
-  const url = $('#manifestUrl').value.trim();
-  if (url) { const m = await fetch(url).then(r => r.json()); return m; }
-  const wantIntro = qs.get('intro') !== '0';   // blog can disable the globe intro; reels keep it on by default
-  const lat = num($('#lat').value, NaN), lng = num($('#lng').value, NaN);
-  if (wantIntro && (isNaN(lat) || isNaN(lng))) throw new Error('нужны Lat/Lng или Manifest URL');
-  let clips = liveVideo().map(t => ({ url: t.url, provider: t.provider, id: t.id, attribution: t.attribution, tags: t.tags, dur: t.dur }));
-  // Auto-source B-roll if the table has no live clips and a provider key is configured.
-  if (!clips.length) {
-    const q = (qs.get('q') || $('#title').value || '').trim();
-    try {
-      const j = await fetch('/api/reels/clips?n=4&orientation=landscape&q=' + encodeURIComponent(q)).then(r => r.json());
-      if (j && j.clips && j.clips.length) {
-        setVideoTracks(j.clips);   // reflect auto clips in the table
-        clips = liveVideo().map(t => ({ url: t.url, provider: t.provider, id: t.id, attribution: t.attribution, tags: t.tags, dur: t.dur }));
-        log('авто-клипы: ' + clips.length + ' · ' + (j.provider || '') + ' · запрос: ' + (j.query || '—'));
-        clips.forEach(c => c.attribution && log('  © ' + c.attribution));
-      } else if (j && !j.provider) log('авто-источник клипов не настроен (нет PEXELS/PIXABAY ключа)');
-    } catch (e) { log('авто-клипы недоступны: ' + (e.message || e)); }
-  }
-  const sel = selectedAudio();
-  const music = sel ? sel.url : '';
-  const overlay = $('#overlay').value.trim(), livecamUrl = $('#livecam').value.trim();
-  const fps = num($('#fps').value, 30);
-  return buildDefaultManifest({
-    destination: { id: (qs.get('cam') || 'geo'), name: $('#title').value.trim() || 'Destination', coords: { lat: isNaN(lat) ? 0 : lat, lng: isNaN(lng) ? 0 : lng } },
-    intro: wantIntro,
-    formats: selectedFormats(), fps, bpm: num($('#bpm').value, 120),
-    music, overlay, clips,
-    introSec: introSecOverride || undefined,
-    livecam: livecamUrl ? { id: qs.get('cam') || 'cam', url: livecamUrl } : null,
-  });
-}
-
-// Assemble one crop with ffmpeg.wasm. Returns Blob(mp4).
-// Render a credit strip (author attributions) as a transparent PNG for a given format size.
-function makeCreditPng(w, h, text) {
-  return new Promise(res => {
-    const c = document.createElement('canvas'); c.width = w; c.height = h;
-    const x = c.getContext('2d');
-    const strip = Math.round(h * 0.10);
-    const g = x.createLinearGradient(0, h - strip, 0, h); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,0.5)');
-    x.fillStyle = g; x.fillRect(0, h - strip, w, strip);
-    x.fillStyle = 'rgba(231,237,245,0.92)'; x.font = Math.round(w * 0.019) + "px 'Space Mono', monospace"; x.textBaseline = 'alphabetic';
-    x.fillText(text, Math.round(w * 0.04), h - Math.round(w * 0.03));
-    c.toBlob(async b => res(new Uint8Array(await b.arrayBuffer())), 'image/png');
-  });
-}
-
-async function renderFormat(ff, m, fmt, introBlob, assetCache, creditText, introExt) {
-  const w = fmt.w, h = fmt.h, fps = m.render.fps;
-  const dur = (m.timeline[m.timeline.length - 1].outEnd) || 10;
-  // target a size that fits Vercel's ~4.5MB server-upload limit
-  const kbps = Math.max(800, Math.floor((4.2 * 1024 * 1024 * 8 / 1000) / dur) - 128);
-  // ultrafast: битрейт и так жёстко ограничен целевым размером файла (kbps ниже), так что просадка
-  // качества-на-бит от пресета почти не заметна на выходе, а кодирование заметно быстрее veryfast.
-  const vc = ['-c:v', 'libx264', '-preset', 'ultrafast', '-b:v', kbps + 'k', '-maxrate', kbps + 'k', '-bufsize', (kbps * 2) + 'k', '-pix_fmt', 'yuv420p'];
-
-  // ── Stage 1: normalize each timeline segment to an identically-encoded seg{i}.mp4 in ISOLATION.
-  // Decoding one clip per pass (setsar=1 + fps= forcing CFR) sidesteps the multi-input concat-FILTER
-  // "reinitializing filters" crash that heterogeneous clips (different SAR/VFR/params) trigger, and
-  // keeps peak memory to a single clip. A clip that fails is simply skipped.
-  async function normalizeOneSegment(ffInst, i) {
-    const s = m.timeline[i];
-    let inName, data;
-    if (s.kind === 'intro') { inName = `src.${introExt || 'webm'}`; data = new Uint8Array(await introBlob.arrayBuffer()); }
-    else { const url = s.source.url; inName = `src.${extOf(url, 'mp4')}`; data = new Uint8Array(await cached(assetCache, url)); }
-    await ffInst.writeFile(inName, data);
-    const seg = `seg${i}.mp4`;
-    const vf = `trim=${s.srcIn}:${s.srcOut},setpts=PTS-STARTPTS,scale=${w}:${h}:force_original_aspect_ratio=increase,crop=${w}:${h},setsar=1,fps=${fps},format=yuv420p`;
-    const a1 = ['-i', inName, '-an', '-vf', vf, ...vc, '-movflags', '+faststart', seg];
-    const c1 = await ffInst.exec(a1);
-    let sd; try { sd = await ffInst.readFile(seg); } catch (e) { sd = new Uint8Array(0); }
-    log('seg' + i + ' ' + fmt.name + ': ' + (sd ? sd.length : 0) + 'B (exit ' + c1 + ')');
-    try { await ffInst.deleteFile(inName); } catch (e) {}
-    try { await ffInst.deleteFile(seg); } catch (e) {}
-    return sd;
-  }
-
-  const wantParallel = !!($('#fastParallel') && $('#fastParallel').checked) && m.timeline.length > 1;
-  let segBytes = new Array(m.timeline.length).fill(null);
-  if (wantParallel) {
-    // Independent ffmpeg.wasm instances = independent Workers with their own isolated wasm heap —
-    // genuine parallelism across CPU cores, no SharedArrayBuffer/COOP-COEP headers needed (unlike the
-    // ffmpeg core-mt build, which we deliberately avoid here — this page loads many third-party
-    // cross-origin resources that a strict cross-origin-isolation policy would likely break).
-    try {
-      const poolSize = Math.max(1, Math.min(3, (navigator.hardwareConcurrency || 2) - 1, m.timeline.length));
-      log('⚡ параллельная нормализация: ' + poolSize + ' воркер(а/ов)');
-      const pool = await Promise.all(Array.from({ length: poolSize }, () => newFF()));
-      let nextIdx = 0;
-      const worker = async (ffInst) => { while (nextIdx < m.timeline.length) { const i = nextIdx++; segBytes[i] = await normalizeOneSegment(ffInst, i); } };
-      await Promise.all(pool.map(worker));
-      pool.forEach(p => { try { p.terminate(); } catch (e) {} });
-    } catch (e) {
-      log('⚠ параллельная сборка не удалась (' + (e && e.message || e) + ') — переключаюсь на последовательную');
-      segBytes = new Array(m.timeline.length).fill(null);
-      for (let i = 0; i < m.timeline.length; i++) segBytes[i] = await normalizeOneSegment(ff, i);
-    }
-  } else {
-    for (let i = 0; i < m.timeline.length; i++) segBytes[i] = await normalizeOneSegment(ff, i);
-  }
-
-  const segNames = [];
-  for (let i = 0; i < segBytes.length; i++) {
-    const sd = segBytes[i];
-    if (!sd || !sd.length) { log('seg' + i + ' пустой — пропускаю'); continue; }
-    await ff.writeFile(`seg${i}.mp4`, sd);
-    segNames.push(`seg${i}.mp4`);
-  }
-  if (!segNames.length) throw new Error('ни один сегмент не собрался — см. лог выше');
-
-  // concat list for the demuxer (identical params → clean join)
-  await ff.writeFile('list.txt', new TextEncoder().encode(segNames.map(n => `file '${n}'`).join('\n') + '\n'));
-
-  // optional extra inputs for stage 2
-  const hasOverlay = !!(m.overlay && m.overlay.source);
-  const hasMusic = !!(m.audio && m.audio.track);
-  if (hasOverlay) await ff.writeFile('overlay.webm', new Uint8Array(await cached(assetCache, m.overlay.source)));
-  const musicName = hasMusic ? ('music.' + extOf(m.audio.track, 'mp3')) : '';
-  if (hasMusic) await ff.writeFile(musicName, new Uint8Array(await cached(assetCache, m.audio.track)));
-  let hasCredit = false;
-  if (creditText) { await ff.writeFile('credit.png', new Uint8Array(await makeCreditPng(w, h, creditText))); hasCredit = true; }
-  const introSeg = m.timeline.find(s => s.kind === 'intro');
-  const creditEnd = introSeg ? introSeg.outEnd : 3;   // credits only over the intro/first seconds
-
-  // ── Stage 2: concat via the DEMUXER, then overlays/music over the single base stream.
-  // withCredit=false is the fallback if the credit overlay makes ffmpeg bail.
-  async function stage2(withCredit) {
-    const args = ['-f', 'concat', '-safe', '0', '-i', 'list.txt'];
-    let idx = 1, oIdx = -1, cIdx = -1, mIdx = -1;
-    if (hasOverlay) { args.push('-i', 'overlay.webm'); oIdx = idx++; }
-    if (withCredit) { args.push('-i', 'credit.png'); cIdx = idx++; }
-    if (hasMusic) { args.push('-i', musicName); mIdx = idx++; }
-
-    const useFilter = hasOverlay || withCredit;
-    if (useFilter) {
-      const chain = []; let cur = '[0:v]';
-      if (hasOverlay) {
-        const oStart = m.overlay.startAt ?? 0, oEnd = m.overlay.endAt ?? dur;
-        chain.push(`[${oIdx}:v]scale=${w}:${h},format=rgba[ovl]`);
-        chain.push(`${cur}[ovl]overlay=0:0:enable='between(t,${oStart},${oEnd})'[ov1]`); cur = '[ov1]';
-      }
-      if (withCredit) {
-        // single still frame; overlay repeats it (repeatlast=1) over the finite base.
-        // NB: loop=-1 makes an INFINITE filter source that HANGS the mux — never use it here.
-        chain.push(`[${cIdx}:v]format=rgba[cr]`);
-        chain.push(`${cur}[cr]overlay=0:0:enable='between(t,0,${creditEnd})'[ov2]`); cur = '[ov2]';
-      }
-      args.push('-filter_complex', chain.join(';'), '-map', cur, ...vc);
-    } else {
-      args.push('-map', '0:v', '-c:v', 'copy');   // identical segs → just remux
-    }
-    if (hasMusic) args.push('-map', `${mIdx}:a`, '-c:a', 'aac', '-b:a', '128k', '-shortest');
-    args.push('-movflags', '+faststart', 'out.mp4');
-    log('mux ' + fmt.name + (withCredit ? '' : ' · без кредитов') + ': ' + args.join(' '));
-    const code = await withTimeout(ff.exec(args), 240000, 'mux ' + fmt.name);
-    let data; try { data = await ff.readFile('out.mp4'); } catch (e) { data = new Uint8Array(0); }
-    log('out ' + fmt.name + (withCredit ? '' : ' (no-cred)') + ': ' + (data ? data.length : 0) + 'B (exit ' + code + ')');
-    try { await ff.deleteFile('out.mp4'); } catch (e) {}
-    return data;
-  }
-
-  let data = await stage2(hasCredit);
-  if ((!data || !data.length) && hasCredit) { log('кредиты не легли — мукс без них'); data = await stage2(false); }
-
-  for (const n of segNames) { try { await ff.deleteFile(n); } catch (e) {} }
-  try { await ff.deleteFile('list.txt'); } catch (e) {}
-  if (hasOverlay) { try { await ff.deleteFile('overlay.webm'); } catch (e) {} }
-  if (hasMusic) { try { await ff.deleteFile(musicName); } catch (e) {} }
-  if (hasCredit) { try { await ff.deleteFile('credit.png'); } catch (e) {} }
-  if (!data || !data.length) throw new Error('пустой mux ffmpeg — см. лог выше');
-  return new Blob([data], { type: 'video/mp4' });
-}
-async function cached(cache, url) { if (!cache.has(url)) cache.set(url, await fetchBytes(url)); return cache.get(url); }
 
 // ── upload to Blob + persist ──
 function withTimeout(p, ms, label) {
   return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('timeout: ' + label)), ms))]);
 }
-// Upload one finished mp4 to Blob via the server (same-origin). Returns the public URL.
-async function uploadOne(blob, fmt) {
+// Upload one finished blob to our own Blob storage via the server (same-origin). Returns the public URL.
+// Generic over content type/name so it can upload the recorded intro webm as well as (if ever needed)
+// a finished mp4 — Very Good FFmpeg needs a fetchable URL for every clip, including our own intro.
+async function uploadOne(blob, name, contentType) {
   const LIMIT = 4.4 * 1024 * 1024;
-  if (blob.size > LIMIT) throw new Error('файл ' + Math.round(blob.size / 1048576) + 'МБ > 4.4МБ');
-  const name = 'reel/' + Date.now() + '-' + fmt.replace(':', 'x') + '.mp4';
-  const res = await withTimeout(fetch('/api/cine/put?name=' + encodeURIComponent(name) + '&ct=video/mp4', {
-    method: 'POST', headers: { 'Content-Type': 'video/mp4' }, body: blob,
-  }).then(async r => { if (!r.ok) { let m = ''; try { m = (await r.json()).message || ''; } catch (e) {} throw new Error('put ' + r.status + (m ? ' — ' + m : '')); } return r.json(); }), 120000, 'put ' + fmt);
+  if (blob.size > LIMIT) throw new Error('файл ' + Math.round(blob.size / 1048576) + 'МБ > 4.4МБ (лимит аплоада на Vercel)');
+  const path = 'vgffmpeg/' + Date.now() + '-' + name;
+  const res = await withTimeout(fetch('/api/cine/put?name=' + encodeURIComponent(path) + '&ct=' + encodeURIComponent(contentType || 'application/octet-stream'), {
+    method: 'POST', headers: { 'Content-Type': contentType || 'application/octet-stream' }, body: blob,
+  }).then(async r => { if (!r.ok) { let m = ''; try { m = (await r.json()).message || ''; } catch (e) {} throw new Error('put ' + r.status + (m ? ' — ' + m : '')); } return r.json(); }), 120000, 'put ' + name);
   return res.url;
+}
+// Probe a remote audio file's duration by loading it into a hidden <audio> element.
+function probeAudioDuration(url) {
+  return new Promise((res) => {
+    const au = new Audio(); au.crossOrigin = 'anonymous'; au.preload = 'metadata';
+    au.onloadedmetadata = () => res(isFinite(au.duration) && au.duration ? au.duration : 24);
+    au.onerror = () => res(24);
+    au.src = url; setTimeout(() => res(24), 8000);
+  });
 }
 function showCards(items) {
   $('#results').innerHTML = items.map(o => {
@@ -555,125 +331,115 @@ function showCards(items) {
   }).join('');
 }
 
-// ── run all (automatic) ──
+// ── run all (automatic) — build the Very Good FFmpeg manifest and delegate the actual render to
+// the hosted API via our own server-side proxy (/api/vgffmpeg/*). No local ffmpeg.wasm at all here.
 async function run() {
   $('#go').disabled = true; $('#results').innerHTML = ''; $('#log').textContent = ''; setProg(0);
+  const key = qs.get('key') || localStorage.getItem('htAdminKey') || '';
   try {
-    setStatus('Готовим манифест…');
-    // Stage-1 reuse: if ?cine=<id>, use the cine camera-flight (already in Blob) as the intro, and
-    // make the intro/pre-clip duration equal the cine length everywhere.
-    let cineData = null; const cineId = qs.get('cine');
-    if (cineId) {
-      try { cineData = await fetch('/api/cine/' + encodeURIComponent(cineId)).then(r => r.ok ? r.json() : null); } catch (e) {}
-      if (cineData) log('длина интро из cine ' + cineId + ' · ' + cineData.durationSec + 's');
-      else log('cine ' + cineId + ' не найден — интро стандартной длины');
-    }
-    const m = await getManifest(cineData ? cineData.durationSec : 10);   // intro length = cine clip (else 10s)
-    const errs = validateManifest(m); if (errs.length) { setStatus('Манифест невалиден'); errs.forEach(log); $('#go').disabled = false; return; }
-    const bad = checkBeatAlignment(m); if (bad.length) log('⚠ вне бита: ' + JSON.stringify(bad));
-    const intro = m.timeline.find(s => s.kind === 'intro');
-    const introSec = intro ? (intro.srcOut - intro.srcIn) : 2.5;
-    const lat = m.destination.coords.lat, lng = m.destination.coords.lng;
+    let cfg = { configured: false };
+    try { cfg = await fetch('/api/vgffmpeg/config?key=' + encodeURIComponent(key)).then(r => r.json()); } catch (e) {}
+    if (!cfg.configured) throw new Error('VGFFMPEG_API_KEY не настроен на сервере — рендер через Very Good FFmpeg недоступен.');
 
-    let cfg = { blobEnabled: false }; try { cfg = await fetch('/api/cine/config').then(r => r.json()); } catch (e) {}
-    const cache = new Map();
-    // author credits from clip attributions (Pexels/Pixabay require attribution)
-    const attrs = [...new Set(m.timeline.filter(s => s.source && s.source.attribution).map(s => s.source.attribution))];
-    const creditText = attrs.length ? ('Footage: ' + attrs.join('  ·  ')) : '';
-    if (creditText) log('кредиты: ' + creditText);
+    const lat = num($('#lat').value, NaN), lng = num($('#lng').value, NaN);
+    const wantIntro = qs.get('intro') !== '0';
+    if (wantIntro && (isNaN(lat) || isNaN(lng))) throw new Error('нужны Lat/Lng для интро-глобуса (или откройте страницу с &intro=0)');
 
-    const n = m.render.formats.length;
-    const items = new Array(n); let lastErr = '';
-    const totalSec = (m.timeline[m.timeline.length - 1].outEnd) || 0;
-    analysisBlob = null; $('#analyze').disabled = true; $('#analysisBox').style.display = 'none';
-    analysisMeta = { title: m.destination.name, attributions: attrs, durationSec: +totalSec.toFixed(1), formats: m.render.formats.map(f => f.name), clips: m.timeline.filter(s => s.kind === 'clip' || s.kind === 'livecam').length };
+    const sel = selectedAudio();
+    if (!sel) throw new Error('выберите аудио-дорожку (озвучку) в таблице треков — voiceover обязателен по ТЗ');
+    const clips = liveVideo();
+    if (!clips.length) throw new Error('нет ни одного видео-клипа в таблице треков');
 
-    // ── Phase A: record all globe intros SEQUENTIALLY — there is only one shared WebGL globe
-    // renderer/canvas (G/host), so intros for different formats cannot be captured at the same time.
-    // Deliberately done BEFORE ffAssetsReady() (which fetches the ~32MB+ multi-thread ffmpeg core):
-    // loading that heavy payload first was competing with the WebGL globe for GPU/memory headroom
-    // right when intro capture needs it, and coincided with "WebGL context lost" + near-empty
-    // (echo hundreds of bytes) intro recordings in testing.
-    const introByFmt = [];
-    for (let fi = 0; fi < n; fi++) {
-      const fmt = m.render.formats[fi];
-      let introBlob = null, introExt = 'webm';
-      if (cineData) {
-        const it = (cineData.items || []).find(x => x.format === fmt.name);
-        if (it && it.url) {
-          setStatus('Формат ' + fmt.name + ' — интро из cine…');
-          try { introBlob = new Blob([await cached(cache, it.url)]); introExt = extOf(it.url, 'mp4'); cache.delete(it.url); }
-          catch (e) { log('cine-интро ' + fmt.name + ': ' + (e.message || e)); }
-        } else log('нет cine-клипа для ' + fmt.name + ' — запишу глобус');
+    setStatus('Проверяю длительность озвучки…');
+    const voDuration = await probeAudioDuration(sel.url);
+    log('озвучка: ' + voDuration.toFixed(1) + 'с');
+
+    const W = num($('#outW').value, 1080), H = num($('#outH').value, 1920);
+    const manifestClips = [];
+    let introSec = 0;
+
+    if (wantIntro) {
+      introSec = Math.max(2, Math.min(6, voDuration * 0.12));
+      setStatus('Запись интро (глобус)…');
+      let introBlob = await recordIntro(W, H, introSec, lat, lng, 30, qs.get('geo') || $('#title').value || '');
+      log('интро-глобус: ' + (introBlob ? introBlob.size : 0) + 'B');
+      if (introBlob && introBlob.size < 20000) {
+        log('⚠ интро подозрительно маленькое — повторная запись…');
+        introBlob = await recordIntro(W, H, introSec, lat, lng, 30, qs.get('geo') || $('#title').value || '');
+        log('интро-глобус (повтор): ' + (introBlob ? introBlob.size : 0) + 'B');
       }
-      if (!introBlob && intro) {
-        setStatus('Формат ' + fmt.name + ' — intro (глобус)…');
-        introBlob = await recordIntro(fmt.w, fmt.h, introSec, lat, lng, m.render.fps, qs.get('geo') || m.destination.name);
-        introExt = 'webm';
-        log('интро-глобус ' + fmt.name + ': ' + (introBlob ? introBlob.size : 0) + 'B, type=' + (introBlob ? introBlob.type : '—'));
-        // A near-empty blob (just webm container, no real frames) means the capture started before
-        // the resized globe had actually been painted — rare even with the settle delay above
-        // (e.g. if the tab/GPU was briefly busy). One retry is cheap and clears it reliably.
-        if (introBlob && introBlob.size < 20000) {
-          log('⚠ интро ' + fmt.name + ' подозрительно маленькое — повторная запись…');
-          introBlob = await recordIntro(fmt.w, fmt.h, introSec, lat, lng, m.render.fps, qs.get('geo') || m.destination.name);
-          log('интро-глобус ' + fmt.name + ' (повтор): ' + (introBlob ? introBlob.size : 0) + 'B');
-        }
-      }
-      introByFmt.push({ blob: introBlob, ext: introExt });
+      setStatus('Загрузка интро в Blob…');
+      const introUrl = await uploadOne(introBlob, 'intro.webm', 'video/webm');
+      manifestClips.push({ url: introUrl, start: 0, duration: +introSec.toFixed(2) });
     }
-
-    // Now that the globe is done recording, load the heavy multi-thread ffmpeg core — this is
-    // the ~32MB+ payload we deliberately delayed past Phase A (see comment above).
-    setStatus('Загрузка ffmpeg.wasm (multi-thread)…');
-    await ffAssetsReady();
-
-    // ── Phase B: heavy ffmpeg encode + upload for all formats IN PARALLEL. Each format gets its own
-    // ffmpeg.wasm instance (its own Web Worker + isolated virtual filesystem), so running them
-    // concurrently is safe — no shared mutable ffmpeg state between formats. This is the expensive
-    // part (decode/scale/crop/concat/mux), so parallelizing it is where the real wall-clock win is.
-    // Trade-off: peak memory is roughly N× one instance's — fine on a desktop, worth knowing on
-    // memory-constrained devices (mobile) since ffmpeg.wasm keeps its whole heap resident per Worker.
-    const fmtProgress = new Array(n).fill(0);
-    function paintAgg() {
-      setStatus(m.render.formats.map((f, i) => f.name + ' (' + Math.round(fmtProgress[i] * 100) + '%)').join(' · '));
-      setProg(fmtProgress.reduce((s, p) => s + p, 0) / n);
-    }
-    await Promise.all(m.render.formats.map(async (fmt, fi) => {
-      const ff = await newFF((sec) => { fmtProgress[fi] = totalSec > 0 ? Math.max(0, Math.min(1, sec / totalSec)) : 0; paintAgg(); });
-      let blob;
-      try { blob = await renderFormat(ff, m, fmt, introByFmt[fi].blob, cache, creditText, introByFmt[fi].ext); }
-      finally { try { ff.terminate(); } catch (e) {} }
-      introByFmt[fi].blob = null;   // this format's globe recording is baked into `blob` now — free it early
-                                     // instead of waiting for all 3 concurrent formats to finish (Phase A already
-                                     // holds all 3 intro blobs at once; this trims how long that peak persists)
-
-      log('blob ' + fmt.name + ': ' + (blob ? blob.size : 0) + 'B');
-      if (fi === 0 && blob) analysisBlob = blob;   // keep one video for Grok frame extraction
-      let url = null;
-      if (cfg.blobEnabled) {
-        fmtProgress[fi] = 1; paintAgg();
-        try { url = await uploadOne(blob, fmt.name); } catch (e) { lastErr = String(e.message || e); console.warn('server put failed', fmt.name, e); }
-      }
-      items[fi] = url ? { fmt: fmt.name, url } : { fmt: fmt.name, blob };
-      blob = null;
-      showCards(items.filter(Boolean));   // progressive render as each format finishes (order may vary)
-    }));
-
-    // persist the set (all uploaded urls)
-    const up = items.filter(i => i.url);
-    if (!cfg.blobEnabled) setStatus('Готово. Blob не подключён — скачайте локально.');
-    else if (up.length) {
+    // Real B-roll clips (or blog-mode picked clips) — evenly share the remaining runtime as a
+    // starting hint. Very Good FFmpeg fits everything to voiceover.duration regardless (trim/
+    // freeze/loop per fillMode), so these durations don't need to be exact — just reasonable.
+    const remain = Math.max(1, voDuration - introSec);
+    const each = Math.max(1.5, remain / clips.length);
+    // CRITICAL: some tracks (blog title card, per-paragraph text-card fallbacks, tour price cards)
+    // are locally-recorded canvas clips whose "url" is a blob: URL — meaningless outside this tab.
+    // Very Good FFmpeg is a remote server; it can only fetch http(s) URLs. Every such local clip
+    // must be uploaded to our own Blob storage first so it has a real, fetchable URL.
+    for (let ci = 0; ci < clips.length; ci++) {
+      const c = clips[ci];
+      if (!/^blob:/.test(c.url)) { manifestClips.push({ url: c.url, start: 0, duration: +(c.dur || each).toFixed(2) }); continue; }
+      setStatus('Загрузка локального клипа ' + (ci + 1) + '/' + clips.length + ' в Blob…');
+      let uploadedUrl;
       try {
-        const rec = await fetch('/api/cine', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lat, lng, dur: m.timeline[m.timeline.length - 1].outEnd, title: m.destination.name, items: up.map(i => ({ format: i.fmt, url: i.url })) }) }).then(r => r.json());
-        if (rec.id) { lastSetId = rec.id; $('#publish').disabled = false; }
-        saveReel(rec.id, m, up);   // persist reel with origin/dest + dates (targeted ads)
-        setStatus((up.length === n ? 'Готово · ' : 'Загружено ' + up.length + '/' + n + ' · ') + (rec.id ? 'набор: /api/cine/' + rec.id : ''));
-      } catch (e) {}
-    } else setStatus('Не удалось загрузить: ' + (lastErr || 'ошибка сервера') + ' — файлы можно скачать ниже.');
+        const blob = await fetch(c.url).then((r) => r.blob());
+        uploadedUrl = await uploadOne(blob, 'clip' + ci + '.webm', blob.type || 'video/webm');
+      } catch (e) { throw new Error('не удалось загрузить локальный клип ' + (ci + 1) + ' (' + (c.provider || '') + ') в Blob: ' + (e.message || e)); }
+      log('клип ' + (ci + 1) + ' (' + (c.provider || 'local') + ') загружен в Blob: ' + uploadedUrl);
+      manifestClips.push({ url: uploadedUrl, start: 0, duration: +(c.dur || each).toFixed(2) });
+    }
+    // Live-cam clip (optional, prefilled from ?cam=<id> or typed manually) — no dedicated "segment
+    // type" in the Very Good FFmpeg manifest, so it's just one more clip appended to the sequence.
+    const livecamUrl = $('#livecam').value.trim();
+    if (livecamUrl) manifestClips.push({ url: livecamUrl, start: 0, duration: +each.toFixed(2) });
+
+    const manifest = {
+      voiceover: { url: sel.url, duration: +voDuration.toFixed(2) },
+      transition: { type: $('#transType').value, duration: num($('#transDur').value, 0.5) },
+      fillMode: $('#fillMode').value,
+      clips: manifestClips,
+      width: W, height: H,
+    };
+    log('манифест: ' + manifestClips.length + ' клипов (в т.ч. интро) · переход ' + manifest.transition.type + '/' + manifest.transition.duration + 'с · fillMode ' + manifest.fillMode);
+    analysisBlob = null; $('#analyze').disabled = true; $('#analysisBox').style.display = 'none';
+    analysisMeta = { title: $('#title').value || '', attributions: [...new Set(clips.map(c => c.attribution).filter(Boolean))], durationSec: +voDuration.toFixed(1), formats: [W + 'x' + H], clips: clips.length };
+
+    setStatus('Отправка задачи в Very Good FFmpeg…');
+    const sub = await fetch('/api/vgffmpeg/render', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key, manifest }) })
+      .then(async (r) => { if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.message || ('HTTP ' + r.status)); } return r.json(); });
+    log('jobId: ' + sub.jobId + ' · статус: ' + sub.status);
+
+    // Poll for completion — up to ~10 minutes at 5s intervals.
+    let result = null;
+    for (let i = 0; i < 120; i++) {
+      await new Promise((r) => setTimeout(r, 5000));
+      let st; try { st = await fetch('/api/vgffmpeg/status/' + encodeURIComponent(sub.jobId) + '?key=' + encodeURIComponent(key)).then((r) => r.json()); }
+      catch (e) { log('⚠ статус-запрос не удался, повтор: ' + (e.message || e)); continue; }
+      setProg(Math.min(0.95, (i + 1) / 40));
+      if (st.status === 'completed' && st.output) { result = st; break; }
+      if (st.status === 'failed' || st.error) throw new Error('рендер не удался: ' + (st.error || 'unknown'));
+      setStatus('Рендер… (' + st.status + ', попытка ' + (i + 1) + '/120)');
+    }
+    if (!result) throw new Error('превышено время ожидания рендера (10 минут)');
+
+    setProg(1);
+    showCards([{ fmt: W + ':' + H, url: result.output }]);
+    try { analysisBlob = await fetch(result.output).then((r) => r.blob()); $('#analyze').disabled = false; } catch (e) {}
+    // Register the produced video so the Publish page (/publish?pkg=<id>) has something to post —
+    // reuses the same "clip set" persistence /reels already uses; unrelated to how it was rendered.
+    try {
+      const rec = await fetch('/api/cine', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lat, lng, dur: voDuration, title: $('#title').value || '', items: [{ format: W + ':' + H, url: result.output }] }) }).then((r) => r.json());
+      if (rec && rec.id) { lastSetId = rec.id; $('#publish').disabled = false; log('набор для публикации: /api/cine/' + rec.id); }
+    } catch (e) { log('⚠ не удалось зарегистрировать набор для публикации: ' + (e.message || e)); }
+    setStatus('Готово · ' + result.output);
+    saveReel(null, { destination: { name: $('#title').value, coords: { lat, lng } }, timeline: [{ outEnd: voDuration }] }, [{ fmt: W + ':' + H, url: result.output }]);
   } catch (e) { setStatus('Ошибка: ' + (e.message || e)); log(String(e)); }
   $('#go').disabled = false;
-  if (analysisBlob) $('#analyze').disabled = false;   // enable Grok analysis once we have a video
 }
 
 // Resolve ?cam=<id> -> lat/lng/title (+ livecam if the embed is a direct media URL) from the snapshot.

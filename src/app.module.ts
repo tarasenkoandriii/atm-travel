@@ -23,6 +23,7 @@ import { BlogModule } from './blog/blog.module';
 import { LegalModule } from './legal/legal.module';
 import { CineModule } from './cine/cine.module';
 import { ReelModule } from './reel/reel.module';
+import { VgFfmpegModule } from './vgffmpeg/vgffmpeg.module';
 import { RefreshModule } from './refresh/refresh.module';
 import { BootstrapModule } from './bootstrap/bootstrap.module';
 import { HealthModule } from './health/health.module';
@@ -52,6 +53,7 @@ import { FrontendModule } from './frontend/frontend.module';
     LegalModule,
     CineModule,
     ReelModule,
+    VgFfmpegModule,
     RefreshModule,
     BootstrapModule,
     HealthModule,

@@ -16,6 +16,7 @@ export class FrontendController {
   private readonly cine: string = FrontendController.load('cine.html');
   private readonly reel: string = FrontendController.load('reel.html');
   private readonly fastReels: string = FrontendController.load('fast-reels.html');
+  private readonly veryGoodFfmpeg: string = FrontendController.load('very-good-ffmpeg.html');
   private readonly publish: string = FrontendController.load('publish.html');
   private readonly hotTours: string = FrontendController.load('hot-tours.html');
   private readonly blog: string = FrontendController.load('blog.html');
@@ -74,6 +75,14 @@ export class FrontendController {
     res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
     res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
     return res.type('html').send(this.fastReels || '<h1>ATM-travel.org</h1><p>frontend asset not found in bundle</p>');
+  }
+
+  // Renders via the hosted Very Good FFmpeg API (verygoodffmpeg.com) server-side — no local
+  // ffmpeg.wasm, so no SharedArrayBuffer/COOP/COEP needed here at all (unlike /fast-reels).
+  @Get('very-good-ffmpeg')
+  veryGoodFfmpegPage(@Res() res: Response) {
+    res.setHeader('Cache-Control', 'no-store');
+    return res.type('html').send(this.veryGoodFfmpeg || '<h1>ATM-travel.org</h1><p>frontend asset not found in bundle</p>');
   }
 
   @Get('publish')

@@ -76,6 +76,7 @@ export const envSchema = z.object({
   BLOB_READ_WRITE_TOKEN: z.string().optional().default(''),
   PEXELS_API_KEY: z.string().optional().default(''),
   PIXABAY_API_KEY: z.string().optional().default(''),
+  VGFFMPEG_API_KEY: z.string().optional().default(''),   // https://verygoodffmpeg.com — hosted FFmpeg render API
   XAI_API_KEY: z.string().optional().default(''),   // Grok (xAI) — reel analysis
   JAMENDO_CLIENT_ID: z.string().optional().default(''),        // audio: Jamendo catalog
   JAMENDO_HAS_COMMERCIAL: z.string().optional().default(''),   // 'true' once a paid Jamendo license is held

@@ -401,7 +401,7 @@ async function resolveCam() {
 // Открыть авто-монтаж Reels с текущими данными камеры (и переиспользованием cine-полёта, если он уже записан).
 function openReels() {
   const cam = qs.get('cam');
-  let u = '/fast-reels?auto=1';
+  let u = '/very-good-ffmpeg?auto=1';
   if (cam) u += '&cam=' + encodeURIComponent(cam);
   else {
     const lat = $('#lat').value, lng = $('#lng').value, title = $('#title').value;

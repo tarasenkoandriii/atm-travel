@@ -545,7 +545,7 @@ function setActive(cam,recenter){
   const r=$('#hudRes');r.textContent=cam.res||'HD';r.className='res'+((cam.res||'HD')!=='4K'?' hd':'');
   if(/[?&]cinematic=1/i.test(location.search)){
     var cb=$('#cineBtn');if(cb){cb.href='/cine?cam='+encodeURIComponent(cam.id)+'&auto=1';cb.style.display='';}
-    var rb=$('#reelBtn');if(rb){rb.href='/fast-reels?cam='+encodeURIComponent(cam.id)+'&auto=1';rb.style.display='';}
+    var rb=$('#reelBtn');if(rb){rb.href='/very-good-ffmpeg?cam='+encodeURIComponent(cam.id)+'&auto=1';rb.style.display='';}
   }
   startClock(cam.tz);updateHeart();
   if(globe){ if(recenter)globe.pointOfView({lat:cam.lat,lng:cam.lng,altitude:curAlt()},900); updateGlobePoints(); globe.ringsData(reduced()?[]:[cam]); }
