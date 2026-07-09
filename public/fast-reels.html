@@ -123,8 +123,8 @@
 
 <script src="https://cdn.jsdelivr.net/npm/globe.gl" crossorigin="anonymous"></script>
 <script type="module">
-import { FFmpeg } from 'https://esm.sh/@ffmpeg/ffmpeg@0.12.10';
-import { fetchFile, toBlobURL } from 'https://esm.sh/@ffmpeg/util@0.12.1';
+import { FFmpeg } from 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/+esm';
+import { fetchFile, toBlobURL } from 'https://cdn.jsdelivr.net/npm/@ffmpeg/util@0.12.1/+esm';
 import { validateManifest, checkBeatAlignment, buildFilterComplex, buildDefaultManifest } from '/reel.manifest.mjs';
 
 const $ = s => document.querySelector(s);
