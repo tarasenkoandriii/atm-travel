@@ -175,7 +175,7 @@ function renderTracks() {
   });
   audioTracks.forEach((t, i) => {
     const label = t.title ? (t.title + (t.artist ? ' — ' + t.artist : '')) : t.url;
-    rows.push(`<tr class="${t.selected ? 'sel' : ''}"><td class="t-type">🎵 аудио</td><td class="t-name"><a href="${esc(t.url)}" target="_blank" rel="noopener">${esc(shortMid(label))}</a>${t.attribution ? `<div class="muted" style="font-size:10px">© ${esc(t.attribution)}</div>` : ''}<audio class="t-audio" id="aud-${i}" controls preload="none" style="display:none"></audio></td><td class="t-act"><button class="mini" data-aplay="${i}">▶ прослушать</button><button class="mini ${t.selected ? 'on' : ''}" data-asel="${i}">${t.selected ? '✓ выбрано' : 'выбрать'}</button></td></tr>`);
+    rows.push(`<tr class="${t.selected ? 'sel' : ''}"><td class="t-type">🎵 аудио</td><td class="t-name"><a href="${esc(t.url)}" target="_blank" rel="noopener">${esc(shortMid(label))}</a>${t.attribution ? `<div class="muted" style="font-size:10px">© ${esc(t.attribution)}</div>` : ''}<audio class="t-audio" id="aud-${i}" controls preload="none" crossorigin="anonymous" style="display:none"></audio></td><td class="t-act"><button class="mini" data-aplay="${i}">▶ прослушать</button><button class="mini ${t.selected ? 'on' : ''}" data-asel="${i}">${t.selected ? '✓ выбрано' : 'выбрать'}</button></td></tr>`);
   });
   $('#tracksTable tbody').innerHTML = rows.join('') || '<tr><td colspan="3" class="muted" style="padding:10px">Клипы подставятся автоматически при сборке. Можно добавить вручную или подобрать музыку.</td></tr>';
 }
@@ -542,7 +542,7 @@ function showCards(items) {
     if (!o._displayUrl) o._displayUrl = o.url || URL.createObjectURL(o.blob);   // create once, reuse on re-renders
     const u = o._displayUrl;
     const dl = o.url ? ' target="_blank"' : ' download="reel-' + o.fmt.replace(':', 'x') + '.mp4"';
-    return '<div class="rcard"><video src="' + u + '" controls muted loop playsinline></video><div class="rc-b"><span class="fmt">' + o.fmt + '</span><a class="btn" style="padding:7px 12px" href="' + u + '"' + dl + '>' + (o.url ? 'Открыть' : 'Скачать') + '</a></div></div>';
+    return '<div class="rcard"><video src="' + u + '" crossorigin="anonymous" controls muted loop playsinline></video><div class="rc-b"><span class="fmt">' + o.fmt + '</span><a class="btn" style="padding:7px 12px" href="' + u + '"' + dl + '>' + (o.url ? 'Открыть' : 'Скачать') + '</a></div></div>';
   }).join('');
 }
 
@@ -758,7 +758,7 @@ async function initBlogMode() {
   try { $('#title') && ($('#title').value = a.h1 || ''); $('#rDest') && (a.topic) && ($('#rDest').value = a.topic); } catch (e) {}
   // total duration follows the narration track if present, else a default
   let total = 24;
-  if (a.audioUrl) { try { total = await new Promise((res) => { const au = new Audio(); au.preload = 'metadata'; au.onloadedmetadata = () => res(isFinite(au.duration) && au.duration ? au.duration : 24); au.onerror = () => res(24); au.src = a.audioUrl; setTimeout(() => res(24), 8000); }); } catch (e) {} }
+  if (a.audioUrl) { try { total = await new Promise((res) => { const au = new Audio(); au.crossOrigin = 'anonymous'; au.preload = 'metadata'; au.onloadedmetadata = () => res(isFinite(au.duration) && au.duration ? au.duration : 24); au.onerror = () => res(24); au.src = a.audioUrl; setTimeout(() => res(24), 8000); }); } catch (e) {} }
   const subs = (a.subtitles && a.subtitles.length) ? a.subtitles : [a.h1];
   const clips = (a.clips && a.clips.length) ? a.clips : [];
   // Timing follows narration length in characters, not a flat average: the globe intro's share of the
