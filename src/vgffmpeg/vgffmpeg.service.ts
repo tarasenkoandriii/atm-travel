@@ -235,7 +235,13 @@ export class VgFfmpegService {
           || undefined;
         // error_message is "" (empty string, not null) when there's no error — only surface it if non-empty.
         const errorMsg = d.error_message || d.error;
-        return { status: d.status, output, error: errorMsg ? errorMsg : undefined };
+        // Confirmed real value (2026-07-09): a finished job's status is "succeeded", NOT "completed" —
+        // normalize it (and a few plausible synonyms) to our own vocabulary here, in ONE place, so
+        // callers (and the frontend's polling loop) only ever need to check for 'completed'/'failed'.
+        const SUCCESS = new Set(['succeeded', 'completed', 'success', 'done', 'finished']);
+        const FAILURE = new Set(['failed', 'error', 'errored', 'cancelled', 'canceled']);
+        const status = SUCCESS.has(d.status) ? 'completed' : FAILURE.has(d.status) ? 'failed' : d.status;
+        return { status, output, error: errorMsg ? errorMsg : undefined };
       }, 'getStatus');
     } catch (e: any) {
       if (e instanceof HttpException) throw e;

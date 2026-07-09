@@ -417,6 +417,7 @@ async function run() {
 
     // Poll for completion — up to ~10 minutes at 5s intervals.
     let result = null;
+    let lastLoggedStatus = '';
     for (let i = 0; i < 120; i++) {
       await new Promise((r) => setTimeout(r, 5000));
       let st;
@@ -432,11 +433,17 @@ async function run() {
         throw new Error('опрос статуса не удался: ' + (e.message || e));
       }
       setProg(Math.min(0.95, (i + 1) / 40));
-      if (st.status === 'completed' && st.output) { result = st; break; }
+      // Keep a visible timeline in the log (not just the last status line) — every 30s, or on any
+      // change — so a stuck/slow render is diagnosable afterwards instead of only "timed out".
+      if (st.status !== lastLoggedStatus || i % 6 === 0) { log('poll ' + (i + 1) + '/120: статус=' + st.status + (st.output ? ' · output готов' : '')); lastLoggedStatus = st.status; }
+      if (st.status === 'completed') {
+        if (!st.output) throw new Error('статус completed, но нет ссылки на результат (output/output_files) — см. лог/бэкенд для сырого ответа API');
+        result = st; break;
+      }
       if (st.status === 'failed' || st.error) throw new Error('рендер не удался: ' + (st.error || 'unknown'));
       setStatus('Рендер… (' + st.status + ', попытка ' + (i + 1) + '/120)');
     }
-    if (!result) throw new Error('превышено время ожидания рендера (10 минут)');
+    if (!result) throw new Error('превышено время ожидания рендера (10 минут) — последний известный статус: ' + lastLoggedStatus);
 
     setProg(1);
     showCards([{ fmt: W + ':' + H, url: result.output }]);
