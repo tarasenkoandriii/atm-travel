@@ -187,28 +187,60 @@ export class VgFfmpegService {
     // (e.g. a retried client request) reuses the same key so a well-behaved API can dedupe it.
     const idemKey = createHash('sha256').update(JSON.stringify(manifest)).digest('hex');
     this.logger.log(`submitRender idempotencyKey=${idemKey.slice(0, 12)} clips=${manifest.clips.length}`);
-    return this.withRetry(async () => {
-      const res = await fetch(`${this.base}/ffmpeg`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', 'Idempotency-Key': idemKey },
-        body: JSON.stringify({ input_files: inputFiles, output_files: [outputName], ffmpeg_commands: [command] }),
-      });
-      if (!res.ok) { const e: any = new Error(`vgffmpeg submit ${res.status}: ${await res.text().catch(() => '')}`); e.status = res.status; throw e; }
-      const j: any = await res.json();
-      return { jobId: j.jobId || j.id || j.job_id, status: j.status || 'processing' };
-    }, 'submitRender');
+    try {
+      return await this.withRetry(async () => {
+        const res = await fetch(`${this.base}/ffmpeg`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', 'Idempotency-Key': idemKey },
+          body: JSON.stringify({ input_files: inputFiles, output_files: [outputName], ffmpeg_commands: [command] }),
+        });
+        const text = await res.text();
+        let j: any = {}; try { j = JSON.parse(text); } catch { /* keep raw text for the error below */ }
+        if (!res.ok) { const e: any = new Error(`vgffmpeg submit ${res.status}: ${text.slice(0, 500)}`); e.status = res.status; throw e; }
+        // Confirmed real response shape (2026-07-09): the actual job fields are nested one level
+        // down under "data" — { "data": { "id": "...", "status": "queued", "error_message": "",
+        // "output_files": {}, ... } } — NOT flat at the top level. Falling back to top-level too in
+        // case a future API version or a different endpoint ever returns it unwrapped.
+        const d = j?.data || j;
+        const jobId = d.id || d.jobId || d.job_id;
+        if (!jobId) {
+          this.logger.error(`submitRender: no id/jobId/job_id in response — raw body: ${text.slice(0, 1000)}`);
+          throw new HttpException('ответ Very Good FFmpeg не содержит id задачи — см. логи сервера для точного формата ответа', HttpStatus.BAD_GATEWAY);
+        }
+        return { jobId, status: d.status || 'queued' };
+      }, 'submitRender');
+    } catch (e: any) {
+      if (e instanceof HttpException) throw e;
+      throw new HttpException(`не удалось отправить задачу в Very Good FFmpeg: ${e?.message || e}`, HttpStatus.BAD_GATEWAY);
+    }
   }
 
   async getStatus(jobId: string): Promise<{ status: string; output?: string; error?: string }> {
     const key = this.apiKey();
     if (!key) throw new HttpException('VGFFMPEG_API_KEY не настроен', HttpStatus.SERVICE_UNAVAILABLE);
-    return this.withRetry(async () => {
-      const res = await fetch(`${this.base}/jobs/${encodeURIComponent(jobId)}`, { headers: { Authorization: `Bearer ${key}` } });
-      if (!res.ok) { const e: any = new Error(`vgffmpeg status ${res.status}`); e.status = res.status; throw e; }
-      const j: any = await res.json();
-      const output = j.output || j.output_url || j.url || (j.output_files && (j.output_files['output.mp4'] || Object.values(j.output_files)[0]));
-      return { status: j.status, output, error: j.error };
-    }, 'getStatus');
+    if (!jobId || jobId === 'undefined' || jobId === 'null') {
+      throw new HttpException('пустой или некорректный jobId — задача не была отправлена успешно', HttpStatus.BAD_REQUEST);
+    }
+    try {
+      return await this.withRetry(async () => {
+        const res = await fetch(`${this.base}/jobs/${encodeURIComponent(jobId)}`, { headers: { Authorization: `Bearer ${key}` } });
+        const text = await res.text();
+        if (!res.ok) { const e: any = new Error(`vgffmpeg status ${res.status}: ${text.slice(0, 500)}`); e.status = res.status; throw e; }
+        let j: any = {}; try { j = JSON.parse(text); } catch { this.logger.error(`getStatus: non-JSON response — ${text.slice(0, 500)}`); }
+        // Same "data" envelope as the submit response — see the comment in submitRender().
+        const d = j?.data || j;
+        const output = d.output || d.output_url || d.url
+          || (d.output_files && (d.output_files[Object.keys(d.output_files)[0]] || undefined))
+          || (Array.isArray(d.result) && d.result[0] && (d.result[0].download_url || d.result[0].url))
+          || undefined;
+        // error_message is "" (empty string, not null) when there's no error — only surface it if non-empty.
+        const errorMsg = d.error_message || d.error;
+        return { status: d.status, output, error: errorMsg ? errorMsg : undefined };
+      }, 'getStatus');
+    } catch (e: any) {
+      if (e instanceof HttpException) throw e;
+      throw new HttpException(`не удалось получить статус задачи: ${e?.message || e}`, HttpStatus.BAD_GATEWAY);
+    }
   }
 
   async cancel(jobId: string): Promise<boolean> {

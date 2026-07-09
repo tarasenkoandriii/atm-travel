@@ -413,13 +413,24 @@ async function run() {
     const sub = await fetch('/api/vgffmpeg/render', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key, manifest }) })
       .then(async (r) => { if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.message || ('HTTP ' + r.status)); } return r.json(); });
     log('jobId: ' + sub.jobId + ' · статус: ' + sub.status);
+    if (!sub.jobId) throw new Error('сервер не вернул jobId — задача не отправлена, опрос статуса не имеет смысла');
 
     // Poll for completion — up to ~10 minutes at 5s intervals.
     let result = null;
     for (let i = 0; i < 120; i++) {
       await new Promise((r) => setTimeout(r, 5000));
-      let st; try { st = await fetch('/api/vgffmpeg/status/' + encodeURIComponent(sub.jobId) + '?key=' + encodeURIComponent(key)).then((r) => r.json()); }
-      catch (e) { log('⚠ статус-запрос не удался, повтор: ' + (e.message || e)); continue; }
+      let st;
+      try {
+        const r = await fetch('/api/vgffmpeg/status/' + encodeURIComponent(sub.jobId) + '?key=' + encodeURIComponent(key));
+        const body = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(body.message || ('HTTP ' + r.status));
+        st = body;
+      } catch (e) {
+        // The backend already retries transient upstream errors internally — anything that still
+        // reaches us here is either exhausted retries or a hard client error (e.g. bad jobId), so
+        // treat it as fatal rather than silently looping with a stale/undefined status.
+        throw new Error('опрос статуса не удался: ' + (e.message || e));
+      }
       setProg(Math.min(0.95, (i + 1) / 40));
       if (st.status === 'completed' && st.output) { result = st; break; }
       if (st.status === 'failed' || st.error) throw new Error('рендер не удался: ' + (st.error || 'unknown'));
