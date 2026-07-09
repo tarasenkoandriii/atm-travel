@@ -916,6 +916,7 @@ ${tops}
       'Allow: /',
       'Disallow: /hot-admin',
       'Disallow: /reels-admin',
+      'Disallow: /fast-reels',
       'Disallow: /api/',
       `Sitemap: ${this.baseUrl}/sitemap.xml`,
       `Sitemap: ${this.baseUrl}/sitemap-news.xml`,

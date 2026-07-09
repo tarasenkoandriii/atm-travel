@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Auto-reel · ATM-travel.org</title>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Space+Mono&display=swap" rel="stylesheet">
+<title>Fast-reels · ATM-travel.org</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Space+Mono&display=swap" rel="stylesheet" crossorigin="anonymous">
 <style>
   :root{--bg:#05070d;--panel:#0a0f1a;--line:#1a2436;--text:#e7edf5;--muted:#8b9bb4;--cyan:#4fd7e0;--cyan-dim:#1f6b72;--amber:#f2b64c;}
   *{box-sizing:border-box;} html,body{margin:0;background:var(--bg);color:var(--text);font-family:'Space Grotesk',system-ui,sans-serif;}
@@ -42,20 +42,12 @@
   .rc-b{padding:9px 11px;display:flex;justify-content:space-between;align-items:center;gap:8px;} .rc-b .fmt{font-family:'Space Mono',monospace;font-size:12px;color:var(--cyan);}
   .muted{color:var(--muted);font-size:12px;}
 </style>
-  <script nowprocket data-noptimize="1" data-cfasync="false" data-wpfc-render="false" seraph-accel-crit="1" data-no-defer="1">
-  (function () {
-      var script = document.createElement("script");
-      script.async = 1;
-      script.src = 'https://tpembars.com/NTQ2ODMx.js?t=546831';
-      document.head.appendChild(script);
-  })();
-</script>
 </head>
 <body>
 <div class="wrap">
   <header>
     <a class="logo" href="/">ATM<b>·</b>travel</a>
-    <div class="sub">auto-reel · ffmpeg.wasm montage (1080p, in-browser) · <b id="buildMarker" style="color:#4fd7e0">build 2026-07-08-05:45</b></div>
+    <div class="sub">fast-reels · multi-threaded ffmpeg.wasm montage (1080p, in-browser) · <b id="buildMarker" style="color:#4fd7e0">build 2026-07-08-fast-1</b></div>
   </header>
 
   <div id="stage"><div id="globeHost"></div></div>
@@ -93,7 +85,6 @@
     </div>
     <div style="margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
       <button class="btn" id="go">▶ Собрать 3 ролика</button>
-      <button class="btn2" id="preview">👁 Превью ÷6 fps</button>
       <button class="btn2" id="analyze" disabled>🧠 Анализ Grok</button>
       <button class="btn2" id="publish" disabled>📣 Публикация</button>
       <span class="muted">1080p · x264 · всё в браузере</span>
@@ -127,10 +118,10 @@
     </div>
   </div>
 
-  <p class="muted" style="margin-top:12px">Порядок: <b>intro (глобус)</b> → нарезка сток-клипов по битам → <b>live-камера</b>, поверх — overlay (погода/оффер) и музыка. ffmpeg.wasm жмёт в x264/mp4, результат — в Vercel Blob.</p>
+  <p class="muted" style="margin-top:12px">Порядок: <b>intro (глобус)</b> (по очереди, один WebGL-рендерер) → 3 формата собираются <b>параллельно</b> в многопоточном ffmpeg.wasm → результат в Vercel Blob. Без режима превью и без слайд-шоу — только видео-клипы.</p>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/globe.gl"></script>
+<script src="https://cdn.jsdelivr.net/npm/globe.gl" crossorigin="anonymous"></script>
 <script type="module">
 import { FFmpeg } from 'https://esm.sh/@ffmpeg/ffmpeg@0.12.10';
 import { fetchFile, toBlobURL } from 'https://esm.sh/@ffmpeg/util@0.12.1';
@@ -139,7 +130,10 @@ import { validateManifest, checkBeatAlignment, buildFilterComplex, buildDefaultM
 const $ = s => document.querySelector(s);
 const qs = new URLSearchParams(location.search);
 const log = m => { const el = $('#log'); el.textContent += m + '\n'; el.scrollTop = el.scrollHeight; };
-log('build-marker: reel v2026-07-08-05:45 (raw B-roll clips + bclips param + introBlob diag)');
+log('build-marker: fast-reels v2026-07-08-fast-1 (multi-thread ffmpeg, no preview/slideshow modes)');
+log(window.crossOriginIsolated
+  ? '✓ страница изолирована (crossOriginIsolated=true) — многопоточная сборка доступна.'
+  : '⚠ crossOriginIsolated=false — многопоточность НЕДОСТУПНА. Обычно значит, что какой-то ресурс на странице (шрифт/CDN) не прислал заголовки CORP/CORS и браузер снял изоляцию. Сборка ffmpeg не запустится.');
 const setStatus = m => $('#status').textContent = m;
 const setProg = p => $('#prog').style.width = Math.round(p * 100) + '%';
 const num = (v, d) => { const n = parseFloat(v); return isNaN(n) ? d : n; };
@@ -232,8 +226,8 @@ if (qs.get('music')) audioTracks.push({ url: qs.get('music'), previewUrl: qs.get
 // ── globe (offscreen) for the intro segment ──
 const host = $('#globeHost');
 const G = Globe({ rendererConfig: { preserveDrawingBuffer: true, antialias: true } })(host)
-  .globeImageUrl('https://unpkg.com/three-globe/example/img/earth-night.jpg')
-  .backgroundImageUrl('https://unpkg.com/three-globe/example/img/night-sky.png')
+  .globeImageUrl('https://cdn.jsdelivr.net/npm/three-globe/example/img/earth-night.jpg')
+  .backgroundImageUrl('https://cdn.jsdelivr.net/npm/three-globe/example/img/night-sky.png')
   .showAtmosphere(true).atmosphereColor('#4fd7e0').atmosphereAltitude(0.18)
   .ringColor(() => '#4fd7e0').ringMaxRadius(6).ringPropagationSpeed(3).ringRepeatPeriod(700);
 G.controls().enabled = false;
@@ -249,7 +243,7 @@ function recordIntro(w, h, seconds, lat, lng, fps, geoLabel) {
     // Composite the globe onto a 2D canvas so we can burn in a geo plate (name label). No weather widget.
     const cc = document.createElement('canvas'); cc.width = w; cc.height = h; const cx = cc.getContext('2d');
     const stream = cc.captureStream(fps || 30);
-    const rec = new MediaRecorder(stream, { mimeType: MIME, videoBitsPerSecond: 10_000_000 });
+    const rec = new MediaRecorder(stream, { mimeType: MIME, videoBitsPerSecond: 6_000_000 });
     const chunks = []; rec.ondataavailable = e => e.data.size && chunks.push(e.data);
     rec.onstop = () => resolve(new Blob(chunks, { type: 'video/webm' }));
     const start = { lat: lat - 6, lng: lng - 26, altitude: 2.5 }, end = { lat, lng, altitude: 0.62 };
@@ -301,15 +295,22 @@ const extOf = (url, def) => { const m = /\.([a-z0-9]{2,4})(?:\?|$)/i.exec(url ||
 let ffAssets = null;
 async function ffAssetsReady() {
   if (ffAssets) return ffAssets;
-  setStatus('Загрузка ffmpeg.wasm…');
+  if (!window.crossOriginIsolated) {
+    // Multi-thread ffmpeg.wasm needs SharedArrayBuffer, which only exists when the page is
+    // "cross-origin isolated" (COOP+COEP headers — set on this route in frontend.controller.ts).
+    // If some cross-origin embed on the page doesn't send matching CORP/CORS headers, the browser
+    // silently drops isolation instead of erroring, so we surface it clearly here.
+    throw new Error('страница не изолирована (crossOriginIsolated=false) — многопоточность недоступна. Проверьте, что COOP/COEP отдаются и что все сторонние ресурсы (шрифты/CDN) их не ломают.');
+  }
+  setStatus('Загрузка ffmpeg.wasm (multi-thread)…');
   // ESM core: the module worker loads the core via dynamic import() and needs a default export.
   // The UMD core has none → "failed to import ffmpeg-core.js"; the esm build fixes it.
-  const base = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.10/dist/esm';
+  const base = 'https://cdn.jsdelivr.net/npm/@ffmpeg/core-mt@0.12.10/dist/esm';
   // The ffmpeg worker must be same-origin (browsers block `new Worker(cross-origin-url)`), but the
-  // real single-thread worker.js pulls in ./const.js + ./errors.js via relative imports, so it can't
-  // just be blob'd. Trick: a tiny SAME-ORIGIN blob worker that `import`s the real ESM worker from a
-  // CDN — cross-origin *imports* inside a module worker are allowed (jsDelivr sends CORS headers),
-  // and its relative deps then resolve against the CDN too. Version pinned to match @ffmpeg/ffmpeg.
+  // real worker.js pulls in ./const.js + ./errors.js via relative imports, so it can't just be
+  // blob'd. Trick: a tiny SAME-ORIGIN blob worker that `import`s the real ESM worker from a CDN —
+  // cross-origin *imports* inside a module worker are allowed (jsDelivr sends CORS headers), and
+  // its relative deps then resolve against the CDN too. Version pinned to match @ffmpeg/ffmpeg.
   const cdnWorker = 'https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/esm/worker.js';
   const stub = `import ${JSON.stringify(cdnWorker)};`;
   const classWorkerURL = URL.createObjectURL(new Blob([stub], { type: 'text/javascript' }));
@@ -317,13 +318,14 @@ async function ffAssetsReady() {
     classWorkerURL,
     coreURL: await toBlobURL(`${base}/ffmpeg-core.js`, 'text/javascript'),
     wasmURL: await toBlobURL(`${base}/ffmpeg-core.wasm`, 'application/wasm'),
+    // MT-only: the core's own pthread pool worker (absent from the single-thread core package).
+    workerURL: await toBlobURL(`${base}/ffmpeg-core.worker.js`, 'text/javascript'),
   };
   return ffAssets;
 }
 // Per-format progress state, read by the ffmpeg log listener attached in newFF().
 let progLabel = '', progIndex = 0, progTotal = 1, curTotalSec = 0;
 let analysisBlob = null, analysisMeta = null;   // Grok analysis: video source for frames + metadata
-let previewMode = false;   // preview button → ÷6 fps fast rough render
 let lastSetId = null;      // id of the persisted reel package (for the Publish page)
 async function newFF(onProgress) {
   const a = await ffAssetsReady();
@@ -340,7 +342,7 @@ async function newFF(onProgress) {
       onProgress(sec);
     }
   });
-  await f.load({ classWorkerURL: a.classWorkerURL, coreURL: a.coreURL, wasmURL: a.wasmURL });
+  await f.load({ classWorkerURL: a.classWorkerURL, coreURL: a.coreURL, wasmURL: a.wasmURL, workerURL: a.workerURL });
   return f;
 }
 
@@ -368,8 +370,7 @@ async function getManifest(introSecOverride) {
   const sel = selectedAudio();
   const music = sel ? sel.url : '';
   const overlay = $('#overlay').value.trim(), livecamUrl = $('#livecam').value.trim();
-  const baseFps = num($('#fps').value, 30);
-  const fps = previewMode ? Math.max(4, Math.round(baseFps / 6)) : baseFps;   // preview = ÷6 fps (fast, rough)
+  const fps = num($('#fps').value, 30);
   return buildDefaultManifest({
     destination: { id: (qs.get('cam') || 'geo'), name: $('#title').value.trim() || 'Destination', coords: { lat: isNaN(lat) ? 0 : lat, lng: isNaN(lng) ? 0 : lng } },
     intro: wantIntro,
@@ -537,13 +538,17 @@ async function uploadOne(blob, fmt) {
   return res.url;
 }
 function showCards(items) {
-  $('#results').innerHTML = items.map(o => { const u = o.url || URL.createObjectURL(o.blob); const dl = o.url ? ' target="_blank"' : ' download="reel-' + o.fmt.replace(':', 'x') + '.mp4"'; return '<div class="rcard"><video src="' + u + '" controls muted loop playsinline></video><div class="rc-b"><span class="fmt">' + o.fmt + '</span><a class="btn" style="padding:7px 12px" href="' + u + '"' + dl + '>' + (o.url ? 'Открыть' : 'Скачать') + '</a></div></div>'; }).join('');
+  $('#results').innerHTML = items.map(o => {
+    if (!o._displayUrl) o._displayUrl = o.url || URL.createObjectURL(o.blob);   // create once, reuse on re-renders
+    const u = o._displayUrl;
+    const dl = o.url ? ' target="_blank"' : ' download="reel-' + o.fmt.replace(':', 'x') + '.mp4"';
+    return '<div class="rcard"><video src="' + u + '" controls muted loop playsinline></video><div class="rc-b"><span class="fmt">' + o.fmt + '</span><a class="btn" style="padding:7px 12px" href="' + u + '"' + dl + '>' + (o.url ? 'Открыть' : 'Скачать') + '</a></div></div>';
+  }).join('');
 }
 
 // ── run all (automatic) ──
 async function run() {
-  $('#go').disabled = true; $('#preview').disabled = true; $('#results').innerHTML = ''; $('#log').textContent = ''; setProg(0);
-  if (previewMode) log('режим ПРЕВЬЮ · fps÷6 (быстро, черновой)');
+  $('#go').disabled = true; $('#results').innerHTML = ''; $('#log').textContent = ''; setProg(0);
   try {
     setStatus('Готовим манифест…');
     // Stage-1 reuse: if ?cine=<id>, use the cine camera-flight (already in Blob) as the intro, and
@@ -555,7 +560,7 @@ async function run() {
       else log('cine ' + cineId + ' не найден — интро стандартной длины');
     }
     const m = await getManifest(cineData ? cineData.durationSec : 10);   // intro length = cine clip (else 10s)
-    const errs = validateManifest(m); if (errs.length) { setStatus('Манифест невалиден'); errs.forEach(log); $('#go').disabled = false; $('#preview').disabled = false; return; }
+    const errs = validateManifest(m); if (errs.length) { setStatus('Манифест невалиден'); errs.forEach(log); $('#go').disabled = false; return; }
     const bad = checkBeatAlignment(m); if (bad.length) log('⚠ вне бита: ' + JSON.stringify(bad));
     const intro = m.timeline.find(s => s.kind === 'intro');
     const introSec = intro ? (intro.srcOut - intro.srcIn) : 2.5;
@@ -615,6 +620,9 @@ async function run() {
       let blob;
       try { blob = await renderFormat(ff, m, fmt, introByFmt[fi].blob, cache, creditText, introByFmt[fi].ext); }
       finally { try { ff.terminate(); } catch (e) {} }
+      introByFmt[fi].blob = null;   // this format's globe recording is baked into `blob` now — free it early
+                                     // instead of waiting for all 3 concurrent formats to finish (Phase A already
+                                     // holds all 3 intro blobs at once; this trims how long that peak persists)
 
       log('blob ' + fmt.name + ': ' + (blob ? blob.size : 0) + 'B');
       if (fi === 0 && blob) analysisBlob = blob;   // keep one video for Grok frame extraction
@@ -640,7 +648,7 @@ async function run() {
       } catch (e) {}
     } else setStatus('Не удалось загрузить: ' + (lastErr || 'ошибка сервера') + ' — файлы можно скачать ниже.');
   } catch (e) { setStatus('Ошибка: ' + (e.message || e)); log(String(e)); }
-  $('#go').disabled = false; $('#preview').disabled = false;
+  $('#go').disabled = false;
   if (analysisBlob) $('#analyze').disabled = false;   // enable Grok analysis once we have a video
 }
 
@@ -663,7 +671,7 @@ async function resolveCam() {
   } catch (e) { /* ignore */ }
 }
 
-$('#go').onclick = () => { previewMode = false; run(); };
+$('#go').onclick = () => { run(); };
 $('#addClip').onclick = () => { const u = prompt('URL клипа (.mp4):'); if (u && u.trim()) { videoTracks.push({ url: u.trim(), deleted: false }); renderTracks(); } };
 $('#addAudio').onclick = () => { const u = prompt('URL аудио (.mp3):'); if (u && u.trim()) { audioTracks.push({ url: u.trim(), previewUrl: u.trim(), title: '', selected: false }); renderTracks(); } };
 $('#findMusic').onclick = findMusic;
@@ -672,7 +680,6 @@ $('#publish').onclick = () => {
   window.open('/publish?pkg=' + encodeURIComponent(lastSetId), '_blank');   // open publish page in a new tab
   try { window.close(); } catch (e) {}   // close current tab (browsers may block if it wasn't script-opened)
 };
-$('#preview').onclick = () => { previewMode = true; run(); };
 
 // ── Tour / hotel / flight slides + reel persistence ──
 let TOURS = [], SELECTED_TOUR = null;
@@ -693,7 +700,11 @@ function makeCardClip(lines, opts) {
   return new Promise(resolve => {
     const w = 1280, h = 720, cv = document.createElement('canvas'); cv.width = w; cv.height = h;
     const cx = cv.getContext('2d');
-    const rec = new MediaRecorder(cv.captureStream(30), { mimeType: MIME, videoBitsPerSecond: 8_000_000 });
+    // 2 Mbps is plenty here — this canvas is near-static text on a gradient (just a thin progress
+    // bar animates), and ffmpeg re-encodes it into the final output at its own target bitrate anyway,
+    // so this intermediate carrier's bitrate has no bearing on final quality. Was 8 Mbps (4x the
+    // memory/size for identical visible output on mostly-still content).
+    const rec = new MediaRecorder(cv.captureStream(30), { mimeType: MIME, videoBitsPerSecond: 2_000_000 });
     const chunks = []; rec.ondataavailable = e => e.data.size && chunks.push(e.data);
     rec.onstop = () => resolve(URL.createObjectURL(new Blob(chunks, { type: 'video/webm' })));
     const t0 = performance.now(), dur = seconds * 1000;
@@ -737,45 +748,9 @@ $('#addTourSlides').onclick = async () => {
   $('#addTourSlides').disabled = false;
 };
 
-// ── Blog mode: build a title card + photo slides with subtitles from a blog article (?blog=<id>&key=&music=) ──
-// Reuses the same canvas→MediaRecorder montage path as the tour slides; the ElevenLabs track comes in via ?music.
-function makeImageSlideClip(imgUrl, subtitle, seconds) {
-  return new Promise(resolve => {
-    const w = 1280, h = 720, cv = document.createElement('canvas'); cv.width = w; cv.height = h;
-    const cx = cv.getContext('2d');
-    const rec = new MediaRecorder(cv.captureStream(30), { mimeType: MIME, videoBitsPerSecond: 8_000_000 });
-    const chunks = []; rec.ondataavailable = e => e.data.size && chunks.push(e.data);
-    rec.onstop = () => resolve(URL.createObjectURL(new Blob(chunks, { type: 'video/webm' })));
-    const img = new Image(); img.crossOrigin = 'anonymous';
-    const dur = (seconds || 3) * 1000;
-    function wrap(text, maxW) { const words = String(text).split(/\s+/); const lines = []; let ln = '';
-      cx.font = "36px 'Space Grotesk', system-ui, sans-serif";
-      words.forEach(wd => { const t = ln ? ln + ' ' + wd : wd; if (cx.measureText(t).width > maxW && ln) { lines.push(ln); ln = wd; } else ln = t; });
-      if (ln) lines.push(ln); return lines.slice(0, 4); }
-    function start() {
-      const t0 = performance.now(); rec.start();
-      (function loop() {
-        const t = Math.min(1, (performance.now() - t0) / dur);
-        cx.fillStyle = '#070c12'; cx.fillRect(0, 0, w, h);
-        if (img.complete && img.naturalWidth) { const s = Math.max(w / img.naturalWidth, h / img.naturalHeight); const iw = img.naturalWidth * s, ih = img.naturalHeight * s; cx.drawImage(img, (w - iw) / 2, (h - ih) / 2, iw, ih); }
-        const g = cx.createLinearGradient(0, h * 0.45, 0, h); g.addColorStop(0, 'rgba(7,12,18,0)'); g.addColorStop(1, 'rgba(7,12,18,.92)'); cx.fillStyle = g; cx.fillRect(0, h * 0.45, w, h * 0.55);
-        const lines = wrap(subtitle || '', w - 160); let y = h - 60 - (lines.length - 1) * 46;
-        cx.textBaseline = 'alphabetic'; cx.font = "36px 'Space Grotesk', system-ui, sans-serif";
-        lines.forEach(ln => { cx.fillStyle = '#eef4f8'; cx.fillText(ln, 80, y); y += 46; });
-        cx.fillStyle = '#4fd7e0'; cx.fillRect(80, h - 30, (w - 160) * t, 4);
-        if (performance.now() - t0 < dur) requestAnimationFrame(loop); else setTimeout(() => rec.stop(), 100);
-      })();
-    }
-    img.onload = start; img.onerror = start;
-    img.src = '/api/reels/proxy?url=' + encodeURIComponent(imgUrl);
-  });
-}
-
-
 async function initBlogMode() {
   const blogId = qs.get('blog'); if (!blogId) return;
   const key = qs.get('key') || '';
-  const clipsMode = qs.get('bclips') === '1';
   setStatus && setStatus('Загрузка статьи для монтажа…');
   let m; try { m = await fetch('/api/blog/media?key=' + encodeURIComponent(key) + '&id=' + encodeURIComponent(blogId)).then(r => r.ok ? r.json() : null); } catch (e) { m = null; }
   if (!m || !m.ok || !m.media) { setStatus && setStatus('Не удалось загрузить статью блога.'); return; }
@@ -785,7 +760,6 @@ async function initBlogMode() {
   let total = 24;
   if (a.audioUrl) { try { total = await new Promise((res) => { const au = new Audio(); au.preload = 'metadata'; au.onloadedmetadata = () => res(isFinite(au.duration) && au.duration ? au.duration : 24); au.onerror = () => res(24); au.src = a.audioUrl; setTimeout(() => res(24), 8000); }); } catch (e) {} }
   const subs = (a.subtitles && a.subtitles.length) ? a.subtitles : [a.h1];
-  const imgs = (a.images && a.images.length) ? a.images : [];
   const clips = (a.clips && a.clips.length) ? a.clips : [];
   // Timing follows narration length in characters, not a flat average: the globe intro's share of the
   // total is proportional to the TITLE's share of the whole narrated text (only the title is read during
@@ -798,55 +772,45 @@ async function initBlogMode() {
   const remain = Math.max(1, total - titleSec);
   const perDurs = bodyLens.map(len => Math.max(1.8, remain * (len / bodyLenSum)));
   $('#addTourSlides') && ($('#addTourSlides').disabled = true);
-  setStatus && setStatus(clipsMode ? 'Рендер видео-клипов статьи…' : 'Рендер слайдов статьи…');
+  setStatus && setStatus('Рендер видео-клипов статьи…');
   try {
     // 1) title card — large headline; narration during this segment is just the title (see timing note above)
     const titleUrl = await makeCardClip([{ text: a.h1 || 'Статья', size: 62 }, { text: a.topic || '', size: 40 }], { seconds: titleSec });
     videoTracks.push({ url: titleUrl, provider: 'blog-title', id: 'blogt-' + Date.now(), attribution: '', tags: ['blog'], deleted: false, dur: titleSec });
     renderTracks && renderTracks();
     log('титр готов (' + titleSec.toFixed(1) + 'с)');
-    if (clipsMode && clips.length) {
-      // group clips by paragraph (flatIdx falls back to matching subtitle position if absent)
-      const byPara = new Map();
-      clips.forEach((c, ci) => { const k = (c.flatIdx != null ? c.flatIdx : ci); if (!byPara.has(k)) byPara.set(k, []); byPara.get(k).push(c); });
-      log('клипов подобрано: ' + clips.length + ' · абзацев: ' + subs.length);
-      for (let i = 0; i < subs.length; i++) {
-        const group = byPara.get(i) || [];
-        if (!group.length) {
-          try {
-            const url = await makeCardClip([{ text: subs[i], size: 38 }], { seconds: perDurs[i] });
-            videoTracks.push({ url, provider: 'blog-slide', id: 'blogs-' + Date.now() + '-' + i, attribution: '', tags: ['blog'], deleted: false, dur: perDurs[i] });
-            renderTracks && renderTracks();
-          } catch (e1) { log('⚠ абзац ' + (i + 1) + ' (без клипа): ' + (e1 && e1.message || e1)); }
-          continue;
-        }
-        const each = Math.max(1.5, perDurs[i] / group.length);
-        for (let g = 0; g < group.length; g++) {
-          const c = group[g];
-          // Feed the clip's own URL straight into the manifest as a normal 'clip' segment — the SAME
-          // reliable path already used for tour B-roll (raw fetch → ffmpeg trim/scale), instead of a
-          // client-side <video>+canvas+MediaRecorder pre-render, which proved unreliable in testing
-          // (every clip timed out even though title/photo canvas rendering worked fine).
-          videoTracks.push({ url: c.url, provider: c.provider || 'pexels', id: c.id || ('blogclip-' + i + '-' + g), attribution: c.attribution || '', tags: ['blog', c.geo || ''].filter(Boolean), deleted: false, dur: each });
-          renderTracks && renderTracks();
-          log('клип ' + (i + 1) + '.' + (g + 1) + ' добавлен (' + (c.geo || '') + ', ' + each.toFixed(1) + 'с) — без подписи, как обычный B-roll');
-        }
-      }
-    } else {
-      // photo slideshow — one slide per paragraph over the article photo(s)
-      for (let i = 0; i < subs.length; i++) {
+    // group clips by paragraph (flatIdx falls back to matching subtitle position if absent); a
+    // paragraph with no matching clip gets a text card instead — there is no photo-slideshow mode
+    // here (fast-reels is clips-only by design, see the "без режима слайд-шоу" request).
+    const byPara = new Map();
+    clips.forEach((c, ci) => { const k = (c.flatIdx != null ? c.flatIdx : ci); if (!byPara.has(k)) byPara.set(k, []); byPara.get(k).push(c); });
+    log('клипов подобрано: ' + clips.length + ' · абзацев: ' + subs.length);
+    for (let i = 0; i < subs.length; i++) {
+      const group = byPara.get(i) || [];
+      if (!group.length) {
         try {
-          const img = imgs.length ? imgs[i % imgs.length] : null;
-          const url = img ? await withTimeout(makeImageSlideClip(img, subs[i], perDurs[i]), 15000, 'слайд ' + (i + 1)) : await makeCardClip([{ text: subs[i], size: 38 }], { seconds: perDurs[i] });
+          const url = await makeCardClip([{ text: subs[i], size: 38 }], { seconds: perDurs[i] });
           videoTracks.push({ url, provider: 'blog-slide', id: 'blogs-' + Date.now() + '-' + i, attribution: '', tags: ['blog'], deleted: false, dur: perDurs[i] });
           renderTracks && renderTracks();
-        } catch (e4) { log('⚠ слайд ' + (i + 1) + ' не вышел: ' + (e4 && e4.message || e4)); }
+        } catch (e1) { log('⚠ абзац ' + (i + 1) + ' (без клипа): ' + (e1 && e1.message || e1)); }
+        continue;
+      }
+      const each = Math.max(1.5, perDurs[i] / group.length);
+      for (let g = 0; g < group.length; g++) {
+        const c = group[g];
+        // Feed the clip's own URL straight into the manifest as a normal 'clip' segment — the SAME
+        // reliable path already used for tour B-roll (raw fetch → ffmpeg trim/scale), instead of a
+        // client-side <video>+canvas+MediaRecorder pre-render, which proved unreliable in testing
+        // (every clip timed out even though title/photo canvas rendering worked fine).
+        videoTracks.push({ url: c.url, provider: c.provider || 'pexels', id: c.id || ('blogclip-' + i + '-' + g), attribution: c.attribution || '', tags: ['blog', c.geo || ''].filter(Boolean), deleted: false, dur: each });
+        renderTracks && renderTracks();
+        log('клип ' + (i + 1) + '.' + (g + 1) + ' добавлен (' + (c.geo || '') + ', ' + each.toFixed(1) + 'с) — без подписи, как обычный B-roll');
       }
     }
     renderTracks && renderTracks();
     // 2) make sure the narration track is the selected soundtrack (music was pushed from ?music)
     if (a.audioUrl && typeof audioTracks !== 'undefined') { audioTracks.forEach(t => t.selected = (t.url === a.audioUrl)); if (!audioTracks.some(t => t.selected)) { audioTracks.push({ url: a.audioUrl, previewUrl: a.audioUrl, title: 'Озвучка', selected: true }); } renderTracks && renderTracks(); }
-    setStatus && setStatus((clipsMode ? 'Клипы готовы (' : 'Слайды готовы (') + subs.length + '). Нажмите «Собрать ролик» — озвучка идёт параллельно. После — «Постить».');
+    setStatus && setStatus('Клипы готовы (' + subs.length + '). Нажмите «Собрать ролик» — озвучка идёт параллельно. После — «Постить».');
     window.__BLOG_ID = blogId; window.__BLOG_KEY = key;
   } catch (e) { setStatus && setStatus('Ошибка монтажа блога: ' + (e && e.message || e)); }
   $('#addTourSlides') && ($('#addTourSlides').disabled = false);
@@ -942,7 +906,7 @@ $('#analyze').onclick = analyze;
     } catch (e) { log('клипсет не загрузился: ' + (e.message || e)); }
   }
   await resolveCam();
-  if (qs.get('auto') === '1') setTimeout(() => { previewMode = true; run(); }, 800);   // auto = fast preview
+  if (qs.get('auto') === '1') setTimeout(() => { run(); }, 800);   // auto = start assembly right away
 })();
 </script>
 </body>

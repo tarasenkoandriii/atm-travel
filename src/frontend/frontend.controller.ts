@@ -15,6 +15,7 @@ export class FrontendController {
   private readonly legal: string = FrontendController.load('legal.html');
   private readonly cine: string = FrontendController.load('cine.html');
   private readonly reel: string = FrontendController.load('reel.html');
+  private readonly fastReels: string = FrontendController.load('fast-reels.html');
   private readonly publish: string = FrontendController.load('publish.html');
   private readonly hotTours: string = FrontendController.load('hot-tours.html');
   private readonly blog: string = FrontendController.load('blog.html');
@@ -61,6 +62,18 @@ export class FrontendController {
     // repeatedly masked whether a fix actually reached the browser during debugging.
     res.setHeader('Cache-Control', 'no-store');
     return res.type('html').send(this.reel || '<h1>ATM-travel.org</h1><p>frontend asset not found in bundle</p>');
+  }
+
+  // Multi-threaded ffmpeg.wasm needs the page to be "cross-origin isolated" (SharedArrayBuffer
+  // requires it) — COOP+COEP are set ONLY on this route, not on /reels, since they can break
+  // cross-origin embeds (fonts, ad script, third-party CDNs) that don't send matching CORP/CORS
+  // headers. Isolating the risk to a dedicated page keeps the working /reels studio unaffected.
+  @Get('fast-reels')
+  fastReelsPage(@Res() res: Response) {
+    res.setHeader('Cache-Control', 'no-store');
+    res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+    res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
+    return res.type('html').send(this.fastReels || '<h1>ATM-travel.org</h1><p>frontend asset not found in bundle</p>');
   }
 
   @Get('publish')
