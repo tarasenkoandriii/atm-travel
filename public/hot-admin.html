@@ -470,7 +470,7 @@ function renderEditor(id){
   }
   h+='<input class="bed-note" placeholder="Ремарка для 🔄 (необязательно): напр. «добавь про транспорт и цены»" value="'+esc(st.note||'')+'">';
   if(isBlog){
-    h+='<div class="bed-media">'+bIc2('bed-audio','🔊 Аудио')+(st.slideshow===false?bIc2('bed-pickclips','🎞 Видеоряд'):'')+bIc2('bed-video', st.slideshow!==false?'🎬 Слайдшоу':'🎬 Видео')+(st.audioUrl?'<audio class="bed-audio-el" controls preload="none" src="'+esc(st.audioUrl)+'"></audio>':'')+(st.videoUrl?'<a class="btn" href="/publish?video='+encodeURIComponent(st.videoUrl)+'&title='+encodeURIComponent(st.h1)+'" target="_blank" rel="noopener">📣 Постить во все каналы</a>':'')+'<label class="bed-introlbl" title="Фото float:right 50% внутри абзацев вместо блоков 75% между разделами"><input type="checkbox" class="bed-embedimgs"'+(st.embedImages!==false?' checked':'')+'> встроить картинки в текст</label>'+'<label class="bed-introlbl" title="Вкл: фото-слайды из статьи. Выкл: подбор видео-клипов по абзацам"><input type="checkbox" class="bed-slideshow"'+(st.slideshow!==false?' checked':'')+'> слайд-шоу</label>'+'<label class="bed-introlbl" title="Облёт глобуса + плашка гео (без погоды)"><input type="checkbox" class="bed-intro"'+(st.introOn?' checked':'')+(st.geo?'':' disabled')+'> добавить интро (глобус)'+(st.geo?'':' — нет гео')+'</label>'+'<span class="bed-media-status"></span></div>';
+    h+='<div class="bed-media">'+bIc2('bed-audio','🔊 Аудио')+bIc2('bed-pickclips','🎞 Видеоряд')+bIc2('bed-video','🎬 Видео')+(st.audioUrl?'<audio class="bed-audio-el" controls preload="none" src="'+esc(st.audioUrl)+'"></audio>':'')+(st.videoUrl?'<a class="btn" href="/publish?video='+encodeURIComponent(st.videoUrl)+'&title='+encodeURIComponent(st.h1)+'" target="_blank" rel="noopener">📣 Постить во все каналы</a>':'')+'<label class="bed-introlbl" title="Фото float:right 50% внутри абзацев вместо блоков 75% между разделами"><input type="checkbox" class="bed-embedimgs"'+(st.embedImages!==false?' checked':'')+'> встроить картинки в текст</label>'+'<label class="bed-introlbl" title="Облёт глобуса + плашка гео (без погоды)"><input type="checkbox" class="bed-intro"'+(st.introOn?' checked':'')+(st.geo?'':' disabled')+'> добавить интро (глобус)'+(st.geo?'':' — нет гео')+'</label>'+'<span class="bed-media-status"></span></div>';
   }
   h+='<div class="bed-row"><div class="bed-lbl">Заголовок</div><div class="bed-val"><div class="bed-h1">'+esc(st.h1)+'</div></div><div class="bed-btns">'+bIc('rg-title','Сделать привлекательнее','🔄')+'</div></div>';
   h+='<div class="bed-lbl" style="margin-top:10px">Фото (первое — главное)</div><div class="bed-imgs">'+(st.images||[]).map(function(im,ii){
@@ -514,7 +514,6 @@ function openEditor(kind, id, btn){
     if(!j||!j.article){ box.innerHTML='<div class="empty">Не удалось загрузить.</div>'; return; }
     var a=j.article;
     BEDIT[id]={ kind:kind, h1:a.h1, topic:a.topic||'', categories:(a.categories||[]).slice(), tags:(a.tags||[]).slice(), locale:a.locale||'ru', audioUrl:a.audioUrl||'', videoUrl:a.videoUrl||'', voiceId:a.voiceId||'', note:'', isGeo:!!a.isGeo, geo:a.geo||null, introOn:!!a.isGeo, uncertainFacts:a.uncertainFacts||[], embedImages:a.embedImages!==false,
-      slideshow: !((a.clips||[]).length),
       clips:(a.clips||[]).map(function(c){ return {sIdx:c.sIdx,pIdx:c.pIdx,flatIdx:c.flatIdx,geo:c.geo||'',query:c.query||'',url:c.url,provider:c.provider||'',attribution:c.attribution||'',deleted:false}; }),
       images:(a.images||[]).map(function(im){ return {url:im.url,alt:im.alt||'',source:im.source||'',sourceUrl:im.sourceUrl||'',deleted:false}; }),
       sections:(a.sections||[]).map(function(s){ return {heading:s.heading,paragraphs:(s.paragraphs||[]).map(function(t){return {text:t,deleted:false};})}; }) };
@@ -609,7 +608,6 @@ $('#blogList').addEventListener('click', function(e){
     if(!st.audioUrl&&!confirm('Аудио ещё не сгенерировано. Открыть монтаж без озвучки?')) return;
     var _box=document.getElementById('ed-'+id); var _ic=_box?_box.querySelector('.bed-intro'):null; var _intro=_ic?_ic.checked:!!st.introOn;
     var u='/very-good-ffmpeg?blog='+encodeURIComponent(id)+'&key='+encodeURIComponent(KEY)+'&intro='+(_intro?'1':'0');
-    if(st.slideshow===false)u+='&bclips=1';
     if(st.audioUrl)u+='&music='+encodeURIComponent(st.audioUrl);
     if(_intro&&st.geo){ u+='&lat='+st.geo.lat+'&lng='+st.geo.lng+'&geo='+encodeURIComponent(st.topic||''); }
     window.open(u,'_blank'); return;
@@ -637,7 +635,6 @@ $('#blogList').addEventListener('click', function(e){
 $('#blogList').addEventListener('input', function(e){ var n=e.target.closest('.bed-note'); if(!n)return; var id=editorIdOf(e.target); if(id&&BEDIT[id])BEDIT[id].note=n.value; });
 $('#blogList').addEventListener('change', function(e){
   var c=e.target.closest('.bed-embedimgs'); if(c){ var id1=editorIdOf(e.target); if(id1&&BEDIT[id1]){ BEDIT[id1].embedImages=c.checked; renderEditor(id1); } return; }
-  var s=e.target.closest('.bed-slideshow'); if(s){ var id2=editorIdOf(e.target); if(id2&&BEDIT[id2]){ BEDIT[id2].slideshow=s.checked; renderEditor(id2); } return; }
 });
 var BDRAG=null;
 $('#blogList').addEventListener('dragstart', function(e){ var p=e.target.closest('.bed-para'); if(!p)return; BDRAG={id:editorIdOf(e.target),si:+p.getAttribute('data-si'),pi:+p.getAttribute('data-pi')}; p.classList.add('dragging'); if(e.dataTransfer)e.dataTransfer.effectAllowed='move'; });
