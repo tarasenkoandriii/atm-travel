@@ -38,22 +38,6 @@ export class CineController {
     }
   }
 
-  // Vercel Blob client-upload: validates and returns an upload token to the browser SDK.
-  @Post('blob-token')
-  async blobToken(@Body() body: any, @Req() req: Request) {
-    const { handleUpload } = await import('@vercel/blob/client');
-    return handleUpload({
-      body,
-      request: req as any,
-      onBeforeGenerateToken: async () => ({
-        allowedContentTypes: ['video/webm', 'video/mp4'],
-        addRandomSuffix: true,
-        maximumSizeInBytes: 200 * 1024 * 1024,
-      }),
-      onUploadCompleted: async () => { /* optional: could log here */ },
-    });
-  }
-
   @Post()
   async create(
     @Body() body: { lat: number; lng: number; dur?: number; title?: string; items: { format: string; url: string }[] },

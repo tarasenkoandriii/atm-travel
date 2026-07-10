@@ -10,7 +10,21 @@ export type VgManifest = {
   clips: VgClip[];
   width?: number;
   height?: number;
+  // Optional per-format override for clips[0]'s URL (same start/duration, just different footage) —
+  // used for the globe intro, which is recorded separately per aspect ratio client-side (matching
+  // /cine's approach: one shared animation pass, center-cropped per format) so it fills the frame
+  // properly in all 3 instead of one recording getting letterboxed/pillarboxed for the others.
+  // Keyed by our format names: '9x16' | '4x5' | '16x9'.
+  introByFormat?: Record<string, string>;
 };
+
+// The 3 standard social aspect ratios (vertical, square-ish, and landscape), so
+// "3 формата ... как в reels" produces the same crops here.
+const SOCIAL_FORMATS: { name: string; w: number; h: number }[] = [
+  { name: '9x16', w: 1080, h: 1920 },
+  { name: '4x5', w: 1080, h: 1350 },
+  { name: '16x9', w: 1920, h: 1080 },
+];
 
 const SUPPORTED_TRANSITIONS = new Set([
   'crossfade', 'fade', 'dissolve', 'wipeleft', 'wiperight', 'slideleft', 'slideright', 'circleopen', 'circleclose',
@@ -22,14 +36,17 @@ const SUPPORTED_TRANSITIONS = new Set([
 const XFADE_NAME: Record<string, string> = { crossfade: 'fade' };
 
 /**
- * Translates our higher-level "clips + voiceover + transition" manifest into a single raw FFmpeg
- * filter-graph command, then submits it to the real, hosted Very Good FFmpeg API
+ * Translates our higher-level "clips + voiceover + transition" manifest into raw FFmpeg
+ * filter-graph commands, then submits them to the real, hosted Very Good FFmpeg API
  * (https://verygoodffmpeg.com — confirmed live service; POST /api/ffmpeg takes exactly this
- * input_files/output_files/ffmpeg_commands shape and runs arbitrary ffmpeg commands server-side).
+ * input_files/output_files/ffmpeg_commands shape and runs arbitrary ffmpeg commands server-side,
+ * and — confirmed by their own docs example — accepts MULTIPLE ffmpeg_commands/output_files in one
+ * job, e.g. transcoding to 1080p/720p/480p in a single request. We use that same mechanism to
+ * produce all 3 social aspect ratios (9:16, 4:5, 16:9) as one job instead of three separate ones).
  *
- * We build ONE filter_complex covering trim + xfade transitions + duration alignment + audio
- * replacement in a single pass — no intermediate re-encoding, per the "единый FFmpeg Filter Graph"
- * requirement.
+ * Each format gets its own full filter_complex (own scale/pad, since W/H differ), but the shared
+ * per-clip trim args and the xfade timeline (offsets depend only on clip DURATIONS, not W/H) are
+ * computed once and reused across all 3 — no need to redo that math per format.
  */
 @Injectable()
 export class VgFfmpegService {
@@ -46,63 +63,28 @@ export class VgFfmpegService {
     return !!this.apiKey();
   }
 
-  // ── Filter graph construction ──────────────────────────────────────────────────────────────
-  buildCommand(m: VgManifest): { inputFiles: Record<string, string>; command: string; outputName: string; totalDurationSec: number } {
-    if (!m.clips || !m.clips.length) throw new HttpException('clips is empty', HttpStatus.BAD_REQUEST);
-    if (m.clips.length > 500) throw new HttpException('слишком много клипов (максимум 500)', HttpStatus.BAD_REQUEST);
-    if (!m.voiceover || !m.voiceover.url || !(m.voiceover.duration > 0)) {
-      throw new HttpException('voiceover.url/duration обязательны', HttpStatus.BAD_REQUEST);
-    }
-
-    const transType = (m.transition?.type || 'crossfade').toLowerCase();
-    if (!SUPPORTED_TRANSITIONS.has(transType)) {
-      throw new HttpException(`неподдерживаемый transition.type: ${transType}`, HttpStatus.BAD_REQUEST);
-    }
-    const xfadeName = XFADE_NAME[transType] || transType;
-    const rawTransDur = Number(m.transition?.duration);
-    const transDur = Math.max(0.05, Number.isFinite(rawTransDur) ? rawTransDur : 0.5);
-    const fillMode = m.fillMode === 'loop' ? 'loop' : 'freeze';
-    const W = Math.min(3840, Math.max(240, Math.round(m.width || 1080)));
-    const H = Math.min(3840, Math.max(240, Math.round(m.height || 1920)));
-
-    // Validate + clamp each clip's start/duration (спека: "duration превышает остаток — уменьшить").
-    // We don't know each source file's real length server-side ahead of time (no ffprobe pass —
-    // that would mean a second pass, which we're avoiding), so we trust the manifest's numbers but
-    // guard against obviously-invalid values.
-    const clips = m.clips.map((c, i) => {
-      if (!c.url) throw new HttpException(`clips[${i}].url отсутствует`, HttpStatus.BAD_REQUEST);
-      const start = Math.max(0, Number(c.start) || 0);
-      const rawDur = Number(c.duration);
-      if (!Number.isFinite(rawDur) || rawDur <= 0) throw new HttpException(`clips[${i}].duration должен быть > 0`, HttpStatus.BAD_REQUEST);
-      return { url: c.url, start, duration: Math.max(0.1, rawDur) };
-    });
-
-    const inputFiles: Record<string, string> = {};
-    clips.forEach((c, i) => { inputFiles[`clip${i}`] = c.url; });
-    inputFiles.voiceover = m.voiceover.url;
-
-    // Input-level trim (-ss/-t) is efficient (seeks before decode) and keeps this a single pass —
-    // no separate trim filter needed. setpts normalizes each stream to start at t=0 so xfade offsets
-    // (which are timeline-relative) line up correctly.
-    const inputArgs = clips
-      .map((c, i) => `-ss ${c.start.toFixed(3)} -t ${c.duration.toFixed(3)} -i {{clip${i}}}`)
-      .concat([`-i {{voiceover}}`])
-      .join(' ');
-
+  // Builds the filter_complex + full command for ONE target format, given the already-validated,
+  // shared clip list/timeline. Pulled out of buildCommands() so it can be called once per format
+  // without repeating clip validation or the xfade-offset derivation (format-independent) each time.
+  private buildOneCommand(opts: {
+    clips: { url: string; start: number; duration: number }[];
+    transDur: number; xfadeName: string; fillMode: 'freeze' | 'loop';
+    W: number; H: number; target: number; inputArgs: string; voiceIdx: number; outName: string;
+  }): string {
+    const { clips, transDur, xfadeName, fillMode, W, H, target, inputArgs, voiceIdx, outName } = opts;
     const filters: string[] = [];
-    // rawTotal only depends on clip durations, so it's knowable before building any filters —
-    // used here to decide up front whether the last clip's stream needs to be split (loop fillMode
-    // consumes it a second time, in addition to the main xfade chain — ffmpeg filter labels can only
-    // be used as input once each unless explicitly split).
     const rawTotal = clips.reduce((s, c) => s + c.duration, 0) - (clips.length - 1) * transDur;
-    const target = m.voiceover.duration;
     const willLoopFill = fillMode === 'loop' && rawTotal < target - 0.01;
     const lastIdx = clips.length - 1;
     clips.forEach((c, i) => {
       const outLabel = willLoopFill && i === lastIdx ? `v${i}pre` : `v${i}`;
       filters.push(
-        `[${i}:v]scale=${W}:${H}:force_original_aspect_ratio=decrease,` +
-        `pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,fps=30,format=yuv420p,setpts=PTS-STARTPTS[${outLabel}]`,
+        // increase+crop (fill the frame, crop the excess) — NOT decrease+pad (fit inside, black
+        // bars). This matches the scaling convention used everywhere else in this project
+        // (cine.html's canvas coverDraw) — no
+        // letterboxing/pillarboxing anywhere in the final output.
+        `[${i}:v]scale=${W}:${H}:force_original_aspect_ratio=increase,` +
+        `crop=${W}:${H},setsar=1,fps=30,format=yuv420p,setpts=PTS-STARTPTS[${outLabel}]`,
       );
     });
     if (willLoopFill) {
@@ -153,13 +135,79 @@ export class VgFfmpegService {
     }
 
     const filterComplex = filters.join(';');
-    const voiceIdx = clips.length; // 0-based index of the voiceover input
-    const outName = 'output.mp4';
-    const command =
-      `${inputArgs} -filter_complex "${filterComplex}" -map [${finalLabel}] -map ${voiceIdx}:a ` +
+    return `${inputArgs} -filter_complex "${filterComplex}" -map [${finalLabel}] -map ${voiceIdx}:a ` +
       `-t ${target.toFixed(3)} -c:v libx264 -pix_fmt yuv420p -r 30 -c:a aac -b:a 192k -ar 48000 -movflags +faststart {{${outName}}}`;
+  }
 
-    return { inputFiles, command, outputName: outName, totalDurationSec: target };
+  // ── Filter graph construction — one command per social format (9:16, 4:5, 16:9) ───────────────
+  buildCommands(m: VgManifest): { inputFiles: Record<string, string>; commands: { format: string; outputName: string; command: string }[]; totalDurationSec: number } {
+    if (!m.clips || !m.clips.length) throw new HttpException('clips is empty', HttpStatus.BAD_REQUEST);
+    if (m.clips.length > 500) throw new HttpException('слишком много клипов (максимум 500)', HttpStatus.BAD_REQUEST);
+    if (!m.voiceover || !m.voiceover.url || !(m.voiceover.duration > 0)) {
+      throw new HttpException('voiceover.url/duration обязательны', HttpStatus.BAD_REQUEST);
+    }
+
+    const transType = (m.transition?.type || 'crossfade').toLowerCase();
+    if (!SUPPORTED_TRANSITIONS.has(transType)) {
+      throw new HttpException(`неподдерживаемый transition.type: ${transType}`, HttpStatus.BAD_REQUEST);
+    }
+    const xfadeName = XFADE_NAME[transType] || transType;
+    const rawTransDur = Number(m.transition?.duration);
+    const transDur = Math.max(0.05, Number.isFinite(rawTransDur) ? rawTransDur : 0.5);
+    const fillMode = m.fillMode === 'loop' ? 'loop' : 'freeze';
+
+    // Validate + clamp each clip's start/duration (спека: "duration превышает остаток — уменьшить").
+    // We don't know each source file's real length server-side ahead of time (no ffprobe pass —
+    // that would mean a second pass, which we're avoiding), so we trust the manifest's numbers but
+    // guard against obviously-invalid values.
+    const clips = m.clips.map((c, i) => {
+      if (!c.url) throw new HttpException(`clips[${i}].url отсутствует`, HttpStatus.BAD_REQUEST);
+      const start = Math.max(0, Number(c.start) || 0);
+      const rawDur = Number(c.duration);
+      if (!Number.isFinite(rawDur) || rawDur <= 0) throw new HttpException(`clips[${i}].duration должен быть > 0`, HttpStatus.BAD_REQUEST);
+      return { url: c.url, start, duration: Math.max(0.1, rawDur) };
+    });
+
+    const inputFiles: Record<string, string> = {};
+    inputFiles.voiceover = m.voiceover.url;
+
+    // If the manifest explicitly sets width/height, honor that as a SINGLE custom format instead of
+    // the standard 3 (keeps the API usable for a one-off custom size); otherwise produce all 3.
+    const formats = (m.width && m.height)
+      ? [{ name: `${Math.round(m.width)}x${Math.round(m.height)}`, w: Math.round(m.width), h: Math.round(m.height) }]
+      : SOCIAL_FORMATS;
+    const voiceIdx = clips.length; // 0-based index of the voiceover input (same slot in every command)
+    const target = m.voiceover.duration;
+
+    const commands = formats.map((fmt) => {
+      // clips[0] (the globe intro) may have a per-format URL (recorded/cropped separately for each
+      // aspect ratio, like /cine does) — everything else (real B-roll) is identical across formats.
+      // input_files is ONE shared map for the whole job, so an intro that differs per format needs
+      // its own placeholder key per format; clips sharing the same footage keep a single shared key.
+      const introOverrideUrl = m.introByFormat?.[fmt.name];
+      clips.forEach((c, i) => {
+        const useOverride = i === 0 && introOverrideUrl;
+        const key = useOverride ? `clip0_${fmt.name}` : `clip${i}`;
+        inputFiles[key] = useOverride ? introOverrideUrl! : c.url;
+      });
+      const inputArgsForFmt = clips
+        .map((c, i) => {
+          const key = i === 0 && introOverrideUrl ? `clip0_${fmt.name}` : `clip${i}`;
+          return `-ss ${c.start.toFixed(3)} -t ${c.duration.toFixed(3)} -i {{${key}}}`;
+        })
+        .concat([`-i {{voiceover}}`])
+        .join(' ');
+      return {
+        format: fmt.name,
+        outputName: `output-${fmt.name}.mp4`,
+        command: this.buildOneCommand({
+          clips, transDur, xfadeName, fillMode, W: fmt.w, H: fmt.h, target, inputArgs: inputArgsForFmt, voiceIdx,
+          outName: `output-${fmt.name}.mp4`,
+        }),
+      };
+    });
+
+    return { inputFiles, commands, totalDurationSec: target };
   }
 
   // ── Real API calls (server-side only — API key never reaches the browser) ────────────────────
@@ -179,20 +227,26 @@ export class VgFfmpegService {
     throw lastErr;
   }
 
-  async submitRender(manifest: VgManifest): Promise<{ jobId: string; status: string }> {
+  async submitRender(manifest: VgManifest): Promise<{ jobId: string; status: string; formats: string[] }> {
     const key = this.apiKey();
     if (!key) throw new HttpException('VGFFMPEG_API_KEY не настроен', HttpStatus.SERVICE_UNAVAILABLE);
-    const { inputFiles, command, outputName } = this.buildCommand(manifest);
+    const { inputFiles, commands } = this.buildCommands(manifest);
     // Idempotency key derived from the manifest content — resubmitting the identical manifest
     // (e.g. a retried client request) reuses the same key so a well-behaved API can dedupe it.
     const idemKey = createHash('sha256').update(JSON.stringify(manifest)).digest('hex');
-    this.logger.log(`submitRender idempotencyKey=${idemKey.slice(0, 12)} clips=${manifest.clips.length}`);
+    this.logger.log(`submitRender idempotencyKey=${idemKey.slice(0, 12)} clips=${manifest.clips.length} formats=${commands.map((c) => c.format).join(',')}`);
     try {
       return await this.withRetry(async () => {
         const res = await fetch(`${this.base}/ffmpeg`, {
           method: 'POST',
           headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', 'Idempotency-Key': idemKey },
-          body: JSON.stringify({ input_files: inputFiles, output_files: [outputName], ffmpeg_commands: [command] }),
+          // Multiple ffmpeg_commands + output_files in ONE job — confirmed supported by the API's
+          // own docs example (transcoding to 1080p/720p/480p in a single request).
+          body: JSON.stringify({
+            input_files: inputFiles,
+            output_files: commands.map((c) => c.outputName),
+            ffmpeg_commands: commands.map((c) => c.command),
+          }),
         });
         const text = await res.text();
         let j: any = {}; try { j = JSON.parse(text); } catch { /* keep raw text for the error below */ }
@@ -207,7 +261,7 @@ export class VgFfmpegService {
           this.logger.error(`submitRender: no id/jobId/job_id in response — raw body: ${text.slice(0, 1000)}`);
           throw new HttpException('ответ Very Good FFmpeg не содержит id задачи — см. логи сервера для точного формата ответа', HttpStatus.BAD_GATEWAY);
         }
-        return { jobId, status: d.status || 'queued' };
+        return { jobId, status: d.status || 'queued', formats: commands.map((c) => c.format) };
       }, 'submitRender');
     } catch (e: any) {
       if (e instanceof HttpException) throw e;
@@ -215,7 +269,7 @@ export class VgFfmpegService {
     }
   }
 
-  async getStatus(jobId: string): Promise<{ status: string; output?: string; error?: string }> {
+  async getStatus(jobId: string): Promise<{ status: string; outputs?: Record<string, string>; error?: string }> {
     const key = this.apiKey();
     if (!key) throw new HttpException('VGFFMPEG_API_KEY не настроен', HttpStatus.SERVICE_UNAVAILABLE);
     if (!jobId || jobId === 'undefined' || jobId === 'null') {
@@ -229,10 +283,14 @@ export class VgFfmpegService {
         let j: any = {}; try { j = JSON.parse(text); } catch { this.logger.error(`getStatus: non-JSON response — ${text.slice(0, 500)}`); }
         // Same "data" envelope as the submit response — see the comment in submitRender().
         const d = j?.data || j;
-        const output = d.output || d.output_url || d.url
-          || (d.output_files && (d.output_files[Object.keys(d.output_files)[0]] || undefined))
-          || (Array.isArray(d.result) && d.result[0] && (d.result[0].download_url || d.result[0].url))
-          || undefined;
+        // We now submit up to 3 outputs (one per social format) in a single job — output_files is
+        // an object keyed by the filenames we chose ("output-9x16.mp4" etc.) once the job finishes.
+        // Return the whole map rather than picking just one, so the caller can show all formats.
+        const outputs: Record<string, string> | undefined = (d.output_files && Object.keys(d.output_files).length)
+          ? d.output_files
+          : (Array.isArray(d.result) && d.result.length)
+            ? Object.fromEntries(d.result.map((r: any, i: number) => [r.file_name || `output${i}`, r.download_url || r.url]))
+            : undefined;
         // error_message is "" (empty string, not null) when there's no error — only surface it if non-empty.
         const errorMsg = d.error_message || d.error;
         // Confirmed real value (2026-07-09): a finished job's status is "succeeded", NOT "completed" —
@@ -241,7 +299,7 @@ export class VgFfmpegService {
         const SUCCESS = new Set(['succeeded', 'completed', 'success', 'done', 'finished']);
         const FAILURE = new Set(['failed', 'error', 'errored', 'cancelled', 'canceled']);
         const status = SUCCESS.has(d.status) ? 'completed' : FAILURE.has(d.status) ? 'failed' : d.status;
-        return { status, output, error: errorMsg ? errorMsg : undefined };
+        return { status, outputs, error: errorMsg ? errorMsg : undefined };
       }, 'getStatus');
     } catch (e: any) {
       if (e instanceof HttpException) throw e;

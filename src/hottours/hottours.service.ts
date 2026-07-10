@@ -916,7 +916,6 @@ ${tops}
       'Allow: /',
       'Disallow: /hot-admin',
       'Disallow: /reels-admin',
-      'Disallow: /fast-reels',
       'Disallow: /very-good-ffmpeg',
       'Disallow: /very-good-ffmpeg',
       'Disallow: /api/',

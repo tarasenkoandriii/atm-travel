@@ -57,7 +57,7 @@
       <div><label>Lat</label><input id="lat" type="number" step="0.0001"></div>
       <div><label>Lng</label><input id="lng" type="number" step="0.0001"></div>
       <div><label>Title</label><input id="title" placeholder="Хургада, Египет"></div>
-      <div><label>Ширина/высота</label><input id="outW" type="number" value="1080" style="width:48%;display:inline-block"> <input id="outH" type="number" value="1920" style="width:48%;display:inline-block"></div>
+      <div><label>Форматы</label><div style="padding-top:9px;font-size:13px;color:var(--text)">9:16 · 4:5 · 16:9 — все три, одним job</div></div>
     </div>
     <div class="grid">
       <div><label>Переход (transition.type)</label>
@@ -92,7 +92,7 @@
       <div><label>Live-cam clip .mp4 (добавляется последним клипом)</label><input id="livecam" placeholder="https://.../cam.mp4"></div>
     </div>
     <div style="margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-      <button class="btn" id="go">▶ Собрать ролик</button>
+      <button class="btn" id="go">▶ Собрать 3 формата</button>
       <button class="btn2" id="analyze" disabled>🧠 Анализ Grok</button>
       <button class="btn2" id="publish" disabled>📣 Публикация</button>
       <span class="muted">H.264 · рендер на стороне Very Good FFmpeg API</span>
@@ -229,27 +229,52 @@ const gc = () => host.querySelector('canvas');
 // smootherstep (quintic): zero velocity AND acceleration at both ends → visibly smoother than cubic
 const easeInOut = t => t * t * t * (t * (t * 6 - 15) + 10);
 
-// Record a globe fly-to as a WebM blob at a given size/duration — this is the manifest's `intro`.
-function recordIntro(w, h, seconds, lat, lng, fps, geoLabel) {
+// Same 3 social formats as the backend's SOCIAL_FORMATS (vgffmpeg.service.ts) — keep these in sync.
+const INTRO_FORMATS = [{ name: '9x16', w: 1080, h: 1920 }, { name: '4x5', w: 1080, h: 1350 }, { name: '16x9', w: 1920, h: 1080 }];
+// Master render size the globe is captured at, BEFORE per-format cropping. Square, and large enough
+// that every target format's crop is either native-resolution or a slight downscale — never an
+// upscale (see the worked-out math: 9:16 and 16:9 crop out of a 1920×1920 source needing zero
+// scaling at all; 4:5 needs only a mild downscale). Matches /cine's approach of recording ONE shared
+// source and center-cropping per format (its coverDraw), rather than recording one fixed aspect and
+// letting the server pillarbox/letterbox the others.
+const INTRO_MASTER = 1920;
+// Center-crop `src` (sw×sh) to the dw:dh aspect ratio, then draw into ctx at dw×dh — ported from
+// /cine's coverDraw so the intro fills the frame the same way tour B-roll and cine's own captures do
+// (no black bars).
+function coverDrawIntro(ctx, src, sw, sh, dw, dh) {
+  if (!sw || !sh) return;
+  const sr = sw / sh, dr = dw / dh;
+  let cw, ch, cx0, cy0;
+  if (sr > dr) { ch = sh; cw = sh * dr; cx0 = (sw - cw) / 2; cy0 = 0; }
+  else { cw = sw; ch = sw / dr; cx0 = 0; cy0 = (sh - ch) / 2; }
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(src, cx0, cy0, cw, ch, 0, 0, dw, dh);
+}
+
+// Record the globe fly-to ONCE, simultaneously cropped/recorded into all 3 social formats — mirrors
+// /cine's runRecorders (one shared animation pass driving N differently-sized+cropped recorders)
+// instead of re-recording (and re-flying the camera) once per format. Returns { '9x16': blob, ... }.
+function recordIntroAllFormats(seconds, lat, lng, fps, geoLabel) {
   return new Promise(resolve => {
-    G.width(w); G.height(h); host.style.width = w + 'px'; host.style.height = h + 'px';
+    G.width(INTRO_MASTER); G.height(INTRO_MASTER); host.style.width = INTRO_MASTER + 'px'; host.style.height = INTRO_MASTER + 'px';
     G.ringsData([{ lat, lng }]).pointsData([{ lat, lng }]).pointColor(() => '#f2b64c').pointAltitude(0.01).pointRadius(0.5);
-    // Composite the globe onto a 2D canvas so we can burn in a geo plate (name label). No weather widget.
-    const cc = document.createElement('canvas'); cc.width = w; cc.height = h; const cx = cc.getContext('2d');
-    const stream = cc.captureStream(fps || 30);
-    const rec = new MediaRecorder(stream, { mimeType: MIME, videoBitsPerSecond: 6_000_000 });
-    const chunks = []; rec.ondataavailable = e => e.data.size && chunks.push(e.data);
-    rec.onstop = () => resolve(new Blob(chunks, { type: 'video/webm' }));
+    const recs = INTRO_FORMATS.map(f => {
+      const cc = document.createElement('canvas'); cc.width = f.w; cc.height = f.h; const cx = cc.getContext('2d');
+      const rec = new MediaRecorder(cc.captureStream(fps || 30), { mimeType: MIME, videoBitsPerSecond: 6_000_000 });
+      const chunks = []; rec.ondataavailable = e => e.data.size && chunks.push(e.data);
+      return { name: f.name, w: f.w, h: f.h, cc, cx, rec, chunks };
+    });
     const start = { lat: lat - 6, lng: lng - 26, altitude: 2.5 }, end = { lat, lng, altitude: 0.62 };
     const driftDeg = 14;   // gentle continuous longitude glide, ramped in so it's a slow cinematic drift near the end
-    function plate(alpha) {
+    function plate(r, alpha) {
       if (!geoLabel) return;
+      const { cx, w, h } = r;
       const fs = Math.round(h * 0.032);
       cx.font = "600 " + fs + "px 'Space Grotesk', system-ui, sans-serif";
       const tw = cx.measureText(geoLabel).width, padX = h * 0.024, bw = tw + padX * 2 + h * 0.02, bh = h * 0.062;
-      const bx = (w - bw) / 2, by = h - bh - h * 0.07, r = bh / 2;
+      const bx = (w - bw) / 2, by = h - bh - h * 0.07, rr = bh / 2;
       cx.globalAlpha = alpha; cx.fillStyle = 'rgba(9,16,24,.72)';
-      cx.beginPath(); cx.moveTo(bx + r, by); cx.arcTo(bx + bw, by, bx + bw, by + bh, r); cx.arcTo(bx + bw, by + bh, bx, by + bh, r); cx.arcTo(bx, by + bh, bx, by, r); cx.arcTo(bx, by, bx + bw, by, r); cx.closePath(); cx.fill();
+      cx.beginPath(); cx.moveTo(bx + rr, by); cx.arcTo(bx + bw, by, bx + bw, by + bh, rr); cx.arcTo(bx + bw, by + bh, bx, by + bh, rr); cx.arcTo(bx, by + bh, bx, by, rr); cx.arcTo(bx, by, bx + bw, by, rr); cx.closePath(); cx.fill();
       cx.fillStyle = '#f2b64c'; cx.beginPath(); cx.arc(bx + padX, by + bh / 2, h * 0.008, 0, 7); cx.fill();
       cx.fillStyle = '#eef4f8'; cx.textBaseline = 'middle'; cx.fillText(geoLabel, bx + padX + h * 0.02, by + bh / 2);
       cx.globalAlpha = 1;
@@ -258,12 +283,11 @@ function recordIntro(w, h, seconds, lat, lng, fps, geoLabel) {
     // G.width/height resizes the WebGL renderer, but that resize is only VISIBLE once Three.js
     // actually renders a frame at the new size — which happens on a later animation frame, not
     // synchronously. Capturing/drawImage'ing gc() immediately after resize can grab the canvas
-    // mid-reallocation (observed as ~110-byte near-empty webm outputs for some formats, while
-    // others — recorded later, after the renderer had "caught up" — came out fine). Wait a couple
-    // of animation frames so the resized globe has definitely been painted before we start.
+    // mid-reallocation (observed as near-empty webm outputs for some formats in testing). Wait a
+    // couple of animation frames so the resized globe has definitely been painted before we start.
     requestAnimationFrame(() => requestAnimationFrame(() => {
       const t0 = performance.now(), dur = seconds * 1000;
-      rec.start();
+      recs.forEach(r => r.rec.start());
       (function loop() {
         const t = Math.min(1, (performance.now() - t0) / dur), e = easeInOut(t);
         const drift = driftDeg * t * t;   // quadratic ramp-in: ~0 at start, still gliding at the end
@@ -272,12 +296,20 @@ function recordIntro(w, h, seconds, lat, lng, fps, geoLabel) {
           lng: start.lng + (end.lng - start.lng) * e + drift,
           altitude: start.altitude + (end.altitude - start.altitude) * e,
         }, 0);
-        cx.fillStyle = '#05080c'; cx.fillRect(0, 0, w, h);
-        try { cx.drawImage(gc(), 0, 0, w, h); } catch (err) {}
-        plate(Math.min(1, t * 2.5));   // fade the geo plate in
-        if (t < 1) requestAnimationFrame(loop); else setTimeout(() => rec.stop(), 120);
+        const src = gc(); const sw = INTRO_MASTER, sh = INTRO_MASTER;
+        const plateAlpha = Math.min(1, t * 2.5);
+        recs.forEach(r => {
+          r.cx.fillStyle = '#05080c'; r.cx.fillRect(0, 0, r.w, r.h);
+          try { coverDrawIntro(r.cx, src, sw, sh, r.w, r.h); } catch (err) {}
+          plate(r, plateAlpha);
+        });
+        if (t < 1) requestAnimationFrame(loop); else setTimeout(() => recs.forEach(r => r.rec.stop()), 120);
       })();
     }));
+    Promise.all(recs.map(r => new Promise(res => { r.rec.onstop = () => res(new Blob(r.chunks, { type: 'video/webm' })); }))).then(blobs => {
+      const out = {}; recs.forEach((r, i) => { out[r.name] = blobs[i]; });
+      resolve(out);
+    });
   });
 }
 
@@ -340,6 +372,12 @@ async function run() {
     let cfg = { configured: false };
     try { cfg = await fetch('/api/vgffmpeg/config?key=' + encodeURIComponent(key)).then(r => r.json()); } catch (e) {}
     if (!cfg.configured) throw new Error('VGFFMPEG_API_KEY не настроен на сервере — рендер через Very Good FFmpeg недоступен.');
+    // This whole page depends on being able to upload the recorded intro (and any blog-mode local
+    // "blob:" clips) to Blob storage — fail fast here with a clear message instead of getting a
+    // less obvious error later, after already recording the (3-format) globe intro.
+    let cineCfg = { blobEnabled: false };
+    try { cineCfg = await fetch('/api/cine/config').then((r) => r.json()); } catch (e) {}
+    if (!cineCfg.blobEnabled) throw new Error('Blob storage не настроен на сервере (нет BLOB_READ_WRITE_TOKEN) — загрузка интро/локальных клипов невозможна.');
 
     const lat = num($('#lat').value, NaN), lng = num($('#lng').value, NaN);
     const wantIntro = qs.get('intro') !== '0';
@@ -354,23 +392,34 @@ async function run() {
     const voDuration = await probeAudioDuration(sel.url);
     log('озвучка: ' + voDuration.toFixed(1) + 'с');
 
-    const W = num($('#outW').value, 1080), H = num($('#outH').value, 1920);
+    // Intro is recorded once, locally, at a single base resolution — the server-side filter_complex
+    // Intro is recorded once (single globe fly-to animation), simultaneously cropped+captured into
+    // all 3 social-format canvases — see recordIntroAllFormats()/coverDrawIntro() above (ported from
+    // /cine's runRecorders+coverDraw) so each format fills its frame properly instead of one
+    // recording getting letterboxed/pillarboxed for the other aspect ratios.
     const manifestClips = [];
     let introSec = 0;
+    let introByFormat = null;
 
     if (wantIntro) {
       introSec = Math.max(2, Math.min(6, voDuration * 0.12));
-      setStatus('Запись интро (глобус)…');
-      let introBlob = await recordIntro(W, H, introSec, lat, lng, 30, qs.get('geo') || $('#title').value || '');
-      log('интро-глобус: ' + (introBlob ? introBlob.size : 0) + 'B');
-      if (introBlob && introBlob.size < 20000) {
-        log('⚠ интро подозрительно маленькое — повторная запись…');
-        introBlob = await recordIntro(W, H, introSec, lat, lng, 30, qs.get('geo') || $('#title').value || '');
-        log('интро-глобус (повтор): ' + (introBlob ? introBlob.size : 0) + 'B');
+      setStatus('Запись интро (глобус) — 3 формата…');
+      const geoLabel = qs.get('geo') || $('#title').value || '';
+      let introBlobs = await recordIntroAllFormats(introSec, lat, lng, 30, geoLabel);
+      Object.entries(introBlobs).forEach(([name, b]) => log('интро-глобус ' + name + ': ' + (b ? b.size : 0) + 'B'));
+      if (Object.values(introBlobs).some((b) => !b || b.size < 20000)) {
+        log('⚠ хотя бы один формат интро подозрительно маленький — повторная запись всех трёх…');
+        introBlobs = await recordIntroAllFormats(introSec, lat, lng, 30, geoLabel);
+        Object.entries(introBlobs).forEach(([name, b]) => log('интро-глобус ' + name + ' (повтор): ' + (b ? b.size : 0) + 'B'));
       }
-      setStatus('Загрузка интро в Blob…');
-      const introUrl = await uploadOne(introBlob, 'intro.webm', 'video/webm');
-      manifestClips.push({ url: introUrl, start: 0, duration: +introSec.toFixed(2) });
+      setStatus('Загрузка интро (3 формата) в Blob…');
+      introByFormat = {};
+      for (const [name, blob] of Object.entries(introBlobs)) {
+        introByFormat[name] = await uploadOne(blob, 'intro-' + name + '.webm', 'video/webm');
+      }
+      // clips[0]'s shared "fallback" URL — only actually used if introByFormat somehow isn't honored;
+      // the backend overrides it per-format when introByFormat is present. Reuse the 9x16 recording.
+      manifestClips.push({ url: introByFormat['9x16'], start: 0, duration: +introSec.toFixed(2) });
     }
     // Real B-roll clips (or blog-mode picked clips) — evenly share the remaining runtime as a
     // starting hint. Very Good FFmpeg fits everything to voiceover.duration regardless (trim/
@@ -403,11 +452,13 @@ async function run() {
       transition: { type: $('#transType').value, duration: num($('#transDur').value, 0.5) },
       fillMode: $('#fillMode').value,
       clips: manifestClips,
-      width: W, height: H,
+      // No width/height here on purpose: the backend produces all 3 standard social formats
+      // (9:16, 4:5, 16:9) as one job when width/height are omitted from the manifest.
+      ...(introByFormat ? { introByFormat } : {}),
     };
-    log('манифест: ' + manifestClips.length + ' клипов (в т.ч. интро) · переход ' + manifest.transition.type + '/' + manifest.transition.duration + 'с · fillMode ' + manifest.fillMode);
+    log('манифест: ' + manifestClips.length + ' клипов (в т.ч. интро) · переход ' + manifest.transition.type + '/' + manifest.transition.duration + 'с · fillMode ' + manifest.fillMode + ' · форматы: 9:16, 4:5, 16:9' + (introByFormat ? ' · интро своё под каждый формат' : ''));
     analysisBlob = null; $('#analyze').disabled = true; $('#analysisBox').style.display = 'none';
-    analysisMeta = { title: $('#title').value || '', attributions: [...new Set(clips.map(c => c.attribution).filter(Boolean))], durationSec: +voDuration.toFixed(1), formats: [W + 'x' + H], clips: clips.length };
+    analysisMeta = { title: $('#title').value || '', attributions: [...new Set(clips.map(c => c.attribution).filter(Boolean))], durationSec: +voDuration.toFixed(1), formats: ['9:16', '4:5', '16:9'], clips: clips.length };
 
     setStatus('Отправка задачи в Very Good FFmpeg…');
     const sub = await fetch('/api/vgffmpeg/render', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key, manifest }) })
@@ -433,11 +484,12 @@ async function run() {
         throw new Error('опрос статуса не удался: ' + (e.message || e));
       }
       setProg(Math.min(0.95, (i + 1) / 40));
+      const outCount = st.outputs ? Object.keys(st.outputs).length : 0;
       // Keep a visible timeline in the log (not just the last status line) — every 30s, or on any
       // change — so a stuck/slow render is diagnosable afterwards instead of only "timed out".
-      if (st.status !== lastLoggedStatus || i % 6 === 0) { log('poll ' + (i + 1) + '/120: статус=' + st.status + (st.output ? ' · output готов' : '')); lastLoggedStatus = st.status; }
+      if (st.status !== lastLoggedStatus || i % 6 === 0) { log('poll ' + (i + 1) + '/120: статус=' + st.status + (outCount ? ' · готово форматов: ' + outCount + '/3' : '')); lastLoggedStatus = st.status; }
       if (st.status === 'completed') {
-        if (!st.output) throw new Error('статус completed, но нет ссылки на результат (output/output_files) — см. лог/бэкенд для сырого ответа API');
+        if (!outCount) throw new Error('статус completed, но нет ссылок на результаты (output_files пуст) — см. лог/бэкенд для сырого ответа API');
         result = st; break;
       }
       if (st.status === 'failed' || st.error) throw new Error('рендер не удался: ' + (st.error || 'unknown'));
@@ -446,16 +498,22 @@ async function run() {
     if (!result) throw new Error('превышено время ожидания рендера (10 минут) — последний известный статус: ' + lastLoggedStatus);
 
     setProg(1);
-    showCards([{ fmt: W + ':' + H, url: result.output }]);
-    try { analysisBlob = await fetch(result.output).then((r) => r.blob()); $('#analyze').disabled = false; } catch (e) {}
-    // Register the produced video so the Publish page (/publish?pkg=<id>) has something to post —
+    // outputs is keyed by our chosen filenames ("output-9x16.mp4" etc.) — derive a short format label
+    // from the key for display (falls back to the raw key if it doesn't match our naming pattern).
+    const items = Object.entries(result.outputs).map(([name, url]) => {
+      const m2 = /output-(\d+x\d+)\.mp4/.exec(name);
+      return { fmt: m2 ? m2[1].replace('x', ':') : name, url };
+    });
+    showCards(items);
+    try { analysisBlob = await fetch(items[0].url).then((r) => r.blob()); $('#analyze').disabled = false; } catch (e) {}
+    // Register the produced videos so the Publish page (/publish?pkg=<id>) has something to post —
     // reuses the same "clip set" persistence /reels already uses; unrelated to how it was rendered.
     try {
-      const rec = await fetch('/api/cine', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lat, lng, dur: voDuration, title: $('#title').value || '', items: [{ format: W + ':' + H, url: result.output }] }) }).then((r) => r.json());
+      const rec = await fetch('/api/cine', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lat, lng, dur: voDuration, title: $('#title').value || '', items: items.map((it) => ({ format: it.fmt, url: it.url })) }) }).then((r) => r.json());
       if (rec && rec.id) { lastSetId = rec.id; $('#publish').disabled = false; log('набор для публикации: /api/cine/' + rec.id); }
     } catch (e) { log('⚠ не удалось зарегистрировать набор для публикации: ' + (e.message || e)); }
-    setStatus('Готово · ' + result.output);
-    saveReel(null, { destination: { name: $('#title').value, coords: { lat, lng } }, timeline: [{ outEnd: voDuration }] }, [{ fmt: W + ':' + H, url: result.output }]);
+    setStatus('Готово · форматов: ' + items.length + ' · ' + items.map((it) => it.fmt).join(', '));
+    saveReel(null, { destination: { name: $('#title').value, coords: { lat, lng } }, timeline: [{ outEnd: voDuration }] }, items);
   } catch (e) { setStatus('Ошибка: ' + (e.message || e)); log(String(e)); }
   $('#go').disabled = false;
 }

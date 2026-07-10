@@ -32,7 +32,7 @@ export class BlogService {
       const slug = await this.uniqueSlug(gen.h1);
       const imgs = await this.pickImages(gen.image_queries || [], gen.image_alt_texts || [], slug, topic, 4);
       const img = imgs[0] || null;
-      await this.prisma.blogArticle.create({
+      const created = await this.prisma.blogArticle.create({
         data: {
           slug, locale, theme: theme.id, topic,
           h1: String(gen.h1).slice(0, 300), metaDescription: String(gen.meta_description || '').slice(0, 300),
@@ -44,9 +44,31 @@ export class BlogService {
         },
       });
       this.logger.log(`blog: generated «${gen.h1}» (${theme.id}/${topic}/${locale})${dup ? ' [needs_manual]' : ''}`);
+      this.notifyNewDraft({ id: created.id, h1: created.h1, locale, needsManual: dup }).catch((e) => this.logger.warn(`blog: notify failed: ${e}`));
       return true;
     }
     return false;
+  }
+
+  // Notifies every configured admin Telegram chat that a new blog draft is ready for moderation.
+  // Reuses the SAME AdminSettings.telegramChatId row that the chat-lead notifications use (set via
+  // the "Лиды" tab in /hot-admin) — telegramChatId may hold SEVERAL chat_ids separated by commas,
+  // one message is sent to each so multiple admins/devices get notified independently.
+  private async notifyNewDraft(a: { id: string; h1: string; locale: string; needsManual: boolean }): Promise<void> {
+    const token = this.config.get<string>('TELEGRAM_BOT_TOKEN');
+    if (!token) return;
+    const row = await this.prisma.adminSettings.findUnique({ where: { id: 'singleton' } }).catch(() => null);
+    const raw = (row?.telegramChatId || this.config.get<string>('ADMIN_TELEGRAM_CHAT_ID') || '').trim();
+    const chatIds = raw.split(',').map((s) => s.trim()).filter(Boolean);
+    if (!chatIds.length) return;
+    const flag = a.needsManual ? '⚑ похоже на дубль — ' : '';
+    const text = `📝 Новая статья блога на модерацию (${a.locale}): «${a.h1}»\n${flag}${this.baseUrl}/hot-admin#blogmod`;
+    await Promise.all(chatIds.map((chat) =>
+      fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: chat, text, disable_web_page_preview: true }),
+      }).catch(() => {}),
+    ));
   }
 
   // Rotate theme + locale by the last article; pick the least-covered topic to spread coverage.

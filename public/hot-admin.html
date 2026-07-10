@@ -797,14 +797,14 @@ function renderLeadSettings(st){
   var hintChat = st.usingEnvFallback.chat ? ' (сейчас берётся из env ADMIN_TELEGRAM_CHAT_ID)' : '';
   var hintEmail = st.usingEnvFallback.email ? ' (сейчас берётся из env ADMIN_EMAIL)' : '';
   box.innerHTML =
-    '<div class="panelbox"><div class="pb-head"><span>Канал оповещения о новых лидах</span></div>'+
+    '<div class="panelbox"><div class="pb-head"><span>Канал оповещения о новых лидах и статьях блога</span></div>'+
     '<div style="padding:10px 14px 14px;display:flex;flex-direction:column;gap:8px">'+
-    '<label style="font-size:12px;color:#8a97a3">Telegram chat_id админа'+hintChat+'</label>'+
-    '<input id="lsChat" type="text" placeholder="напр. 123456789" value="'+esc(st.telegramChatId||'')+'" style="background:#0c1420;border:1px solid #1e2c3c;border-radius:8px;padding:8px 10px;color:#dfe8f0;font:inherit">'+
+    '<label style="font-size:12px;color:#8a97a3">Telegram chat_id админов'+hintChat+' — можно несколько через запятую</label>'+
+    '<input id="lsChat" type="text" placeholder="напр. 123456789,987654321" value="'+esc(st.telegramChatId||'')+'" style="background:#0c1420;border:1px solid #1e2c3c;border-radius:8px;padding:8px 10px;color:#dfe8f0;font:inherit">'+
     '<label style="font-size:12px;color:#8a97a3">Email админа'+hintEmail+'</label>'+
     '<input id="lsEmail" type="email" placeholder="напр. admin@atm-travel.org" value="'+esc(st.adminEmail||'')+'" style="background:#0c1420;border:1px solid #1e2c3c;border-radius:8px;padding:8px 10px;color:#dfe8f0;font:inherit">'+
     '<div style="display:flex;gap:8px;align-items:center"><button class="btn pub" id="lsSave">💾 Сохранить канал</button><span id="lsStatus" style="font-size:12px;color:#8a97a3"></span></div>'+
-    '<div style="font-size:11px;color:#5c6b7a">Пусто = используется env-переменная как раньше. Заполните, чтобы переопределить без редеплоя.</div>'+
+    '<div style="font-size:11px;color:#5c6b7a">Пусто = используется env-переменная как раньше. Каждый chat_id из списка получит своё сообщение — и о новых лидах чата, и о новых статьях блога на модерацию.</div>'+
     '</div></div>';
   $('#lsSave').addEventListener('click', function(){
     var b=this; var old=b.textContent; b.disabled=true; b.textContent='Сохраняю…';

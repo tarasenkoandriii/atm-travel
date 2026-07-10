@@ -237,10 +237,14 @@ export class ChatService {
 
   // Admin-configurable notification channel: DB override (set via /hot-admin) takes precedence over env vars,
   // so the channel can be changed without a redeploy.
-  private async adminChannel(): Promise<{ chat?: string; email?: string }> {
+  // telegramChatId may hold SEVERAL chat_ids separated by commas (see BlogService.notifyNewDraft,
+  // which reads the same AdminSettings row) — parsed into an array so every configured admin gets
+  // their own copy of the message instead of sending one malformed "123,456"-style chat_id.
+  private async adminChannel(): Promise<{ chats: string[]; email?: string }> {
     const row = await this.prisma.adminSettings.findUnique({ where: { id: 'singleton' } }).catch(() => null);
+    const raw = (row?.telegramChatId || '').trim() || this.config.get<string>('ADMIN_TELEGRAM_CHAT_ID') || '';
     return {
-      chat: (row?.telegramChatId || '').trim() || this.config.get<string>('ADMIN_TELEGRAM_CHAT_ID') || undefined,
+      chats: raw.split(',').map((s) => s.trim()).filter(Boolean),
       email: (row?.adminEmail || '').trim() || this.config.get<string>('ADMIN_EMAIL') || undefined,
     };
   }
@@ -269,10 +273,12 @@ export class ChatService {
   }
 
   private async notifyAdmin(lead: any) {
-    const { chat, email } = await this.adminChannel();
+    const { chats, email } = await this.adminChannel();
     const token = this.config.get<string>('TELEGRAM_BOT_TOKEN');
     const text = `🆕 Лид (чат): ${lead.direction || 'направление?'} · бюджет ${lead.budget || '?'} · когда: ${lead.whenText || '?'}\nКонтакты: ${lead.contacts}\n${this.baseUrl}/hot-admin`;
-    if (token && chat) await fetch(`https://api.telegram.org/bot${token}/sendMessage`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chat_id: chat, text, disable_web_page_preview: true }) }).catch(() => {});
+    if (token && chats.length) await Promise.all(chats.map((chat) =>
+      fetch(`https://api.telegram.org/bot${token}/sendMessage`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chat_id: chat, text, disable_web_page_preview: true }) }).catch(() => {}),
+    ));
     const key = this.config.get<string>('RESEND_API_KEY'); const from = this.config.get<string>('MAIL_FROM');
     if (key && from && email) await fetch('https://api.resend.com/emails', { method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ from, to: email, subject: 'Новый лид из чата ATM-travel', text }) }).catch(() => {});
   }

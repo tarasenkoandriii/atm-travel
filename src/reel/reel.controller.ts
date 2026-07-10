@@ -203,9 +203,6 @@ export class ReelController {
   ];
   private readonly MAX = 80 * 1024 * 1024;
 
-  @Get('config')
-  cfg() { return { clipsProvider: this.reelClips.provider() }; }
-
   // Auto-source B-roll for the "нарезка" between the globe intro and the live camera.
   @Get('clips')
   async clips(@Query('q') q: string, @Query('n') n: string, @Query('orientation') orientation: string, @Query('shots') shots: string) {

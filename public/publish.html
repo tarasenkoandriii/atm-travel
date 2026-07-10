@@ -142,7 +142,7 @@ async function publish(key) {
   try {
     const r = await fetch('/api/publish', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ pkg: PKG, videoUrl: VIDEO_PARAM || '', title: TITLE_PARAM || '', network: key, target: cfg.target || '', caption: cfg.caption || '' }),
+      body: JSON.stringify({ pkg: PKG, videoUrl: VIDEO_PARAM || '', title: TITLE_PARAM || '', network: key, target: cfg.target || '', caption: cfg.caption || '', thumbUrl: cfg.thumbUrl || '' }),
     }).then(res => res.json());
     if (r.jobId) { setStat(key, 's-pending', r.message || 'в очереди…'); pollJob(key, r.jobId); return; }   // background (IG/YouTube)
     const cls = r.status === 'ok' ? 's-ok' : r.status === 'todo' ? 's-todo' : 's-error';
@@ -187,7 +187,13 @@ function configure(key) {
   const target = prompt(`${net.name}: цель публикации (${hint})`, cfg.target || '');
   if (target === null) return;
   const caption = prompt(`${net.name}: подпись к посту (необязательно)`, cfg.caption || '');
-  setCfg(key, { channel: channel.trim(), target: (target||'').trim(), caption: (caption||'').trim(), url: cfg.url || '' });
+  let thumbUrl = cfg.thumbUrl || '';
+  if (key === 'telegram') {
+    const t = prompt('Telegram: URL картинки для превью видео (необязательно — если пусто, Telegram сам возьмёт кадр из видео).\nТребования: JPEG, до 200КБ, ширина/высота не больше 320px — иначе будет проигнорирована.', thumbUrl);
+    if (t === null) return;
+    thumbUrl = t.trim();
+  }
+  setCfg(key, { channel: channel.trim(), target: (target||'').trim(), caption: (caption||'').trim(), url: cfg.url || '', thumbUrl });
   render();
 }
 

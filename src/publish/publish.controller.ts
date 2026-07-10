@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, Post, UnauthorizedException } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Logger, Post, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createHash } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
@@ -13,6 +13,7 @@ type Net = 'telegram' | 'whatsapp' | 'viber' | 'youtube' | 'tiktok' | 'instagram
  */
 @Controller('api/publish')
 export class PublishController {
+  private readonly logger = new Logger(PublishController.name);
   constructor(
     private readonly config: ConfigService,
     private readonly prisma: PrismaService,
@@ -45,7 +46,7 @@ export class PublishController {
   }
 
   @Post()
-  async publish(@Body() body: { pkg?: string; network?: Net; target?: string; caption?: string; videoUrl?: string; title?: string }) {
+  async publish(@Body() body: { pkg?: string; network?: Net; target?: string; caption?: string; videoUrl?: string; title?: string; thumbUrl?: string }) {
     const network = body?.network as Net;
     const vid = await this.video(body?.pkg || '', body?.videoUrl || '', body?.title || '');
     if (!vid) return { ok: false, status: 'error', message: 'пакет не найден или пуст' };
@@ -53,7 +54,7 @@ export class PublishController {
     const caption = (body?.caption || title || '').slice(0, 900);
 
     switch (network) {
-      case 'telegram':  return this.telegram(body?.target || '', vid.url, caption);
+      case 'telegram':  return this.telegram(body?.target || '', vid.url, caption, body?.thumbUrl || '');
       case 'facebook':  return this.facebook(body?.target || '', vid.url, caption);
       case 'vk':        return this.vk(body?.target || '', vid.url, caption, title);
       case 'ok':        return this.ok(body?.target || '', vid.url, caption, title);
@@ -242,15 +243,55 @@ export class PublishController {
   }
 
   // ── Telegram Bot API ──────────────────────────────────────────────────────
-  private async telegram(chatId: string, videoUrl: string, caption: string) {
+  private async telegram(chatId: string, videoUrl: string, caption: string, thumbUrl?: string) {
     const token = this.config.get<string>('TELEGRAM_BOT_TOKEN');
     if (!token) return { ok: false, status: 'error', message: 'TELEGRAM_BOT_TOKEN не настроен на сервере' };
     const chat = chatId || this.config.get<string>('TELEGRAM_GROUP_CHAT_ID') || '';   // fall back to own group
     if (!chat) return { ok: false, status: 'error', message: 'укажите chat_id/@канал в «Настроить» или задайте TELEGRAM_GROUP_CHAT_ID (своя группа)' };
     try {
-      const u = `https://api.telegram.org/bot${token}/sendVideo?chat_id=${encodeURIComponent(chat)}` +
-        `&video=${encodeURIComponent(videoUrl)}&caption=${encodeURIComponent(caption)}`;
-      const r = await fetch(u);
+      // Fetch the bytes ourselves and upload as multipart, instead of passing `video=<url>` for
+      // Telegram to fetch itself: Telegram's own "send by URL" path for sendVideo is capped at
+      // 20MB, while a direct/multipart upload allows the full 50MB bot limit. Our renders have no
+      // explicit bitrate cap and scale with article length (a confirmed real render came out to
+      // 31MB for a ~4.5-minute video) — comfortably over the URL-fetch limit, so posting would have
+      // silently failed for longer/heavier videos with no clear indication why.
+      const vidRes = await fetch(videoUrl);
+      if (!vidRes.ok) return { ok: false, status: 'error', message: `не удалось скачать видео для загрузки в Telegram: HTTP ${vidRes.status}` };
+      const buf = Buffer.from(await vidRes.arrayBuffer());
+      const MAX = 50 * 1024 * 1024;
+      if (buf.length > MAX) {
+        return { ok: false, status: 'error', message: `видео ${(buf.length / 1048576).toFixed(1)}МБ превышает лимит Telegram для ботов (50МБ) — сократите ролик или снизьте битрейт` };
+      }
+      const form = new FormData();
+      form.append('chat_id', chat);
+      form.append('caption', caption);
+      form.append('video', new Blob([buf], { type: 'video/mp4' }), 'video.mp4');
+      // Custom thumbnail (Bot API: JPEG, <200KB, width/height ≤320px) — otherwise Telegram picks a
+      // frame from the video itself, which can come out black/blank for some renders. We can't
+      // resize an arbitrary source image server-side here (no image library in this project), so we
+      // validate what's fetchable and just skip attaching it — falling back to Telegram's own
+      // auto-generated thumbnail — rather than failing the whole post over a bad thumbnail.
+      if (thumbUrl) {
+        try {
+          const thumbRes = await fetch(thumbUrl);
+          const ct = (thumbRes.headers.get('content-type') || '').toLowerCase();
+          if (thumbRes.ok && ct.includes('jpeg')) {
+            const thumbBuf = Buffer.from(await thumbRes.arrayBuffer());
+            if (thumbBuf.length > 0 && thumbBuf.length < 200 * 1024) {
+              // The actual bytes go under their OWN field name; the "thumbnail" parameter is a
+              // SEPARATE field holding the string "attach://<that field name>" — Telegram's
+              // convention for referencing a multipart-uploaded file from another parameter.
+              form.append('thumb_upload', new Blob([thumbBuf], { type: 'image/jpeg' }), 'thumb.jpg');
+              form.append('thumbnail', 'attach://thumb_upload');
+            } else {
+              this.logger.warn(`telegram thumbUrl skipped: ${thumbBuf.length} bytes (must be <200KB)`);
+            }
+          } else {
+            this.logger.warn(`telegram thumbUrl skipped: not JPEG (content-type=${ct || 'unknown'})`);
+          }
+        } catch (e: any) { this.logger.warn(`telegram thumbUrl fetch failed: ${e?.message || e}`); }
+      }
+      const r = await fetch(`https://api.telegram.org/bot${token}/sendVideo`, { method: 'POST', body: form });
       const j: any = await r.json();
       if (j?.ok) return { ok: true, status: 'ok', message: 'отправлено', postId: String(j.result?.message_id ?? ''), raw: j.result };
       return { ok: false, status: 'error', message: j?.description || `HTTP ${r.status}`, raw: j };
