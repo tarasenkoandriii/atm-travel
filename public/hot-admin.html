@@ -819,7 +819,7 @@ function renderTpTours(d){
     '<div class="kpi"><div class="n">'+num(s.withArticle)+'</div><div class="l">Уже стали статьями</div></div>'+
     '<div class="kpi"><div class="n">'+num(s.candidateQueue)+'</div><div class="l">Ждут генерации (кандидаты)</div></div>'+
     '<div class="kpi"><div class="n">'+num(s.inactive)+'</div><div class="l">Неактивных (просрочены/исчезли из фида)</div></div></div>';
-  var lastFetch='<div class="sub" style="margin:4px 0 0">Последнее обновление фида: '+(s.lastFetchedAt?dmFull(s.lastFetchedAt):'ещё не было')+'</div>';
+  var lastFetch='<div class="sub" style="margin:4px 0 0">Последнее обновление фида (последняя успешная запись в БД — не время последней попытки): '+(s.lastFetchedAt?dmFull(s.lastFetchedAt):'ещё не было')+'</div>';
 
   var countryOpts='<option value=""'+(TP_STATE.country?'':' selected')+'>Все страны ('+num(s.active+s.inactive)+')</option>'+
     (d.countries||[]).map(function(c){ return '<option value="'+esc(c.country)+'"'+(c.country===TP_STATE.country?' selected':'')+'>'+esc(c.country)+' ('+c.count+')</option>'; }).join('');
@@ -870,9 +870,14 @@ function renderTpTours(d){
     fetch('/api/hot-tours/tp-refresh', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ key:KEY }) })
       .then(function(r){ return r.json(); })
       .then(function(j){
-        if(j&&j.error){ rs.innerHTML='<span style="color:#e0637a">ошибка: '+esc(j.error)+'</span>'; }
-        else if(j&&j.count>0){ rs.innerHTML='<span style="color:#37d67a">✓ добавлено/обновлено: '+j.count+' туров</span>'; }
-        else { rs.textContent='API ответил успешно, но нашёл 0 туров — см. диагностику по направлениям ниже'; }
+        // Client-side timestamp of THIS attempt — "Последнее обновление фида" ниже отражает только
+        // время последнего УСПЕШНОГО апдейта строки в БД и не двигается, если найдено 0 туров (апдейтить
+        // нечего), из-за чего казалось, будто кнопка не отрабатывает. Эта строка — доказательство, что
+        // запрос реально ушёл и вернулся именно сейчас, независимо от результата.
+        var ts=new Date().toLocaleTimeString('uk-UA');
+        if(j&&j.error){ rs.innerHTML='<span style="color:#e0637a">['+ts+'] ошибка: '+esc(j.error)+'</span>'; }
+        else if(j&&j.count>0){ rs.innerHTML='<span style="color:#37d67a">['+ts+'] ✓ добавлено/обновлено: '+j.count+' туров</span>'; }
+        else { rs.innerHTML='<span style="color:#e0a63e">['+ts+'] запрос прошёл, найдено 0 туров</span> — см. диагностику по направлениям ниже'; }
         if(j&&j.diagnostics&&j.diagnostics.length){
           var rows=j.diagnostics.map(function(d){
             var statusTxt = d.error ? '<span style="color:#e0637a">'+esc(d.error)+'</span>'
@@ -880,8 +885,13 @@ function renderTpTours(d){
             return '<tr><td>'+esc(d.loc)+'</td><td class="num">'+(d.cityId||'—')+'</td><td class="num">'+(d.httpStatus||'—')+'</td>'+
               '<td class="num">'+d.rawCount+'</td><td class="num">'+d.keptCount+'</td><td>'+statusTxt+'</td></tr>';
           }).join('');
-          db.innerHTML='<div class="panelbox" style="margin-top:10px"><div class="pb-head"><span>Диагностика по направлениям (последний запуск)</span></div>'+
-            '<table><thead><tr><th>Локация</th><th class="num">cityId</th><th class="num">HTTP</th><th class="num">Получено</th><th class="num">Со скидкой</th><th>Статус</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+          var rawSample = j.diagnostics.find(function(d){ return d.raw; });
+          var rawBlock = rawSample ? '<div style="padding:10px 14px;border-top:1px solid #1e2c3c"><div class="muted" style="font-size:11px;margin-bottom:6px">Сырой ответ API (направление «'+esc(rawSample.loc)+'», первые 500 символов) — если тут явный текст об ошибке/закрытии сервиса, а не просто пустой JSON, значит проблема не в наших настройках:</div><pre style="font-size:11px;color:#9fb2c4;white-space:pre-wrap;word-break:break-all;margin:0">'+esc(rawSample.raw)+'</pre></div>' : '';
+          db.innerHTML='<div class="panelbox" style="margin-top:10px"><div class="pb-head"><span>Диагностика по направлениям (последний запуск, '+ts+')</span></div>'+
+            '<table><thead><tr><th>Локация</th><th class="num">cityId</th><th class="num">HTTP</th><th class="num">Получено</th><th class="num">Со скидкой</th><th>Статус</th></tr></thead><tbody>'+rows+'</tbody></table>'+rawBlock+'</div>';
+          db.scrollIntoView({behavior:'smooth', block:'nearest'});
+        } else if(j && !j.error && (!j.count || j.count===0)) {
+          db.innerHTML='<div class="panelbox" style="margin-top:10px;border-color:#e0a63e"><div style="padding:10px 14px;font-size:12px;color:#e0a63e">Диагностика по направлениям не пришла вообще — это отдельная, более серьёзная проблема (не долетело до fromDiscounts()/fromHotels() или провайдер не в режиме C/D). Сообщите об этом отдельно.</div></div>';
         }
         rb.disabled=false;
         loadTpTours();

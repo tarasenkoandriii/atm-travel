@@ -138,7 +138,13 @@ export class TravelpayoutsToursProvider implements ITourProvider {
   // filter, and how many survived it. A location returning rawCount>0 but keptCount=0 means the
   // Hotellook collection for that city/type genuinely had no discounted hotels right now — not a
   // config error; a location with cityId=null means resolveCityId() itself failed for that IATA code.
-  private lastDiagnostics: { loc: string; cityId: number | null; httpStatus: number | null; rawCount: number; keptCount: number; error?: string }[] = [];
+  // `raw` (first location only, to keep payload small) is the actual response BODY TEXT whenever the
+  // parsed result was empty — Hotellook's Hotels-brand program was reported closed by Travelpayouts'
+  // own FAQ (Oct 2025: "Widgets, landing pages, and the Hotellook API will stop working"); it's
+  // unconfirmed whether that includes this specific Data API vs only their consumer-facing White
+  // Label widgets, so seeing the literal response body (an error page, a deprecation notice, or a
+  // genuinely valid `{}`) settles it directly instead of guessing further.
+  private lastDiagnostics: { loc: string; cityId: number | null; httpStatus: number | null; rawCount: number; keptCount: number; error?: string; raw?: string }[] = [];
   getLastDiagnostics() { return this.lastDiagnostics; }
 
   // ── Mode D (preferred): Hotellook Selections — real hotel deals WITH a discount %. ──
@@ -152,7 +158,7 @@ export class TravelpayoutsToursProvider implements ITourProvider {
     const out: NormalizedTour[] = [];
     this.lastDiagnostics = [];
     for (const loc of this.locations.slice(0, 20)) {
-      const diag = { loc, cityId: null as number | null, httpStatus: null as number | null, rawCount: 0, keptCount: 0, error: undefined as string | undefined };
+      const diag = { loc, cityId: null as number | null, httpStatus: null as number | null, rawCount: 0, keptCount: 0, error: undefined as string | undefined, raw: undefined as string | undefined };
       const cityId = await this.resolveCityId(loc);
       diag.cityId = cityId;
       if (!cityId) { diag.error = 'cityId не резолвится (Hotellook lookup.json не нашёл город)'; this.logger.warn(`Hotellook: no cityId for ${loc}`); this.lastDiagnostics.push(diag); continue; }
@@ -161,10 +167,17 @@ export class TravelpayoutsToursProvider implements ITourProvider {
           `&id=${cityId}&type=${encodeURIComponent(this.selection)}&check_in=${ci}&check_out=${co}&token=${encodeURIComponent(this.token)}`;
         const r = await fetch(url);
         diag.httpStatus = r.status;
-        if (!r.ok) { diag.error = `HTTP ${r.status}`; this.logger.warn(`Hotellook dump ${loc} HTTP ${r.status}`); this.lastDiagnostics.push(diag); continue; }
-        const j: any = await r.json();
+        const bodyText = await r.text();
+        if (!r.ok) {
+          diag.error = `HTTP ${r.status}`;
+          if (this.lastDiagnostics.length === 0) diag.raw = bodyText.slice(0, 500);
+          this.logger.warn(`Hotellook dump ${loc} HTTP ${r.status}`); this.lastDiagnostics.push(diag); continue;
+        }
+        let j: any = {};
+        try { j = JSON.parse(bodyText); } catch { diag.error = 'ответ не JSON'; if (this.lastDiagnostics.length === 0) diag.raw = bodyText.slice(0, 500); this.lastDiagnostics.push(diag); continue; }
         const arr: any[] = Array.isArray(j?.[this.selection]) ? j[this.selection] : (Array.isArray(j) ? j : []);
         diag.rawCount = arr.length;
+        if (arr.length === 0 && this.lastDiagnostics.length === 0) diag.raw = bodyText.slice(0, 500);
         for (const h of arr) {
           const lpi = h.last_price_info || {};
           const price = Math.round(Number(lpi.price || 0));
@@ -214,16 +227,19 @@ export class TravelpayoutsToursProvider implements ITourProvider {
     const out: NormalizedTour[] = [];
     this.lastDiagnostics = [];
     for (const loc of this.locations.slice(0, 20)) {
-      const diag = { loc, cityId: null as number | null, httpStatus: null as number | null, rawCount: 0, keptCount: 0, error: undefined as string | undefined };
+      const diag = { loc, cityId: null as number | null, httpStatus: null as number | null, rawCount: 0, keptCount: 0, error: undefined as string | undefined, raw: undefined as string | undefined };
       try {
         const url = `https://engine.hotellook.com/api/v2/cache.json?location=${encodeURIComponent(loc)}` +
           `&checkIn=${ci}&checkOut=${co}&currency=uah&limit=6&token=${encodeURIComponent(this.token)}`;
         const r = await fetch(url);
         diag.httpStatus = r.status;
-        if (!r.ok) { diag.error = `HTTP ${r.status}`; this.logger.warn(`Hotellook cache ${loc} HTTP ${r.status}`); this.lastDiagnostics.push(diag); continue; }
-        const j: any = await r.json();
+        const bodyText = await r.text();
+        if (!r.ok) { diag.error = `HTTP ${r.status}`; if (this.lastDiagnostics.length === 0) diag.raw = bodyText.slice(0, 500); this.logger.warn(`Hotellook cache ${loc} HTTP ${r.status}`); this.lastDiagnostics.push(diag); continue; }
+        let j: any = {};
+        try { j = JSON.parse(bodyText); } catch { diag.error = 'ответ не JSON'; if (this.lastDiagnostics.length === 0) diag.raw = bodyText.slice(0, 500); this.lastDiagnostics.push(diag); continue; }
         const arr: any[] = Array.isArray(j) ? j : (j && j.hotelName ? [j] : []);
         diag.rawCount = arr.length;
+        if (arr.length === 0 && this.lastDiagnostics.length === 0) diag.raw = bodyText.slice(0, 500);
         for (const h of arr) {
           const price = Math.round(Number(h.priceFrom || h.priceAvg || 0));
           if (!price || !h.hotelName) continue;
