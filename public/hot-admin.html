@@ -805,6 +805,11 @@ function renderTpTours(d){
   var head='<div class="panelbox">'+
     '<div class="pb-head"><span>Активный режим</span>'+modeChip+'</div>'+
     '<div style="padding:4px 2px 14px;color:#cdd7e1;font-size:14px;line-height:1.5">'+esc(st.modeLabel)+'</div>'+
+    '<div style="padding:0 2px 14px;display:flex;align-items:center;gap:10px">'+
+      '<button class="btn" id="tpRefreshBtn"'+(st.mode==='none'?' disabled title="сначала включите режим"':'')+'>⟳ Запустить сейчас (без ожидания крона)</button>'+
+      '<span id="tpRefreshStatus" style="font-size:12px;color:#8a97a3"></span>'+
+    '</div>'+
+    '<div style="padding:0 2px 14px;font-size:11px;color:#5c6b7a;line-height:1.5">Самая вероятная причина именно сейчас: HOT_TOURS_TP_ORIGIN не задан → запрос идёт в get_latest_prices — это любые самые дешёвые билеты в мире за 48ч, а не туристические направления. Локальная таблица распознаёт только 45 курортных IATA-кодов (Турция/Египет/Таиланд и т.п.) — если среди билетов нет ни одного такого совпадения, всё тихо отбрасывается и в пуле остаётся 0. Стоит попробовать: задать HOT_TOURS_TP_ORIGIN=IEV (или KBP для Борисполя — не проверено вживую, какой код Travelpayouts трактует как «весь Киев») — тогда включится get_popular_directions именно от Киева. Другие возможные причины: фид ещё ни разу не запускался до этой кнопки · неверный/просроченный TRAVELPAYOUTS_TOKEN · временная ошибка API.</div>'+
     '<div class="pb-head" style="margin-top:4px"><span>Значения переменных окружения</span></div>'+
     envCols+
     '</div>';
@@ -856,6 +861,22 @@ function renderTpTours(d){
     '<span id="tpWidgetStatus" style="font-size:12px;color:#8a97a3"></span></div>'+
     '<div style="padding:0 14px 12px;font-size:11px;color:#5c6b7a">По умолчанию выключено. Показывает до 6 активных туров с уже опубликованной статьёй, отсортированных по размеру скидки.</div></div>';
   box.innerHTML=head+kpis+lastFetch+widgetBox+filters+'<div class="panelbox" style="margin-top:14px"><div class="pb-head"><span>Сырые туры</span></div>'+table+pager+'</div>';
+
+  var rb=$('#tpRefreshBtn');
+  if(rb) rb.addEventListener('click', function(){
+    var rs=$('#tpRefreshStatus');
+    rb.disabled=true; rs.textContent='Запрашиваю Travelpayouts…';
+    fetch('/api/hot-tours/tp-refresh', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ key:KEY }) })
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        if(j&&j.error){ rs.innerHTML='<span style="color:#e0637a">ошибка: '+esc(j.error)+'</span>'; }
+        else if(j&&j.count>0){ rs.innerHTML='<span style="color:#37d67a">✓ добавлено/обновлено: '+j.count+' туров</span>'; }
+        else { rs.textContent='API ответил успешно, но нашёл 0 туров — см. пояснение под кнопкой'; }
+        rb.disabled=false;
+        loadTpTours();
+      })
+      .catch(function(){ rs.innerHTML='<span style="color:#e0637a">ошибка сети</span>'; rb.disabled=false; });
+  });
 
   $('#tpWidgetOn').addEventListener('change', function(e){
     var st=$('#tpWidgetStatus'); st.textContent='Сохранение…';

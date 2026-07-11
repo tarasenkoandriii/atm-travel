@@ -57,6 +57,15 @@ export class HotToursController {
     return this.svc.publicTopDeals(6);
   }
 
+  // Admin "запустить сейчас" button (Travelpayouts tab) — ingest just this provider immediately,
+  // instead of waiting for the once-daily Vercel cron. Surfaces the actual fetch error (if any) so
+  // "why are there zero tours" is answerable without digging through Vercel logs.
+  @Post('api/hot-tours/tp-refresh')
+  async tpRefresh(@Body() body: { key?: string }) {
+    if (!this.svc.adminAllowed(body?.key)) throw new UnauthorizedException();
+    return await this.svc.manualIngest('travelpayouts');
+  }
+
   @Post('api/hot-tours/publish')
   async publish(@Body() body: { id?: string; key?: string }) {
     if (!this.svc.adminAllowed(body?.key)) throw new UnauthorizedException();

@@ -118,12 +118,26 @@ export class HotToursService {
   }
 
   // ── Ingestion + dedupe (price change updates the row; article is NOT regenerated) ──
-  private async ingest(): Promise<{ count: number; seenHashes: Set<string> }> {
+  // onlyProviderId, when given, ingests just that one provider — used by the admin's manual
+  // "запустить сейчас" button (see manualIngest below) so testing one provider doesn't have to wait
+  // for or trigger the full daily cron. perProvider surfaces the exact fetch error per provider
+  // (previously only visible in Vercel logs) so "why is it empty" is answerable from the UI itself.
+  private async ingest(onlyProviderId?: string): Promise<{ count: number; seenHashes: Set<string>; perProvider: Record<string, { count: number; error?: string }> }> {
     const seen = new Set<string>();
     let count = 0;
-    for (const p of this.enabledProviders) {
+    const perProvider: Record<string, { count: number; error?: string }> = {};
+    const providers = onlyProviderId ? this.providers.filter((p) => p.providerId === onlyProviderId && p.enabled) : this.enabledProviders;
+    for (const p of providers) {
       let tours: NormalizedTour[] = [];
-      try { tours = await p.fetchTours(); } catch (e: any) { this.logger.warn(`${p.providerId} fetch failed: ${e?.message || e}`); }
+      try {
+        tours = await p.fetchTours();
+      } catch (e: any) {
+        const msg = e?.message || String(e);
+        this.logger.warn(`${p.providerId} fetch failed: ${msg}`);
+        perProvider[p.providerId] = { count: 0, error: msg };
+        continue;
+      }
+      let providerCount = 0;
       for (const t of tours) {
         const hash = this.dedupeHash(t, p.providerId);
         seen.add(hash);
@@ -146,11 +160,21 @@ export class HotToursService {
           if (existing && t.priceUAH < existing.priceUAH) priceExtra = { priceDropAt: new Date(), prevPriceUAH: existing.priceUAH };
           // upsert by dedupeHash: existing tour just gets fresh price/availability, keeps its article.
           await this.prisma.hotTour.upsert({ where: { dedupeHash: hash }, create: { ...data, dedupeHash: hash }, update: { ...data, ...priceExtra } });
-          count++;
+          count++; providerCount++;
         } catch (e: any) { this.logger.warn(`upsert failed: ${e?.message || e}`); }
       }
+      perProvider[p.providerId] = { count: providerCount };
     }
-    return { count, seenHashes: seen };
+    return { count, seenHashes: seen, perProvider };
+  }
+
+  // Admin "запустить сейчас" button (Travelpayouts tab) — ingest just ONE provider, right now,
+  // without waiting for the daily cron. Deliberately does NOT call expireStale() afterward: that
+  // step marks anything absent from seenHashes as inactive, and seenHashes here only covers THIS
+  // one provider — running it would wrongly deactivate every other provider's tours.
+  async manualIngest(providerId: string): Promise<{ count: number; error?: string }> {
+    const r = await this.ingest(providerId);
+    return r.perProvider[providerId] || { count: 0, error: 'провайдер не найден или выключен (fetchTours недоступен)' };
   }
 
   // Hash excludes price → same tour at a new price maps to the same row (no duplicate page).
