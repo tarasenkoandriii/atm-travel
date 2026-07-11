@@ -69,7 +69,7 @@
   table.rt th, table.rt td{padding:6px 8px;white-space:nowrap;}
   td.rc{text-align:center;font-family:ui-monospace,monospace;font-size:12px;color:#e7eef4;border-radius:4px;min-width:44px;}
   td.rc-empty{background:transparent;color:#31404e;}
-  @media(max-width:640px){ .card{flex-direction:column;} .card img{width:100%;height:170px;} .hide-sm{display:none;} }
+  @media(max-width:640px){ .card{flex-direction:column;} .card img{width:100%;height:170px;} .hide-sm{display:none;} .tp-env-grid{grid-template-columns:1fr!important;} }
 
   /* blog inline editor */
   .beditor{margin-top:12px}
@@ -790,16 +790,23 @@ function renderTpTours(d){
   var box=$('#tpBox');
   var st=d.status, s=d.summary;
   var modeChip='<span class="bchip" style="font-size:13px;padding:4px 12px">'+esc(MODE_LABELS[st.mode]||st.mode)+'</span>';
-  var envRows=Object.keys(st.env).map(function(k){
-    var e=st.env[k];
-    return '<tr><td style="font-family:ui-monospace,monospace;font-size:12px;color:#9fb2c4">'+esc(k)+'</td>'+
-      '<td class="num" style="text-align:left;font-family:ui-monospace,monospace;font-size:12px">'+(e.set?'<span style="color:#37d67a">✓ </span>':'<span style="color:#5c6b7a">— </span>')+esc(e.value||'(не задано)')+'</td></tr>';
-  }).join('');
+  var envKeys=Object.keys(st.env);
+  var envHalf=Math.ceil(envKeys.length/2);
+  function envTable(keys){
+    var rows=keys.map(function(k){
+      var e=st.env[k];
+      return '<tr><td style="font-family:ui-monospace,monospace;font-size:12px;color:#9fb2c4">'+esc(k)+'</td>'+
+        '<td class="num" style="text-align:left;font-family:ui-monospace,monospace;font-size:12px">'+(e.set?'<span style="color:#37d67a">✓ </span>':'<span style="color:#5c6b7a">— </span>')+esc(e.value||'(не задано)')+'</td></tr>';
+    }).join('');
+    return '<table><thead><tr><th>Переменная</th><th style="text-align:left">Значение</th></tr></thead><tbody>'+rows+'</tbody></table>';
+  }
+  var envCols='<div class="tp-env-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:0 16px">'+
+    envTable(envKeys.slice(0,envHalf))+envTable(envKeys.slice(envHalf))+'</div>';
   var head='<div class="panelbox">'+
     '<div class="pb-head"><span>Активный режим</span>'+modeChip+'</div>'+
     '<div style="padding:4px 2px 14px;color:#cdd7e1;font-size:14px;line-height:1.5">'+esc(st.modeLabel)+'</div>'+
     '<div class="pb-head" style="margin-top:4px"><span>Значения переменных окружения</span></div>'+
-    '<table><thead><tr><th>Переменная</th><th style="text-align:left">Значение</th></tr></thead><tbody>'+envRows+'</tbody></table>'+
+    envCols+
     '</div>';
   var kpis='<div class="kpis">'+
     '<div class="kpi"><div class="n">'+num(s.active)+'</div><div class="l">Активных туров в пуле</div></div>'+
