@@ -65,6 +65,49 @@ export class TravelpayoutsToursProvider implements ITourProvider {
     return this.fromFlightDeals();
   }
 
+  // Which of the 4 mutually-exclusive modes is active right now, and the actual env config behind
+  // it — for the "Travelpayouts" admin tab, so this is visible without reading Vercel env vars or
+  // this file's source. Secrets (token/marker, and the feed URL which may embed one) are masked.
+  private mask(s: string): string {
+    if (!s) return '';
+    return s.length <= 8 ? '••••' : s.slice(0, 4) + '••••' + s.slice(-4);
+  }
+  describeStatus(): {
+    mode: 'A' | 'B' | 'C' | 'D' | 'none'; modeLabel: string; enabled: boolean;
+    env: Record<string, { value: string; set: boolean }>;
+  } {
+    let mode: 'A' | 'B' | 'C' | 'D' | 'none' = 'none';
+    let modeLabel = 'Ничего не настроено — ни одна из переменных режима не задана, провайдер выключен (fetchTours всегда вернёт []).';
+    if (this.feedUrl) {
+      mode = 'A';
+      modeLabel = 'Режим A — кастомный фид пакетных туров (HOT_TOURS_TP_FEED_URL): готовые пакетные предложения от партнёрской программы Travelpayouts, разбираются как есть (normalize()). Приоритет выше остальных режимов.';
+    } else if (this.discounts) {
+      mode = 'D';
+      modeLabel = 'Режим D — Hotellook Selections (HOT_TOURS_TP_DISCOUNTS=1): отели БЕРУТСЯ ТОЛЬКО с реальной скидкой (last_price_info.discount > 0) — на страницах честно показывается «−N%».';
+    } else if (this.hotels) {
+      mode = 'C';
+      modeLabel = 'Режим C — Hotellook Hotels (HOT_TOURS_TP_HOTELS=1): цена «от» по кэшу отелей, БЕЗ проверки скидки — discountPct будет 0 у всех туров этого режима. Правило "любой TP-тур = горящий" (без порога % / звёзд) всё равно применяется при генерации статей.';
+    } else if (this.flights) {
+      mode = 'B';
+      modeLabel = 'Режим B — Aviasales Flight Data (HOT_TOURS_TP_FLIGHTS=1): самые дешёвые билеты за последние 48ч (get_latest_prices) или популярные направления от узлового города (get_popular_directions, если задан HOT_TOURS_TP_ORIGIN). Это билеты, не пакетные туры — hotelName/stars будут пустыми.';
+    }
+    return {
+      mode, modeLabel, enabled: this.enabled,
+      env: {
+        TRAVELPAYOUTS_TOKEN: { value: this.mask(this.token), set: !!this.token },
+        TRAVELPAYOUTS_MARKER: { value: this.mask(this.marker), set: !!this.marker },
+        HOT_TOURS_TP_FEED_URL: { value: this.feedUrl ? this.mask(this.feedUrl) : '', set: !!this.feedUrl },
+        HOT_TOURS_TP_DISCOUNTS: { value: this.discounts ? '1' : '(не задано)', set: this.discounts },
+        HOT_TOURS_TP_SELECTION: { value: this.selection, set: !!this.config.get<string>('HOT_TOURS_TP_SELECTION') },
+        HOT_TOURS_TP_HOTELS: { value: this.hotels ? '1' : '(не задано)', set: this.hotels },
+        HOT_TOURS_TP_FLIGHTS: { value: this.flights ? '1' : '(не задано)', set: this.flights },
+        HOT_TOURS_TP_ORIGIN: { value: this.origin || '(не задано)', set: !!this.origin },
+        HOT_TOURS_TP_DEPARTURE: { value: this.departure, set: !!this.config.get<string>('HOT_TOURS_TP_DEPARTURE') },
+        HOT_TOURS_TP_LOCATIONS: { value: this.locations.join(', '), set: !!this.config.get<string>('HOT_TOURS_TP_LOCATIONS') },
+      },
+    };
+  }
+
   // ── Mode D (preferred): Hotellook Selections — real hotel deals WITH a discount %. ──
   // widget_location_dump.json returns hotels with last_price_info{price, old_price, discount, nights};
   // we keep only entries that actually carry a discount, so pages show a real "−N%".

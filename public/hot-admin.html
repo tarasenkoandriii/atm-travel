@@ -123,7 +123,7 @@
   .bed-lbl2{color:#7d8b99;font-size:12px;font-weight:600}
   .bed-audio-el{height:30px;max-width:220px;vertical-align:middle}
   .bed-media-status{color:#8a97a3;font-size:12px}
-  .bed-introlbl{color:#cfe0ee;font-size:12px;display:inline-flex;align-items:center;gap:5px;cursor:pointer;user-select:none}
+  .bed-introlbl{color:#cfe0ee;font-size:12px;display:inline-flex;align-items:center;gap:5px;cursor:pointer;user-select:none;white-space:nowrap;flex-shrink:0}
   .vm-ov{position:fixed;inset:0;background:rgba(4,9,14,.72);display:flex;align-items:center;justify-content:center;z-index:9999}
   .vm-box{background:#0f1722;border:1px solid #24384a;border-radius:14px;width:min(560px,92vw);max-height:82vh;overflow:auto;padding:18px}
   .vm-box h3{margin:0 0 4px;color:#eaf2f8;font-size:17px}
@@ -172,6 +172,7 @@
   </div>
 
   <nav class="menu">
+    <a href="#tptours" data-view="tptours">Travelpayouts</a>
     <a href="#moderation" data-view="moderation">Модерация статей</a>
     <a href="#blogmod" data-view="blogmod">Модерация блога</a>
     <a href="#stats" data-view="stats">Статистика посещений и кликов</a>
@@ -180,6 +181,12 @@
     <a href="#leads" data-view="leads">Лиды</a>
     <a href="#offerctr" data-view="offerctr">CTR офферов</a>
   </nav>
+
+  <section class="view" id="view-tptours">
+    <h1>Travelpayouts</h1>
+    <div class="sub">Какой из 4 режимов провайдера сейчас активен, и что реально забирается в сыром виде — до того как часть этих туров превращается в статьи.</div>
+    <div id="tpBox"></div>
+  </section>
 
   <section class="view on" id="view-moderation">
     <div class="vhead"><h1>Черновики на публикацию</h1><button class="btn btn-accent" id="modCreate" title="Сгенерировать статью на модерацию (как крон)"><span aria-hidden="true">+</span> Создать</button></div>
@@ -233,16 +240,17 @@ function num(n){ return Number(n||0).toLocaleString('uk-UA'); }
 function dm(d){ if(!d) return ''; return new Date(d).toLocaleDateString('uk-UA',{day:'2-digit',month:'2-digit'}); }
 var KEY = localStorage.getItem('htAdminKey') || '';
 if(KEY) $('#key').value = KEY;
-var loaded = { moderation:false, stats:false, retention:false, chatfunnel:false, offerctr:false, blogmod:false, leads:false };
+var loaded = { tptours:false, moderation:false, stats:false, retention:false, chatfunnel:false, offerctr:false, blogmod:false, leads:false };
 
 /* ---------- routing (default = moderation) ---------- */
 function currentView(){
   var h = (location.hash||'').replace('#','');
-  return (h==='stats'||h==='retention'||h==='chatfunnel'||h==='offerctr'||h==='blogmod'||h==='leads') ? h : 'moderation';
+  return (h==='tptours'||h==='stats'||h==='retention'||h==='chatfunnel'||h==='offerctr'||h==='blogmod'||h==='leads') ? h : 'moderation';
 }
 function route(){
   var v = currentView();
   document.querySelectorAll('.menu a').forEach(function(a){ a.classList.toggle('active', a.getAttribute('data-view')===v); });
+  $('#view-tptours').classList.toggle('on', v==='tptours');
   $('#view-moderation').classList.toggle('on', v==='moderation');
   $('#view-blogmod').classList.toggle('on', v==='blogmod');
   $('#view-stats').classList.toggle('on', v==='stats');
@@ -251,6 +259,7 @@ function route(){
   $('#view-leads').classList.toggle('on', v==='leads');
   $('#view-offerctr').classList.toggle('on', v==='offerctr');
   if(!KEY) return;
+  if(v==='tptours' && !loaded.tptours) loadTpTours();
   if(v==='moderation' && !loaded.moderation) loadModeration();
   if(v==='blogmod' && !loaded.blogmod) loadBlogMod();
   if(v==='stats' && !loaded.stats) loadStats();
@@ -771,6 +780,106 @@ function loadRetention(){
     .catch(function(){ $('#retBox').innerHTML='<div class="empty">Ошибка загрузки.</div>'; });
 }
 
+/* ---------- Travelpayouts (сырые туры одного провайдера) ---------- */
+var MODE_LABELS = { A:'A · кастомный фид', B:'B · Aviasales билеты', C:'C · Hotellook отели (без скидки)', D:'D · Hotellook Selections (со скидкой)', none:'выключен' };
+var TP_STATE = { country:'', status:'all', minDiscount:0, sort:'fetchedAt', page:1, pageSize:50 };
+var TP_STATUS_LABELS = { all:'Все', active:'Только активные', inactive:'Только неактивные', 'has-article':'Уже есть статья', 'no-article':'Без статьи (в очереди)' };
+var TP_SORT_LABELS = { fetchedAt:'По дате обновления', discountPct:'По скидке (сначала больше)', priceUAH:'По цене (сначала дешевле)' };
+function tpOptions(map, cur){ return Object.keys(map).map(function(k){ return '<option value="'+esc(k)+'"'+(k===cur?' selected':'')+'>'+esc(map[k])+'</option>'; }).join(''); }
+function renderTpTours(d){
+  var box=$('#tpBox');
+  var st=d.status, s=d.summary;
+  var modeChip='<span class="bchip" style="font-size:13px;padding:4px 12px">'+esc(MODE_LABELS[st.mode]||st.mode)+'</span>';
+  var envRows=Object.keys(st.env).map(function(k){
+    var e=st.env[k];
+    return '<tr><td style="font-family:ui-monospace,monospace;font-size:12px;color:#9fb2c4">'+esc(k)+'</td>'+
+      '<td class="num" style="text-align:left;font-family:ui-monospace,monospace;font-size:12px">'+(e.set?'<span style="color:#37d67a">✓ </span>':'<span style="color:#5c6b7a">— </span>')+esc(e.value||'(не задано)')+'</td></tr>';
+  }).join('');
+  var head='<div class="panelbox">'+
+    '<div class="pb-head"><span>Активный режим</span>'+modeChip+'</div>'+
+    '<div style="padding:4px 2px 14px;color:#cdd7e1;font-size:14px;line-height:1.5">'+esc(st.modeLabel)+'</div>'+
+    '<div class="pb-head" style="margin-top:4px"><span>Значения переменных окружения</span></div>'+
+    '<table><thead><tr><th>Переменная</th><th style="text-align:left">Значение</th></tr></thead><tbody>'+envRows+'</tbody></table>'+
+    '</div>';
+  var kpis='<div class="kpis">'+
+    '<div class="kpi"><div class="n">'+num(s.active)+'</div><div class="l">Активных туров в пуле</div></div>'+
+    '<div class="kpi"><div class="n">'+num(s.withArticle)+'</div><div class="l">Уже стали статьями</div></div>'+
+    '<div class="kpi"><div class="n">'+num(s.candidateQueue)+'</div><div class="l">Ждут генерации (кандидаты)</div></div>'+
+    '<div class="kpi"><div class="n">'+num(s.inactive)+'</div><div class="l">Неактивных (просрочены/исчезли из фида)</div></div></div>';
+  var lastFetch='<div class="sub" style="margin:4px 0 0">Последнее обновление фида: '+(s.lastFetchedAt?dmFull(s.lastFetchedAt):'ещё не было')+'</div>';
+
+  var countryOpts='<option value=""'+(TP_STATE.country?'':' selected')+'>Все страны ('+num(s.active+s.inactive)+')</option>'+
+    (d.countries||[]).map(function(c){ return '<option value="'+esc(c.country)+'"'+(c.country===TP_STATE.country?' selected':'')+'>'+esc(c.country)+' ('+c.count+')</option>'; }).join('');
+  var filters='<div class="panelbox" style="margin-top:14px">'+
+    '<div class="pb-head"><span>Фильтры</span></div>'+
+    '<div style="display:flex;gap:10px;flex-wrap:wrap;padding-top:6px">'+
+      '<select id="tpfCountry" style="background:#0c1420;color:#e7eef4;border:1px solid #1b2734;border-radius:8px;padding:8px 10px;font:inherit;min-width:160px">'+countryOpts+'</select>'+
+      '<select id="tpfStatus" style="background:#0c1420;color:#e7eef4;border:1px solid #1b2734;border-radius:8px;padding:8px 10px;font:inherit">'+tpOptions(TP_STATUS_LABELS,TP_STATE.status)+'</select>'+
+      '<input id="tpfDiscount" type="number" min="0" max="100" placeholder="мин. скидка %" value="'+(TP_STATE.minDiscount||'')+'" style="width:130px;background:#0c1420;color:#e7eef4;border:1px solid #1b2734;border-radius:8px;padding:8px 10px;font:inherit">'+
+      '<select id="tpfSort" style="background:#0c1420;color:#e7eef4;border:1px solid #1b2734;border-radius:8px;padding:8px 10px;font:inherit">'+tpOptions(TP_SORT_LABELS,TP_STATE.sort)+'</select>'+
+      '<button class="btn" id="tpfReset">✕ Сбросить</button>'+
+    '</div></div>';
+
+  var rows=(d.tours||[]).map(function(t){
+    var flag=t.cc?'<span class="fi fi-'+esc(t.cc)+'"></span>':'';
+    var disc=t.discountPct>0?'<span class="disc">−'+t.discountPct+'%</span>':'';
+    var oldp=t.oldPriceUAH?'<s>'+money(t.oldPriceUAH)+'</s> ':'';
+    var artBadge=t.article?('<a href="/hot-tours/'+encodeURIComponent(t.article.slug)+'" target="_blank" rel="noopener" style="color:#4fd7e0">✓ статья ('+esc(t.article.status)+')</a>'):'<span style="color:#5c6b7a">— нет статьи</span>';
+    var activeBadge=t.active?'':'<span style="color:#e0637a">неактивен</span>';
+    var dropBadge=t.priceDropAt?'<span style="color:#37d67a;font-size:11px" title="было '+money(t.prevPriceUAH)+'">↓ цена упала</span>':'';
+    return '<tr><td>'+flag+esc(t.city)+', '+esc(t.country)+'</td>'+
+      '<td class="hide-sm">'+esc(t.hotel||'—')+(t.stars?' · '+t.stars+'★':'')+'</td>'+
+      '<td class="num">'+oldp+money(t.priceUAH)+' '+disc+'</td>'+
+      '<td class="hide-sm">'+dmFull(t.fetchedAt)+'</td>'+
+      '<td>'+artBadge+' '+activeBadge+' '+dropBadge+'</td></tr>';
+  }).join('');
+  var table=!(d.tours||[]).length?'<div class="empty">Ничего не найдено по этим фильтрам.</div>':
+    '<table><thead><tr><th>Направление</th><th class="hide-sm">Отель</th><th class="num">Цена</th><th class="hide-sm">Обновлено</th><th>Статус</th></tr></thead><tbody>'+rows+'</tbody></table>';
+
+  var totalPages=Math.max(1,Math.ceil(d.total/d.pageSize));
+  var pager='<div style="display:flex;align-items:center;gap:10px;justify-content:flex-end;padding-top:12px">'+
+    '<span class="muted" style="font-size:12px">Найдено: '+num(d.total)+' · страница '+d.page+' из '+totalPages+'</span>'+
+    '<button class="btn" id="tpPrev"'+(d.page<=1?' disabled':'')+'>← назад</button>'+
+    '<button class="btn" id="tpNext"'+(d.page>=totalPages?' disabled':'')+'>вперёд →</button>'+
+    '</div>';
+
+  var widgetBox='<div class="panelbox" style="margin-top:14px"><div class="pb-head"><span>Витрина «Топ скидки» на главной</span></div>'+
+    '<div style="padding:10px 14px 14px;display:flex;align-items:center;gap:8px">'+
+    '<label class="bed-introlbl" style="font-size:13px"><input type="checkbox" id="tpWidgetOn"'+(d.showTopDealsWidget?' checked':'')+'> показывать блок с лучшими скидками внизу главной страницы (над футером)</label>'+
+    '<span id="tpWidgetStatus" style="font-size:12px;color:#8a97a3"></span></div>'+
+    '<div style="padding:0 14px 12px;font-size:11px;color:#5c6b7a">По умолчанию выключено. Показывает до 6 активных туров с уже опубликованной статьёй, отсортированных по размеру скидки.</div></div>';
+  box.innerHTML=head+kpis+lastFetch+widgetBox+filters+'<div class="panelbox" style="margin-top:14px"><div class="pb-head"><span>Сырые туры</span></div>'+table+pager+'</div>';
+
+  $('#tpWidgetOn').addEventListener('change', function(e){
+    var st=$('#tpWidgetStatus'); st.textContent='Сохранение…';
+    fetch('/api/hot-tours/top-deals-widget', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ key:KEY, enabled:e.target.checked }) })
+      .then(function(r){ return r.json(); })
+      .then(function(j){ st.textContent = j&&j.ok ? '✓ сохранено' : 'ошибка'; setTimeout(function(){ st.textContent=''; }, 2000); })
+      .catch(function(){ st.textContent='ошибка сети'; });
+  });
+
+  $('#tpfCountry').addEventListener('change', function(e){ TP_STATE.country=e.target.value; TP_STATE.page=1; loadTpTours(); });
+  $('#tpfStatus').addEventListener('change', function(e){ TP_STATE.status=e.target.value; TP_STATE.page=1; loadTpTours(); });
+  $('#tpfSort').addEventListener('change', function(e){ TP_STATE.sort=e.target.value; TP_STATE.page=1; loadTpTours(); });
+  $('#tpfDiscount').addEventListener('change', function(e){ TP_STATE.minDiscount=parseInt(e.target.value,10)||0; TP_STATE.page=1; loadTpTours(); });
+  $('#tpfReset').addEventListener('click', function(){ TP_STATE={country:'',status:'all',minDiscount:0,sort:'fetchedAt',page:1,pageSize:50}; loadTpTours(); });
+  var pv=$('#tpPrev'); if(pv) pv.addEventListener('click', function(){ if(TP_STATE.page>1){ TP_STATE.page--; loadTpTours(); } });
+  var nx=$('#tpNext'); if(nx) nx.addEventListener('click', function(){ if(TP_STATE.page<totalPages){ TP_STATE.page++; loadTpTours(); } });
+}
+function loadTpTours(){
+  $('#tpBox').innerHTML='<div class="empty">Загрузка…</div>';
+  var q='key='+encodeURIComponent(KEY)+'&status='+encodeURIComponent(TP_STATE.status)+'&sort='+encodeURIComponent(TP_STATE.sort)+
+    '&page='+TP_STATE.page+'&pageSize='+TP_STATE.pageSize+
+    (TP_STATE.country?'&country='+encodeURIComponent(TP_STATE.country):'')+
+    (TP_STATE.minDiscount?'&minDiscount='+TP_STATE.minDiscount:'');
+  fetch('/api/hot-tours/tp-raw?'+q).then(function(r){
+    if(r.status===401){ $('#tpBox').innerHTML='<div class="empty">Неверный токен.</div>'; return null; }
+    if(!r.ok){ $('#tpBox').innerHTML='<div class="empty">Ошибка сервера (HTTP '+r.status+'). Проверьте логи Vercel.</div>'; return null; }
+    return r.json();
+  }).then(function(j){ if(j){ loaded.tptours=true; renderTpTours(j); } })
+    .catch(function(){ $('#tpBox').innerHTML='<div class="empty">Ошибка загрузки.</div>'; });
+}
+
 /* ---------- offer CTR ---------- */
 function kindLabel(k){ return {esim:'eSIM',hotels:'Отели',flights:'Перелёты',experience:'Экскурсии',other:'Прочее'}[k]||k; }
 function renderOfferCtr(d){
@@ -891,7 +1000,7 @@ function loadStats(){
 function enter(){
   KEY = $('#key').value.trim(); if(!KEY) return;
   localStorage.setItem('htAdminKey', KEY);
-  loaded.moderation = false; loaded.stats = false; loaded.retention = false; loaded.chatfunnel = false; loaded.offerctr = false; loaded.blogmod = false; loaded.leads = false;
+  loaded.tptours = false; loaded.moderation = false; loaded.stats = false; loaded.retention = false; loaded.chatfunnel = false; loaded.offerctr = false; loaded.blogmod = false; loaded.leads = false;
   route();
 }
 $('#load').onclick = enter;

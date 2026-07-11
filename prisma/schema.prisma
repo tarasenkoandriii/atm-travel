@@ -491,8 +491,9 @@ model BlogArticle {
 // Singleton row (id fixed to 'singleton'): lets the admin override the notification channel
 // from the UI instead of only via env vars. Null fields fall back to env (TELEGRAM/ADMIN_EMAIL).
 model AdminSettings {
-  id             String   @id @default("singleton")
-  telegramChatId String?  // overrides ADMIN_TELEGRAM_CHAT_ID when set
-  adminEmail     String?  // overrides ADMIN_EMAIL when set
-  updatedAt      DateTime @updatedAt
+  id                  String   @id @default("singleton")
+  telegramChatId      String?  // overrides ADMIN_TELEGRAM_CHAT_ID when set
+  adminEmail          String?  // overrides ADMIN_EMAIL when set
+  showTopDealsWidget  Boolean  @default(false)   // "Топ скидки" showcase on the homepage — off by default
+  updatedAt           DateTime @updatedAt
 }

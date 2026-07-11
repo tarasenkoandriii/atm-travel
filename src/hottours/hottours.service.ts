@@ -6,6 +6,7 @@ import { ITourProvider, NormalizedTour, TOUR_PROVIDERS } from './hottours.types'
 import { SYSTEM_PROMPT, TEMPLATES, nextTemplate } from './templates';
 import { countryCodeOf } from './geo-names';
 import { TravelpayoutsProvider } from '../travel/providers/travelpayouts.provider';
+import { TravelpayoutsToursProvider } from './providers/travelpayouts-tours.provider';
 
 const MONTHS_RU = ['январе','феврале','марте','апреле','мае','июне','июле','августе','сентябре','октябре','ноябре','декабре'];
 
@@ -18,6 +19,7 @@ export class HotToursService {
     private readonly config: ConfigService,
     @Inject(TOUR_PROVIDERS) private readonly providers: ITourProvider[],
     private readonly tp: TravelpayoutsProvider,
+    private readonly tpTours: TravelpayoutsToursProvider,
   ) {}
 
   private get enabledProviders() { return this.providers.filter((p) => p.enabled); }
@@ -489,6 +491,141 @@ export class HotToursService {
       });
     }
     return out;
+  }
+
+  // ── "Travelpayouts" admin tab: which mode is live + the raw ingested pool for that provider ──
+  async tpRawTours(opts: {
+    country?: string; status?: 'all' | 'active' | 'inactive' | 'has-article' | 'no-article';
+    minDiscount?: number; sort?: 'fetchedAt' | 'discountPct' | 'priceUAH'; page?: number; pageSize?: number;
+  } = {}): Promise<{
+    status: ReturnType<TravelpayoutsToursProvider['describeStatus']>;
+    summary: { active: number; withArticle: number; candidateQueue: number; inactive: number; lastFetchedAt: string | null };
+    countries: { country: string; count: number }[];
+    tours: any[]; total: number; page: number; pageSize: number;
+  }> {
+    const status = this.tpTours.describeStatus();
+    const base = { providerId: 'travelpayouts' as const };
+    const [active, withArticle, inactive, latest, countryGroups] = await Promise.all([
+      this.prisma.hotTour.count({ where: { ...base, active: true } }),
+      this.prisma.hotTour.count({ where: { ...base, active: true, article: { isNot: null } } }),
+      this.prisma.hotTour.count({ where: { ...base, active: false } }),
+      this.prisma.hotTour.findFirst({ where: base, orderBy: { fetchedAt: 'desc' }, select: { fetchedAt: true } }),
+      this.prisma.hotTour.groupBy({ by: ['destinationCountry'], where: base, _count: { _all: true } }),
+    ]);
+    // "candidate queue" mirrors generateArticles()'s own WHERE (providerId='travelpayouts' bypasses
+    // the stars/discount threshold entirely — any active TP tour without an article is eligible).
+    const candidateQueue = active - withArticle;
+
+    // ── Filters (all optional — default = everything, matches the previous unfiltered behaviour) ──
+    const where: any = { ...base };
+    if (opts.country) where.destinationCountry = opts.country;
+    if (opts.minDiscount && opts.minDiscount > 0) where.discountPct = { gte: opts.minDiscount };
+    if (opts.status === 'active') where.active = true;
+    else if (opts.status === 'inactive') where.active = false;
+    else if (opts.status === 'has-article') where.article = { isNot: null };
+    else if (opts.status === 'no-article') where.article = { is: null };
+
+    const sortField = opts.sort === 'discountPct' ? 'discountPct' : opts.sort === 'priceUAH' ? 'priceUAH' : 'fetchedAt';
+    const sortDir = sortField === 'priceUAH' ? 'asc' : 'desc';   // cheapest-first for price, biggest-first for the rest
+    const pageSize = Math.min(100, Math.max(10, opts.pageSize || 50));
+    const page = Math.max(1, opts.page || 1);
+
+    const [total, rows] = await Promise.all([
+      this.prisma.hotTour.count({ where }),
+      this.prisma.hotTour.findMany({
+        where, orderBy: [{ [sortField]: sortDir }], skip: (page - 1) * pageSize, take: pageSize,
+        include: { article: { select: { id: true, slug: true, status: true } } },
+      }),
+    ]);
+
+    return {
+      status,
+      summary: { active, withArticle, candidateQueue, inactive, lastFetchedAt: latest?.fetchedAt?.toISOString() || null },
+      countries: countryGroups.map((g) => ({ country: g.destinationCountry, count: g._count._all })).sort((a, b) => b.count - a.count),
+      total, page, pageSize,
+      tours: rows.map((t) => ({
+        id: t.id, city: t.destinationCity, country: t.destinationCountry, cc: (t.countryCode || '').toLowerCase(),
+        hotel: t.hotelName, stars: t.hotelStars, priceUAH: t.priceUAH, oldPriceUAH: t.oldPriceUAH, discountPct: t.discountPct,
+        departureCity: t.departureCity, departureDate: t.departureDate, nights: t.nights, operator: t.operator,
+        active: t.active, fetchedAt: t.fetchedAt, priceDropAt: t.priceDropAt, prevPriceUAH: t.prevPriceUAH,
+        article: t.article ? { id: t.article.id, slug: t.article.slug, status: t.article.status } : null,
+      })),
+    };
+  }
+
+  // ── Daily "top-3 deals" digest → public Telegram group (marketing/promo channel, same
+  // TELEGRAM_GROUP_CHAT_ID already used for video-ad posting in publish.controller.ts) ──
+  // Only considers tours that already have a PUBLISHED article (so the link goes to a real,
+  // admin-approved SEO page, not a raw affiliate deep-link and not something still on moderation).
+  // Deliberately simple/stateless — a snapshot of "today's N best active discounts", not a
+  // novelty-tracked feed; the same tour can legitimately appear again tomorrow if it's still the
+  // best deal, at the cost of some repetition if nothing changes day to day. Shared between the
+  // Telegram digest (below) and the homepage "Топ скидки" showcase widget.
+  private async topDeals(limit: number) {
+    return this.prisma.hotTour.findMany({
+      where: { providerId: 'travelpayouts', active: true, article: { is: { status: 'published' } } },
+      orderBy: { discountPct: 'desc' }, take: limit,
+      include: { article: { select: { slug: true, h1: true, imageUrl: true, imageAlt: true } } },
+    });
+  }
+
+  async sendTopDealsDigest(): Promise<{ sent: boolean; count: number }> {
+    const token = this.config.get<string>('TELEGRAM_BOT_TOKEN');
+    const chat = this.config.get<string>('TELEGRAM_GROUP_CHAT_ID');
+    if (!token || !chat) return { sent: false, count: 0 };
+
+    const top = await this.topDeals(3);
+    if (!top.length) return { sent: false, count: 0 };
+
+    const lines = top.map((t, i) => {
+      const disc = t.discountPct > 0 ? ` (−${t.discountPct}%)` : '';
+      const old = t.oldPriceUAH ? `~${t.oldPriceUAH.toLocaleString('uk-UA')} грн~ → ` : '';
+      return `${i + 1}. 📍 ${t.destinationCity}, ${t.destinationCountry} — ${t.hotelName}${t.hotelStars ? ' ' + '★'.repeat(t.hotelStars) : ''}\n` +
+        `   ${old}${t.priceUAH.toLocaleString('uk-UA')} грн${disc}\n` +
+        `   ${this.baseUrl}/hot-tours/${t.article!.slug}`;
+    });
+    const text = `🔥 Топ-${top.length} горящих тура сегодня\n\n${lines.join('\n\n')}`;
+
+    try {
+      const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: chat, text, disable_web_page_preview: false }),
+      });
+      const j: any = await r.json().catch(() => ({}));
+      if (!j?.ok) { this.logger.warn(`top-deals digest: telegram rejected — ${j?.description || r.status}`); return { sent: false, count: top.length }; }
+      return { sent: true, count: top.length };
+    } catch (e) {
+      this.logger.warn(`top-deals digest send failed: ${String(e)}`);
+      return { sent: false, count: top.length };
+    }
+  }
+
+  // ── Homepage "Топ скидки" showcase — public, admin-toggleable (default OFF) ──
+  async getTopDealsWidgetSetting(): Promise<boolean> {
+    const row = await this.prisma.adminSettings.findUnique({ where: { id: 'singleton' } }).catch(() => null);
+    return !!row?.showTopDealsWidget;
+  }
+  async setTopDealsWidgetSetting(enabled: boolean): Promise<boolean> {
+    await this.prisma.adminSettings.upsert({
+      where: { id: 'singleton' }, create: { id: 'singleton', showTopDealsWidget: enabled }, update: { showTopDealsWidget: enabled },
+    }).catch(() => null);
+    return enabled;
+  }
+  // Public endpoint backing it — deliberately returns {enabled:false, deals:[]} rather than 404/403
+  // when the admin has it switched off, so the homepage's fetch code stays simple (always JSON, no
+  // special-case error handling needed just to respect the toggle).
+  async publicTopDeals(limit = 6): Promise<{ enabled: boolean; deals: any[] }> {
+    const enabled = await this.getTopDealsWidgetSetting();
+    if (!enabled) return { enabled: false, deals: [] };
+    const rows = await this.topDeals(limit);
+    return {
+      enabled: true,
+      deals: rows.map((t) => ({
+        slug: t.article!.slug, title: t.article!.h1, image: t.article!.imageUrl, imageAlt: t.article!.imageAlt,
+        city: t.destinationCity, country: t.destinationCountry, cc: (t.countryCode || '').toLowerCase(),
+        hotel: t.hotelName, stars: t.hotelStars, priceUAH: t.priceUAH, oldPriceUAH: t.oldPriceUAH, discountPct: t.discountPct,
+      })),
+    };
   }
 
   // ── Inline editor (admin), mirrors the blog editor: load parts, regenerate a part, persist edits ──

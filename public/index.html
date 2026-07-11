@@ -323,6 +323,12 @@
       <div class="sc-groups" id="scGroups"></div>
     </div>
   </section>
+  <section id="topDealsShowcase" class="showcase" hidden>
+    <div class="sc-inner">
+      <div class="sc-head"><span>🔥 Топ скидки</span><a class="sc-all" href="/hot-tours">все горящие туры →</a></div>
+      <div class="sc-groups" id="topDealsGroups"></div>
+    </div>
+  </section>
   <footer id="siteFooter">
     <div class="ft-inner">
       <div class="ft-legal">
@@ -1045,6 +1051,27 @@ $('#customInput').addEventListener('keydown',e=>{if(e.key==='Enter'){state.query
       .catch(function(){});
   }
 
+  // "Топ скидки" — camera-independent, admin-toggleable (default off) showcase of the best-discount
+  // hot tours site-wide, reusing the same .sc-card styling as the per-camera showcase above.
+  function loadTopDealsWidget(){
+    var wrap=$('#topDealsShowcase'), groups=$('#topDealsGroups'); if(!wrap||!groups) return;
+    fetch(API+'/api/hot-tours/top-deals', {credentials:'include'})
+      .then(function(r){return r.ok?r.json():null;})
+      .then(function(j){
+        if(!j||!j.enabled||!j.deals||!j.deals.length){ wrap.hidden=true; return; }
+        groups.innerHTML=j.deals.map(function(a){
+          var disc=a.discountPct>0?'<span class="sc-disc">−'+a.discountPct+'%</span>':'';
+          var thumb=a.image?'<img class="sc-thumb" src="'+esc(a.image)+'" alt="'+esc(a.imageAlt||a.city)+'" loading="lazy">':'';
+          var oldp=a.oldPriceUAH?'<s>'+scMoney(a.oldPriceUAH)+'</s>':'';
+          return '<a class="sc-card" href="/hot-tours/'+encodeURIComponent(a.slug)+'">'+disc+thumb+
+            '<div class="t">'+esc(a.hotel||a.city)+' · '+(a.stars||0)+'★</div>'+
+            '<div class="m">'+esc(a.city)+', '+esc(a.country)+'</div>'+
+            '<div class="p">'+oldp+' '+scMoney(a.priceUAH)+'<span class="usd">'+scUsd(a.priceUAH)+'</span></div></a>';
+        }).join('');
+        wrap.hidden=false;
+      }).catch(function(){});
+  }
+
   function esimMoney(minor, cur){
     var v=(minor||0)/100, c=(cur||'USD').toUpperCase();
     if(c==='USD') return '$'+v.toFixed(2);
@@ -1249,7 +1276,7 @@ $('#customInput').addEventListener('keydown',e=>{if(e.key==='Enter'){state.query
         applyI18n();
         return loadCatalog();
       })
-      .then(function(){ startPoller(); loadDeals(); })
+      .then(function(){ startPoller(); loadDeals(); loadTopDealsWidget(); })
       .catch(function(e){ console.warn('ATM bootstrap failed', e); });
   }
 

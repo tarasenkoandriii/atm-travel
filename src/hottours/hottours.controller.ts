@@ -20,6 +20,43 @@ export class HotToursController {
     return { drafts: await this.svc.drafts() };
   }
 
+  // "Travelpayouts" admin tab: which of the 4 provider modes is live (+ raw env values) and the
+  // raw ingested tour pool for that provider specifically — see hottours-audit analysis.
+  @Get('api/hot-tours/tp-raw')
+  async tpRaw(
+    @Query('key') key?: string, @Query('country') country?: string, @Query('status') status?: string,
+    @Query('minDiscount') minDiscount?: string, @Query('sort') sort?: string,
+    @Query('page') page?: string, @Query('pageSize') pageSize?: string,
+  ) {
+    if (!this.svc.adminAllowed(key)) throw new UnauthorizedException();
+    const [data, showTopDealsWidget] = await Promise.all([
+      this.svc.tpRawTours({
+        country: country || undefined,
+        status: (['all', 'active', 'inactive', 'has-article', 'no-article'].includes(status || '') ? status : undefined) as any,
+        minDiscount: minDiscount ? parseInt(minDiscount, 10) : undefined,
+        sort: (['fetchedAt', 'discountPct', 'priceUAH'].includes(sort || '') ? sort : undefined) as any,
+        page: page ? parseInt(page, 10) : undefined,
+        pageSize: pageSize ? parseInt(pageSize, 10) : undefined,
+      }),
+      this.svc.getTopDealsWidgetSetting(),
+    ]);
+    return { ...data, showTopDealsWidget };
+  }
+
+  // Toggle for the homepage "Топ скидки" showcase widget — off by default.
+  @Post('api/hot-tours/top-deals-widget')
+  async setTopDealsWidget(@Body() body: { key?: string; enabled?: boolean }) {
+    if (!this.svc.adminAllowed(body?.key)) throw new UnauthorizedException();
+    return { ok: true, enabled: await this.svc.setTopDealsWidgetSetting(!!body?.enabled) };
+  }
+
+  // Public: powers the homepage widget itself. Always 200 + JSON — {enabled:false, deals:[]} when
+  // the admin has it switched off, rather than 404/403, so the frontend fetch stays simple.
+  @Get('api/hot-tours/top-deals')
+  async topDealsPublic() {
+    return this.svc.publicTopDeals(6);
+  }
+
   @Post('api/hot-tours/publish')
   async publish(@Body() body: { id?: string; key?: string }) {
     if (!this.svc.adminAllowed(body?.key)) throw new UnauthorizedException();

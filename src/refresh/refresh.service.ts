@@ -92,6 +92,12 @@ export class RefreshService {
         this.logger.log(`hot-tours: providers=${ht.providers} ingested=${ht.ingested} expired=${ht.expired} generated=${ht.generated}`);
       } catch (e) { this.logger.warn(`hot-tours cron skipped: ${String(e)}`); }
 
+      // Daily "top-3 deals" digest → public Telegram group (marketing/promo, not the admin channel).
+      try {
+        const dd = await this.hotTours.sendTopDealsDigest();
+        if (dd.sent) this.logger.log(`top-deals digest: sent (${dd.count} tours)`);
+      } catch (e) { this.logger.warn(`top-deals digest skipped: ${String(e)}`); }
+
       // Publish queue: nudge pending IG/YouTube jobs forward and fail ones stuck too long.
       try {
         const stuck = await this.publishJobs.cleanupStuck(60);
