@@ -172,9 +172,17 @@ export class HotToursService {
   // without waiting for the daily cron. Deliberately does NOT call expireStale() afterward: that
   // step marks anything absent from seenHashes as inactive, and seenHashes here only covers THIS
   // one provider — running it would wrongly deactivate every other provider's tours.
-  async manualIngest(providerId: string): Promise<{ count: number; error?: string }> {
+  async manualIngest(providerId: string): Promise<{ count: number; error?: string; diagnostics?: any[] }> {
     const r = await this.ingest(providerId);
-    return r.perProvider[providerId] || { count: 0, error: 'провайдер не найден или выключен (fetchTours недоступен)' };
+    const result = r.perProvider[providerId] || { count: 0, error: 'провайдер не найден или выключен (fetchTours недоступен)' };
+    // Per-location diagnostics (mode C/D only — mode B/A don't populate this) — shows exactly how
+    // many raw hotels came back per destination BEFORE the discount filter, so "why zero" is
+    // answerable without Vercel logs even when fetchTours() itself didn't throw.
+    if (providerId === 'travelpayouts') {
+      const diag = this.tpTours.getLastDiagnostics();
+      if (diag.length) return { ...result, diagnostics: diag };
+    }
+    return result;
   }
 
   // Hash excludes price → same tour at a new price maps to the same row (no duplicate page).

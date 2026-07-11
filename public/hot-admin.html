@@ -809,6 +809,7 @@ function renderTpTours(d){
       '<button class="btn" id="tpRefreshBtn"'+(st.mode==='none'?' disabled title="сначала включите режим"':'')+'>⟳ Запустить сейчас (без ожидания крона)</button>'+
       '<span id="tpRefreshStatus" style="font-size:12px;color:#8a97a3"></span>'+
     '</div>'+
+    '<div id="tpDiagBox"></div>'+
     '<div style="padding:0 2px 14px;font-size:11px;color:#5c6b7a;line-height:1.5">Украина закрыта для гражданских рейсов с 2022 — вылет из Киева не сработает никогда, это не баг конфигурации. Реалистичные аэропорты вылета — соседние страны, куда украинцы добираются наземным транспортом: Польша (RZE Жешув — ближайший к границе, WAW Варшава, KRK Краков), Венгрия (BUD Будапешт, DEB Дебрецен), Румыния (OTP Бухарест, IAS Яссы). Теперь можно указать НЕСКОЛЬКО через запятую в обеих переменных: HOT_TOURS_TP_ORIGIN=RZE,WAW,BUD,OTP (запрос уйдёт по каждому отдельно, результаты объединятся) и HOT_TOURS_TP_DEPARTURE=Варшава,Будапешт,Бухарест (для режимов C/D — циклически подставляется как подпись «вылет из…» на разные туры, для разнообразия в статьях). Другие возможные причины нуля: фид ещё ни разу не запускался до этой кнопки · неверный/просроченный TRAVELPAYOUTS_TOKEN · временная ошибка API.</div>'+
     '<div class="pb-head" style="margin-top:4px"><span>Значения переменных окружения</span></div>'+
     envCols+
@@ -864,14 +865,24 @@ function renderTpTours(d){
 
   var rb=$('#tpRefreshBtn');
   if(rb) rb.addEventListener('click', function(){
-    var rs=$('#tpRefreshStatus');
-    rb.disabled=true; rs.textContent='Запрашиваю Travelpayouts…';
+    var rs=$('#tpRefreshStatus'); var db=$('#tpDiagBox');
+    rb.disabled=true; rs.textContent='Запрашиваю Travelpayouts…'; db.innerHTML='';
     fetch('/api/hot-tours/tp-refresh', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ key:KEY }) })
       .then(function(r){ return r.json(); })
       .then(function(j){
         if(j&&j.error){ rs.innerHTML='<span style="color:#e0637a">ошибка: '+esc(j.error)+'</span>'; }
         else if(j&&j.count>0){ rs.innerHTML='<span style="color:#37d67a">✓ добавлено/обновлено: '+j.count+' туров</span>'; }
-        else { rs.textContent='API ответил успешно, но нашёл 0 туров — см. пояснение под кнопкой'; }
+        else { rs.textContent='API ответил успешно, но нашёл 0 туров — см. диагностику по направлениям ниже'; }
+        if(j&&j.diagnostics&&j.diagnostics.length){
+          var rows=j.diagnostics.map(function(d){
+            var statusTxt = d.error ? '<span style="color:#e0637a">'+esc(d.error)+'</span>'
+              : (d.rawCount>0 && d.keptCount===0 ? '<span style="color:#e0a63e">получено, но без скидки</span>' : '<span style="color:#37d67a">ок</span>');
+            return '<tr><td>'+esc(d.loc)+'</td><td class="num">'+(d.cityId||'—')+'</td><td class="num">'+(d.httpStatus||'—')+'</td>'+
+              '<td class="num">'+d.rawCount+'</td><td class="num">'+d.keptCount+'</td><td>'+statusTxt+'</td></tr>';
+          }).join('');
+          db.innerHTML='<div class="panelbox" style="margin-top:10px"><div class="pb-head"><span>Диагностика по направлениям (последний запуск)</span></div>'+
+            '<table><thead><tr><th>Локация</th><th class="num">cityId</th><th class="num">HTTP</th><th class="num">Получено</th><th class="num">Со скидкой</th><th>Статус</th></tr></thead><tbody>'+rows+'</tbody></table></div>';
+        }
         rb.disabled=false;
         loadTpTours();
       })

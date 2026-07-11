@@ -132,6 +132,15 @@ export class TravelpayoutsToursProvider implements ITourProvider {
     };
   }
 
+  // Per-location diagnostics from the LAST fromDiscounts()/fromHotels() run — surfaced by the admin
+  // "запустить сейчас" button so "why zero" is answerable without digging through Vercel logs: was
+  // the cityId resolved, did the HTTP call succeed, how many hotels came back BEFORE the discount
+  // filter, and how many survived it. A location returning rawCount>0 but keptCount=0 means the
+  // Hotellook collection for that city/type genuinely had no discounted hotels right now — not a
+  // config error; a location with cityId=null means resolveCityId() itself failed for that IATA code.
+  private lastDiagnostics: { loc: string; cityId: number | null; httpStatus: number | null; rawCount: number; keptCount: number; error?: string }[] = [];
+  getLastDiagnostics() { return this.lastDiagnostics; }
+
   // ── Mode D (preferred): Hotellook Selections — real hotel deals WITH a discount %. ──
   // widget_location_dump.json returns hotels with last_price_info{price, old_price, discount, nights};
   // we keep only entries that actually carry a discount, so pages show a real "−N%".
@@ -141,21 +150,27 @@ export class TravelpayoutsToursProvider implements ITourProvider {
     const checkOut = new Date(Date.now() + (30 + nights) * 864e5);
     const ci = checkIn.toISOString().slice(0, 10), co = checkOut.toISOString().slice(0, 10);
     const out: NormalizedTour[] = [];
+    this.lastDiagnostics = [];
     for (const loc of this.locations.slice(0, 20)) {
+      const diag = { loc, cityId: null as number | null, httpStatus: null as number | null, rawCount: 0, keptCount: 0, error: undefined as string | undefined };
       const cityId = await this.resolveCityId(loc);
-      if (!cityId) { this.logger.warn(`Hotellook: no cityId for ${loc}`); continue; }
+      diag.cityId = cityId;
+      if (!cityId) { diag.error = 'cityId не резолвится (Hotellook lookup.json не нашёл город)'; this.logger.warn(`Hotellook: no cityId for ${loc}`); this.lastDiagnostics.push(diag); continue; }
       try {
         const url = `https://yasen.hotellook.com/tp/public/widget_location_dump.json?currency=uah&language=ru&limit=8` +
           `&id=${cityId}&type=${encodeURIComponent(this.selection)}&check_in=${ci}&check_out=${co}&token=${encodeURIComponent(this.token)}`;
         const r = await fetch(url);
-        if (!r.ok) { this.logger.warn(`Hotellook dump ${loc} HTTP ${r.status}`); continue; }
+        diag.httpStatus = r.status;
+        if (!r.ok) { diag.error = `HTTP ${r.status}`; this.logger.warn(`Hotellook dump ${loc} HTTP ${r.status}`); this.lastDiagnostics.push(diag); continue; }
         const j: any = await r.json();
         const arr: any[] = Array.isArray(j?.[this.selection]) ? j[this.selection] : (Array.isArray(j) ? j : []);
+        diag.rawCount = arr.length;
         for (const h of arr) {
           const lpi = h.last_price_info || {};
           const price = Math.round(Number(lpi.price || 0));
           const oldPrice = Math.round(Number(lpi.old_price || 0));
           if (!price || Number(lpi.discount || 0) <= 0) continue;  // only real discounts
+          diag.keptCount++;
           out.push({
             destinationCountry: IATA[loc]?.country || '', destinationCity: IATA[loc]?.city || loc,
             countryCode: IATA[loc]?.cc || null,
@@ -167,7 +182,8 @@ export class TravelpayoutsToursProvider implements ITourProvider {
             affiliateDeepLink: `https://search.hotellook.com/?marker=${encodeURIComponent(this.marker)}&hotelId=${h.hotel_id}&language=ru`,
           });
         }
-      } catch (e: any) { this.logger.warn(`Hotellook dump ${loc} error: ${e?.message || e}`); }
+      } catch (e: any) { diag.error = e?.message || String(e); this.logger.warn(`Hotellook dump ${loc} error: ${e?.message || e}`); }
+      this.lastDiagnostics.push(diag);
     }
     return out;
   }
@@ -196,17 +212,22 @@ export class TravelpayoutsToursProvider implements ITourProvider {
     const checkOut = new Date(Date.now() + (30 + nights) * 864e5);
     const ci = checkIn.toISOString().slice(0, 10), co = checkOut.toISOString().slice(0, 10);
     const out: NormalizedTour[] = [];
+    this.lastDiagnostics = [];
     for (const loc of this.locations.slice(0, 20)) {
+      const diag = { loc, cityId: null as number | null, httpStatus: null as number | null, rawCount: 0, keptCount: 0, error: undefined as string | undefined };
       try {
         const url = `https://engine.hotellook.com/api/v2/cache.json?location=${encodeURIComponent(loc)}` +
           `&checkIn=${ci}&checkOut=${co}&currency=uah&limit=6&token=${encodeURIComponent(this.token)}`;
         const r = await fetch(url);
-        if (!r.ok) { this.logger.warn(`Hotellook cache ${loc} HTTP ${r.status}`); continue; }
+        diag.httpStatus = r.status;
+        if (!r.ok) { diag.error = `HTTP ${r.status}`; this.logger.warn(`Hotellook cache ${loc} HTTP ${r.status}`); this.lastDiagnostics.push(diag); continue; }
         const j: any = await r.json();
         const arr: any[] = Array.isArray(j) ? j : (j && j.hotelName ? [j] : []);
+        diag.rawCount = arr.length;
         for (const h of arr) {
           const price = Math.round(Number(h.priceFrom || h.priceAvg || 0));
           if (!price || !h.hotelName) continue;
+          diag.keptCount++;
           out.push({
             destinationCountry: IATA[loc]?.country || h?.location?.country || '',
             destinationCity: IATA[loc]?.city || h?.location?.name || loc,
@@ -218,7 +239,8 @@ export class TravelpayoutsToursProvider implements ITourProvider {
             affiliateDeepLink: `https://search.hotellook.com/?marker=${encodeURIComponent(this.marker)}&hotelId=${h.hotelId}&language=ru`,
           });
         }
-      } catch (e: any) { this.logger.warn(`Hotellook cache ${loc} error: ${e?.message || e}`); }
+      } catch (e: any) { diag.error = e?.message || String(e); this.logger.warn(`Hotellook cache ${loc} error: ${e?.message || e}`); }
+      this.lastDiagnostics.push(diag);
     }
     return out;
   }
