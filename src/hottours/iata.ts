@@ -41,11 +41,19 @@ export const IATA: Record<string, { city: string; country: string; cc: string; c
   ZNZ: { city: 'Занзибар', country: 'Танзания', cc: 'TZ' },
   TBS: { city: 'Тбилиси', country: 'Грузия', cc: 'GE' },
   BUS: { city: 'Батуми', country: 'Грузия', cc: 'GE' },
-  // departure hubs (city only used for departureCity)
+  // departure hubs (city only used for departureCity) — IEV/KBP kept for completeness, but Ukrainian
+  // airspace has been closed since Feb 2022 (no commercial flights depart from Ukraine); the
+  // practically useful origins for a Ukraine-facing site are the neighboring countries Ukrainians
+  // actually travel to by land to fly onward from: Poland, Hungary, Romania.
   IEV: { city: 'Київ', country: 'Україна', cc: 'UA' },
   KBP: { city: 'Київ', country: 'Україна', cc: 'UA' },
   WAW: { city: 'Варшава', country: 'Польша', cc: 'PL' },
   KRK: { city: 'Краків', country: 'Польша', cc: 'PL' },
+  RZE: { city: 'Жешув', country: 'Польша', cc: 'PL' },       // closest major airport to the Ukrainian border — heavily used
+  BUD: { city: 'Будапешт', country: 'Венгрия', cc: 'HU' },
+  DEB: { city: 'Дебрецен', country: 'Венгрия', cc: 'HU' },   // closer to western Ukraine than Budapest
+  OTP: { city: 'Бухарест', country: 'Румыния', cc: 'RO' },
+  IAS: { city: 'Яссы', country: 'Румыния', cc: 'RO' },       // closer to the Ukrainian border than Bucharest
   KIV: { city: 'Кишинёв', country: 'Молдова', cc: 'MD' },
   RIX: { city: 'Рига', country: 'Латвия', cc: 'LV' },
 };

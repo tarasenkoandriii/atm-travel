@@ -31,8 +31,27 @@ export class TravelpayoutsToursProvider implements ITourProvider {
   private get selection() { return this.config.get<string>('HOT_TOURS_TP_SELECTION') || 'popularity'; }
   private get hotels() { const v = this.config.get<string>('HOT_TOURS_TP_HOTELS'); return v === '1' || v === 'true'; }
   private get flights() { const v = this.config.get<string>('HOT_TOURS_TP_FLIGHTS'); return v === '1' || v === 'true'; }
-  private get origin() { return (this.config.get<string>('HOT_TOURS_TP_ORIGIN') || '').toUpperCase(); }
-  private get departure() { return this.config.get<string>('HOT_TOURS_TP_DEPARTURE') || 'Київ'; }
+  // Multiple origins, comma-separated (same convention as `locations` below) — Ukrainian airspace
+  // has been closed since Feb 2022, so a single Kyiv origin returns nothing; the realistic origins
+  // for this site are neighboring-country hub airports Ukrainians travel to by land (Poland/Hungary/
+  // Romania). fromFlightDeals() queries get_popular_directions once per origin and merges results.
+  private get origins() {
+    return (this.config.get<string>('HOT_TOURS_TP_ORIGIN') || '')
+      .split(',').map((s) => s.trim().toUpperCase()).filter(Boolean);
+  }
+  // Multiple departure-city labels, comma-separated (same convention as origins/locations) — cycled
+  // round-robin across generated rows in modes C/D (Hotellook doesn't search flights, so this is a
+  // display/content label, not an API parameter) so realistic variety appears across the pool —
+  // some tours say "from Warsaw", others "from Budapest" — instead of every single one claiming the
+  // exact same departure city regardless of which neighboring hub is actually configured.
+  private get departures() {
+    return (this.config.get<string>('HOT_TOURS_TP_DEPARTURE') || 'Київ')
+      .split(',').map((s) => s.trim()).filter(Boolean);
+  }
+  private departureAt(i: number): string {
+    const d = this.departures;
+    return d[i % d.length] || 'Київ';
+  }
   private get locations() {
     return (this.config.get<string>('HOT_TOURS_TP_LOCATIONS') ||
       'AYT,HRG,SSH,HER,RHO,LCA,DXB,HKT,BJV,DLM,AGP,PMI,TFS,BOJ,VAR,TIV,DJE,ZNZ,PUJ,CUN')
@@ -40,14 +59,19 @@ export class TravelpayoutsToursProvider implements ITourProvider {
   }
   private readonly cityIdCache = new Map<string, number>();
 
-  // Departure-city label → IATA (for the strict origin id on hotel/tour rows).
-  private depIata(): string | null {
+  // Departure-city label → IATA (for the strict origin id on hotel/tour rows). Accepts an explicit
+  // name (the specific departureAt(i) assigned to THIS row) so multi-departure cycling resolves the
+  // correct IATA per row instead of always the first configured city.
+  private depIata(name?: string): string | null {
     const m: Record<string, string> = {
       'київ': 'IEV', 'киев': 'IEV', 'kyiv': 'IEV', 'kiev': 'IEV', 'львів': 'LWO', 'львов': 'LWO',
-      'варшава': 'WAW', 'warsaw': 'WAW', 'краків': 'KRK', 'краков': 'KRK', 'krakow': 'KRK',
+      'варшава': 'WAW', 'warsaw': 'WAW', 'краків': 'KRK', 'краков': 'KRK', 'krakow': 'KRK', 'жешув': 'RZE', 'rzeszow': 'RZE', 'rzeszów': 'RZE',
+      'будапешт': 'BUD', 'budapest': 'BUD', 'дебрецен': 'DEB', 'debrecen': 'DEB',
+      'бухарест': 'OTP', 'bucharest': 'OTP', 'яссы': 'IAS', 'iasi': 'IAS', 'iași': 'IAS',
       'кишинів': 'KIV', 'кишинев': 'KIV', 'chisinau': 'KIV', 'рига': 'RIX', 'riga': 'RIX',
     };
-    return m[(this.departure || '').trim().toLowerCase()] || (this.origin || null);
+    const key = (name ?? this.departures[0] ?? '').trim().toLowerCase();
+    return m[key] || (this.origins[0] || null);
   }
 
   get enabled() {
@@ -89,7 +113,7 @@ export class TravelpayoutsToursProvider implements ITourProvider {
       modeLabel = 'Режим C — Hotellook Hotels (HOT_TOURS_TP_HOTELS=1): цена «от» по кэшу отелей, БЕЗ проверки скидки — discountPct будет 0 у всех туров этого режима. Правило "любой TP-тур = горящий" (без порога % / звёзд) всё равно применяется при генерации статей.';
     } else if (this.flights) {
       mode = 'B';
-      modeLabel = 'Режим B — Aviasales Flight Data (HOT_TOURS_TP_FLIGHTS=1): самые дешёвые билеты за последние 48ч (get_latest_prices) или популярные направления от узлового города (get_popular_directions, если задан HOT_TOURS_TP_ORIGIN). Это билеты, не пакетные туры — hotelName/stars будут пустыми.';
+      modeLabel = 'Режим B — Aviasales Flight Data (HOT_TOURS_TP_FLIGHTS=1): популярные направления от каждого города в HOT_TOURS_TP_ORIGIN (через запятую — можно несколько сразу, get_popular_directions на каждый), либо просто самые дешёвые билеты за последние 48ч (get_latest_prices), если ORIGIN не задан. Это билеты, не пакетные туры — hotelName/stars будут пустыми. Украина закрыта для гражданских рейсов с 2022 — используйте хабы соседних стран (Польша/Венгрия/Румыния), не украинские аэропорты.';
     }
     return {
       mode, modeLabel, enabled: this.enabled,
@@ -101,8 +125,8 @@ export class TravelpayoutsToursProvider implements ITourProvider {
         HOT_TOURS_TP_SELECTION: { value: this.selection, set: !!this.config.get<string>('HOT_TOURS_TP_SELECTION') },
         HOT_TOURS_TP_HOTELS: { value: this.hotels ? '1' : '(не задано)', set: this.hotels },
         HOT_TOURS_TP_FLIGHTS: { value: this.flights ? '1' : '(не задано)', set: this.flights },
-        HOT_TOURS_TP_ORIGIN: { value: this.origin || '(не задано)', set: !!this.origin },
-        HOT_TOURS_TP_DEPARTURE: { value: this.departure, set: !!this.config.get<string>('HOT_TOURS_TP_DEPARTURE') },
+        HOT_TOURS_TP_ORIGIN: { value: this.origins.length ? this.origins.join(', ') : '(не задано)', set: this.origins.length > 0 },
+        HOT_TOURS_TP_DEPARTURE: { value: this.departures.join(', '), set: !!this.config.get<string>('HOT_TOURS_TP_DEPARTURE') },
         HOT_TOURS_TP_LOCATIONS: { value: this.locations.join(', '), set: !!this.config.get<string>('HOT_TOURS_TP_LOCATIONS') },
       },
     };
@@ -135,9 +159,9 @@ export class TravelpayoutsToursProvider implements ITourProvider {
           out.push({
             destinationCountry: IATA[loc]?.country || '', destinationCity: IATA[loc]?.city || loc,
             countryCode: IATA[loc]?.cc || null,
-            destIata: loc, destCityId: String(cityId), originIata: this.depIata(),
+            destIata: loc, destCityId: String(cityId), originIata: this.depIata(this.departureAt(out.length)),
             hotelName: String(h.name || ''), hotelStars: Number(h.stars || 0), boardType: null,
-            departureCity: this.departure, departureDate: checkIn.toISOString(),
+            departureCity: this.departureAt(out.length), departureDate: checkIn.toISOString(),
             nights: Number(lpi.nights || nights),
             priceUAH: price, oldPriceUAH: oldPrice > price ? oldPrice : null, operator: 'Hotellook',
             affiliateDeepLink: `https://search.hotellook.com/?marker=${encodeURIComponent(this.marker)}&hotelId=${h.hotel_id}&language=ru`,
@@ -187,9 +211,9 @@ export class TravelpayoutsToursProvider implements ITourProvider {
             destinationCountry: IATA[loc]?.country || h?.location?.country || '',
             destinationCity: IATA[loc]?.city || h?.location?.name || loc,
             countryCode: IATA[loc]?.cc || countryCodeOf(h?.location?.country || '') || null,
-            destIata: loc, destCityId: IATA[loc]?.cityId ? String(IATA[loc]!.cityId) : (h?.locationId ? String(h.locationId) : null), originIata: this.depIata(),
+            destIata: loc, destCityId: IATA[loc]?.cityId ? String(IATA[loc]!.cityId) : (h?.locationId ? String(h.locationId) : null), originIata: this.depIata(this.departureAt(out.length)),
             hotelName: String(h.hotelName), hotelStars: Number(h.stars || 0), boardType: null,
-            departureCity: this.departure, departureDate: checkIn.toISOString(), nights,
+            departureCity: this.departureAt(out.length), departureDate: checkIn.toISOString(), nights,
             priceUAH: price, oldPriceUAH: null, operator: 'Hotellook',
             affiliateDeepLink: `https://search.hotellook.com/?marker=${encodeURIComponent(this.marker)}&hotelId=${h.hotelId}&language=ru`,
           });
@@ -205,16 +229,22 @@ export class TravelpayoutsToursProvider implements ITourProvider {
   private async fromFlightDeals(): Promise<NormalizedTour[]> {
     const cur = 'uah';
     const headers = { 'X-Access-Token': this.token };
+    // Sanity cap, not a rate-limit workaround — the Data API has no request-rate restriction
+    // (confirmed in Travelpayouts' own FAQ), this just avoids an admin accidentally listing 50
+    // origins and making that many sequential requests for no practical benefit.
+    const origins = this.origins.slice(0, 8);
     try {
       let rows: any[] = [];
-      if (this.origin) {
-        const r = await fetch(`${TravelpayoutsToursProvider.V3}/get_popular_directions?origin=${encodeURIComponent(this.origin)}&currency=${cur}`, { headers });
-        if (r.ok) { const j: any = await r.json(); if (j?.success && j.data) rows = Object.values(j.data); }
-        else this.logger.warn(`TP get_popular_directions HTTP ${r.status}`);
+      for (const o of origins) {
+        const r = await fetch(`${TravelpayoutsToursProvider.V3}/get_popular_directions?origin=${encodeURIComponent(o)}&currency=${cur}`, { headers });
+        if (r.ok) { const j: any = await r.json(); if (j?.success && j.data) rows.push(...Object.values(j.data)); }
+        else this.logger.warn(`TP get_popular_directions(${o}) HTTP ${r.status}`);
       }
       if (!rows.length) {
+        // No origins configured (or none of them returned anything) — fall back to the global
+        // cheapest-tickets-in-48h feed, optionally still scoped to the first configured origin.
         const p = new URLSearchParams({ currency: cur, period_type: 'year', page: '1', limit: '30', show_to_affiliates: 'true', sorting: 'price', trip_class: '0' });
-        if (this.origin) p.set('origin', this.origin);
+        if (origins[0]) p.set('origin', origins[0]);
         const r = await fetch(`${TravelpayoutsToursProvider.V3}/get_latest_prices?${p.toString()}`, { headers });
         if (r.ok) { const j: any = await r.json(); if (j?.success && Array.isArray(j.data)) rows = j.data; }
         else this.logger.warn(`TP get_latest_prices HTTP ${r.status}`);
@@ -228,7 +258,10 @@ export class TravelpayoutsToursProvider implements ITourProvider {
         const dep = d.depart_date || d.departure_at || d.found_at || new Date().toISOString();
         const ret = d.return_date || d.return_at || null;
         const nights = ret ? Math.max(1, Math.round((+new Date(ret) - +new Date(dep)) / 864e5)) : 7;
-        const originIata = String(d.origin || this.origin || '').toUpperCase();
+        // Each get_popular_directions row already carries its own "origin" field — this is what lets
+        // results from DIFFERENT configured origins stay correctly attributed after being merged
+        // into one array above, rather than all defaulting to the same departure city.
+        const originIata = String(d.origin || origins[0] || '').toUpperCase();
         out.push({
           destinationCountry: dst.country, destinationCity: dst.city, countryCode: dst.cc,
           destIata: String(d.destination || '').toUpperCase(), destCityId: IATA[String(d.destination || '').toUpperCase()]?.cityId ? String(IATA[String(d.destination || '').toUpperCase()]!.cityId) : null, originIata: originIata || null,
@@ -279,7 +312,7 @@ export class TravelpayoutsToursProvider implements ITourProvider {
       destIata: t.destIata || t.iata || null, destCityId: t.cityId || t.locationId || null, originIata: t.originIata || t.fromIata || this.depIata(),
       hotelName: String(t.hotel || t.hotelName || '').trim() || `Отель в ${city}`,
       hotelStars: Number(t.stars || t.hotelStars || 0), boardType: t.board || t.boardType || null,
-      departureCity: String(t.from || t.departureCity || '').trim() || 'Київ',
+      departureCity: String(t.from || t.departureCity || '').trim() || this.departures[0] || 'Київ',
       departureDate: new Date(t.date || t.departureDate || Date.now()).toISOString(),
       nights: Number(t.nights || 7), priceUAH: Math.round(price),
       oldPriceUAH: t.oldPrice || t.oldPriceUAH ? Math.round(Number(t.oldPrice || t.oldPriceUAH)) : null,
